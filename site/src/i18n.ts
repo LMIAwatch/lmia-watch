@@ -39,6 +39,7 @@ const STRINGS = {
   "footer.corrections": { en: "Corrections", fr: "Corrections" },
   "footer.support": { en: "Support the Site", fr: "Soutenir le site" },
   "footer.x": { en: "LMIA Watch on X", fr: "LMIA Watch sur X" },
+  "footer.bluesky": { en: "LMIA Watch on Bluesky", fr: "LMIA Watch sur Bluesky" },
   "footer.copyright": { en: "© 2026 LMIA Watch", fr: "© 2026 LMIA Watch" },
   "search.placeholder": { en: "Employer, city, postal code or occupation", fr: "Employeur, ville, code postal ou profession" },
   "search.button": { en: "Search", fr: "Rechercher" },

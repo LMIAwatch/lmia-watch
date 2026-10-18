@@ -17,6 +17,7 @@ export const SITE_ORIGIN = "https://lmiawatch.ca";
 export const SITE_NAME = "LMIA Watch";
 export const X_ACCOUNT_URL = "https://x.com/LMIAwatch";
 export const X_HANDLE = "@LMIAwatch";
+export const BLUESKY_ACCOUNT_URL = "https://bsky.app/profile/lmiawatch.bsky.social";
 // A result list cuts a description near 160 characters; stay under it.
 export const DESCRIPTION_MAX = 159;
 
@@ -195,7 +196,7 @@ export function homeJsonLd(lang: Lang): object {
           width: SOCIAL_SQUARE.width,
           height: SOCIAL_SQUARE.height,
         },
-        sameAs: [X_ACCOUNT_URL],
+        sameAs: [X_ACCOUNT_URL, BLUESKY_ACCOUNT_URL],
       },
       {
         "@type": "WebSite",

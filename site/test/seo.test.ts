@@ -145,7 +145,7 @@ describe("page metadata", () => {
     });
     expect(site.publisher).toEqual({ "@id": org["@id"] });
     expect(org.name).toBe("LMIA Watch");
-    expect(org.sameAs).toEqual(["https://x.com/LMIAwatch"]);
+    expect(org.sameAs).toEqual(["https://x.com/LMIAwatch", "https://bsky.app/profile/lmiawatch.bsky.social"]);
     // A publisher is the project; nothing in the graph describes a person.
     expect(JSON.stringify(ld)).not.toMatch(/"Person"|founder|author|employee/);
   });
