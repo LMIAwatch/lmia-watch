@@ -176,6 +176,14 @@ paid-plan path and is not part of the nightly run.
   next scheduled run; there is no push-to-deploy job and no `workflow_dispatch`.
   An urgent code fix can be deployed from the project account's own machine with
   `npm run deploy` after `npm run data:local`, never from a personal one.
+- Failure handling lives in `pipeline/lmia_pipeline/nightly.py`, called between
+  the workflow's steps: `restore` stops the run when a backup exists but cannot
+  be used (a damaged newest backup falls back to `lmia.sqlite.prev.gz`; only when
+  neither exists does a run start empty), `verify` checks the database and the
+  export so broken or empty data is never deployed and a database that lost rows
+  is never saved, and `status` writes `status.json` whatever happened. A failed
+  stage is recorded and the run goes on. The save keeps last night's backup as
+  `lmia.sqlite.prev.gz`. Every R2 call uses the site's pinned Wrangler.
 - Optional X post: after the deploy and before the R2 save, the workflow runs
   `python -m lmia_pipeline post-digest` (`pipeline/lmia_pipeline/social.py`) when
   the repository variable `X_POST_ENABLED` is `true` and the four secrets

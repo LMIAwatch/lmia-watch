@@ -5,9 +5,22 @@
 #
 # Steps: restore the SQLite file from R2, run every pipeline stage (the
 # pipeline itself skips Job Bank if it already ran within the last 20 hours),
-# bundle the static JSON, deploy the Worker with that data as its assets, post
-# the daily digest to X when its secrets exist, save the database and the
-# public files back to R2.
+# check the database and the export, deploy the Worker with that data as its
+# assets, post the daily digest to X when its secrets exist, save the database
+# and the public files back to R2, and write the run status.
+#
+# What a failure does (lmia_pipeline/nightly.py holds the checks):
+# - A backup that exists but cannot be downloaded or used stops the run before
+#   the pipeline, so an empty database never rebuilds the site and never
+#   replaces the backup. A damaged newest backup falls back to the previous
+#   one; only when neither exists does the run start from nothing.
+# - A stage that fails is recorded and the run goes on; the export is checked
+#   before it is deployed, so broken or empty data is never published and the
+#   site keeps its last good deploy.
+# - The database is checked before it is saved, and last night's backup is
+#   kept as the previous one before it is replaced.
+# - The status file is written whatever happened, so the site's daily check
+#   always has something current to read.
 #
 # Secrets on the project account: CLOUDFLARE_API_TOKEN (Workers + R2 + D1),
 # CLOUDFLARE_ACCOUNT_ID. Optional: X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN,
@@ -46,6 +59,11 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       LMIAWATCH_SITE_URL: ${{ vars.SITE_URL }}
       LMIAWATCH_CONTACT: ${{ vars.CONTACT }}
+      # The site's pinned Wrangler (package-lock.json) for every R2 call as well
+      # as the deploy, so a new Wrangler release cannot change how the backup
+      # is read or written. Installed by the "site's tools" step.
+      WRANGLER: ${{ github.workspace }}/site/node_modules/.bin/wrangler
+      BUCKET: lmia-watch-data
     steps:
       # Fail in seconds, not after an hour of crawling, until the account is wired up.
       - name: Check that the Cloudflare secrets exist
@@ -65,48 +83,81 @@ jobs:
       # file; a regular install would look for them inside site-packages.
       - name: Install the pipeline
         run: pip install -e ./pipeline
+      - name: Install the site's tools
+        working-directory: site
+        run: npm ci
 
-      # The database travels gzipped: the raw file is above the single-object
-      # size the command-line upload accepts, and it compresses about three to one.
-      # --remote on every r2 command: without it Wrangler 4 reads and writes a
-      # local simulated bucket on the runner, which is thrown away with the job.
       # The download cache (ESDC files, the federal extract, the wage tables, the
       # LFS table, the boundaries) persists between runs through the Actions
       # cache, so weekly and monthly revalidation means what it says instead
       # of a fresh download every night. A new key each run saves the latest
-      # state; restore-keys picks the newest previous one.
+      # state; restore-keys picks the newest previous one. Restore and save are
+      # separate steps so the cache is saved even on a night that reports a
+      # failure; a cache service fault only costs a fresh download.
       - name: Restore the download cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
+        continue-on-error: true
         with:
           path: data/raw/cache
           key: raw-cache-${{ github.run_id }}
           restore-keys: raw-cache-
 
-      - name: Restore the database from R2 (first run has none)
-        continue-on-error: true
+      # The database travels gzipped: the raw file is above the single-object
+      # size the command-line upload accepts, and it compresses about three to one.
+      # --remote on every r2 command: without it Wrangler 4 reads and writes a
+      # local simulated bucket on the runner, which is thrown away with the job.
+      # Each download is tried three times; "does not exist" ends the tries,
+      # since that is an answer, not an outage. The restore command decides.
+      - name: Restore the database from R2
+        id: restore
         run: |
-          npx --yes wrangler r2 object get --remote lmia-watch-data/lmia.sqlite.gz --file data/lmia.sqlite.gz
-          gunzip -f data/lmia.sqlite.gz
+          mkdir -p data/restore data/out
+          fetch() {
+            key="$1"
+            for attempt in 1 2 3; do
+              if "$WRANGLER" r2 object get --remote "$BUCKET/$key" --file "data/restore/$key" > "data/restore/$key.log" 2>&1; then
+                echo 0 > "data/restore/$key.exit"
+                return 0
+              fi
+              echo 1 > "data/restore/$key.exit"
+              if grep -qi "specified key does not exist" "data/restore/$key.log"; then return 0; fi
+              sleep 20
+            done
+          }
+          fetch lmia.sqlite.gz
+          fetch lmia.sqlite.prev.gz
+          python -m lmia_pipeline.nightly restore --dir data/restore --db data/lmia.sqlite --out data/out/restore.json
 
       # 400 posting pages a night: at Job Bank's pace that is a few hours, well
-      # inside the window before the next run.
+      # inside the window before the next run. A non-zero exit marks the run
+      # failed, and the steps below still check and save what the run produced.
       - name: Run every stage
+        id: pipeline
         run: |
-          mkdir -p data/out
           date -u +"%Y-%m-%dT%H:%M:%SZ" > data/out/run_started.txt
           python -m lmia_pipeline run --db data/lmia.sqlite --detail-budget 400
 
+      - name: Check the database and the export
+        id: verify
+        if: ${{ !cancelled() && steps.restore.outcome == 'success' }}
+        run: |
+          python -m lmia_pipeline.nightly verify --db data/lmia.sqlite --static data/out/static \
+            --started-file data/out/run_started.txt --restore data/out/restore.json --out data/out/verify.json
+
       - name: Bundle the static data for the site
+        id: bundle
+        if: ${{ !cancelled() && steps.verify.outputs.export_ok == 'true' }}
         run: |
           rm -rf site/public/data
           cp -r data/out/static site/public/data
           tar -czf data/out/static.tar.gz -C data/out static
 
+      # A failed deploy leaves the live site on its previous version.
       - name: Deploy the Worker with the new data as assets
+        id: deploy
+        if: ${{ !cancelled() && steps.bundle.outcome == 'success' }}
         working-directory: site
-        run: |
-          npm ci
-          npx wrangler deploy
+        run: npx wrangler deploy
 
       # After the deploy, so the link shows the postings the digest counts, and
       # before the R2 save, so the recorded post date travels with the database.
@@ -116,7 +167,7 @@ jobs:
       # on, and LAST_RUN.md records the outcome. The pipeline refuses a second
       # post for the same Job Bank pass, so a re-run cannot post twice.
       - name: Post the daily digest to X (only when X_POST_ENABLED is true)
-        if: vars.X_POST_ENABLED == 'true'
+        if: ${{ !cancelled() && vars.X_POST_ENABLED == 'true' && steps.deploy.outcome == 'success' }}
         continue-on-error: true
         env:
           X_API_KEY: ${{ secrets.X_API_KEY }}
@@ -131,40 +182,71 @@ jobs:
           fi
           python -m lmia_pipeline post-digest --db data/lmia.sqlite $LINK
 
-      # What the daily check in the Worker reads: when the run finished, which
-      # stages succeeded, and the X post's outcome.
-      - name: Write the run status
-        run: |
-          python - <<'PY'
-          import json, sqlite3, datetime, pathlib
-          conn = sqlite3.connect("data/lmia.sqlite")
-          start = pathlib.Path("data/out/run_started.txt").read_text().strip()
-          rows = conn.execute("SELECT source, ok, detail FROM sources_log WHERE run_at >= ? ORDER BY id", (start,)).fetchall()
-          outcome = pathlib.Path("data/out/social/last_outcome.txt")
-          status = {
-              "run_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
-              "stages": [{"source": s, "ok": bool(ok), "detail": (d or "")[:200]} for s, ok, d in rows],
-              "x_post": outcome.read_text().strip() if outcome.exists() else "not run",
-          }
-          status["ok"] = all(x["ok"] for x in status["stages"])
-          pathlib.Path("data/out/status.json").write_text(json.dumps(status, indent=1))
-          print(json.dumps(status, indent=1))
-          PY
-
-      - name: Save the database and public files to R2
+      # Only a database that passed its checks is saved, whether or not the
+      # deploy worked, so a night's Job Bank observations are kept even when
+      # the site could not be updated. Last night's backup becomes the previous
+      # one first; when the run started from the previous one (the newest was
+      # damaged) that copy is left as it is.
+      - name: Save the database to R2
+        id: save_db
+        if: ${{ !cancelled() && steps.verify.outputs.db_ok == 'true' }}
         run: |
           gzip -c data/lmia.sqlite > data/out/lmia.sqlite.gz
-          npx --yes wrangler r2 object put --remote lmia-watch-data/lmia.sqlite.gz --file data/out/lmia.sqlite.gz
-          npx --yes wrangler r2 object put --remote lmia-watch-data/static.tar.gz --file data/out/static.tar.gz
-          npx --yes wrangler r2 object put --remote lmia-watch-data/status.json --file data/out/status.json
+          source=$(python -c 'import json; print(json.load(open("data/out/restore.json"))["source"])')
+          if [ "$source" = "backup" ]; then
+            "$WRANGLER" r2 object put --remote "$BUCKET/lmia.sqlite.prev.gz" --file data/restore/lmia.sqlite.gz
+          fi
+          "$WRANGLER" r2 object put --remote "$BUCKET/lmia.sqlite.gz" --file data/out/lmia.sqlite.gz
+
+      # The downloads and the bundle match what was deployed, so they are saved
+      # only after a deploy that worked.
+      - name: Save the public files to R2
+        id: save_files
+        if: ${{ !cancelled() && steps.deploy.outcome == 'success' }}
+        run: |
+          "$WRANGLER" r2 object put --remote "$BUCKET/static.tar.gz" --file data/out/static.tar.gz
           for f in data/out/csv/*.csv; do
-            npx --yes wrangler r2 object put --remote "lmia-watch-data/downloads/$(basename "$f")" --file "$f"
+            "$WRANGLER" r2 object put --remote "$BUCKET/downloads/$(basename "$f")" --file "$f"
           done
           for f in data/out/mirror/*; do
-            npx --yes wrangler r2 object put --remote "lmia-watch-data/mirror/$(basename "$f")" --file "$f"
+            "$WRANGLER" r2 object put --remote "$BUCKET/mirror/$(basename "$f")" --file "$f"
           done
 
+      - name: Save the download cache
+        if: ${{ always() && steps.pipeline.outcome != 'skipped' }}
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: data/raw/cache
+          key: raw-cache-${{ github.run_id }}
+
+      # What the daily check in the Worker reads: when the run finished, which
+      # stages and steps succeeded, what the checks found, and the X post's
+      # outcome. Written whatever happened above.
+      - name: Write the run status
+        if: ${{ always() }}
+        run: |
+          python -m lmia_pipeline.nightly status --db data/lmia.sqlite \
+            --started-file data/out/run_started.txt --verify data/out/verify.json \
+            --outcome data/out/social/last_outcome.txt \
+            --step "restore=${{ steps.restore.outcome }}" --step "pipeline=${{ steps.pipeline.outcome }}" \
+            --step "verify=${{ steps.verify.outcome }}" --step "deploy=${{ steps.deploy.outcome }}" \
+            --step "save_db=${{ steps.save_db.outcome }}" --step "save_files=${{ steps.save_files.outcome }}" \
+            --out data/out/status.json
+
+      - name: Save the run status to R2
+        if: ${{ always() }}
+        continue-on-error: true
+        run: |
+          if [ -f data/out/status.json ]; then
+            "$WRANGLER" r2 object put --remote "$BUCKET/status.json" --file data/out/status.json
+          fi
+
+      # main may have moved while the job ran (a code change pushed during the
+      # night), so the record is put on top of it before the push.
       - name: Record the run so the schedule stays enabled
+        if: ${{ !cancelled() && steps.deploy.outcome == 'success' }}
+        continue-on-error: true
         run: |
           date -u +"Last successful refresh: %Y-%m-%d %H:%M UTC" > LAST_RUN.md
           if [ -f data/out/social/last_outcome.txt ]; then
@@ -174,19 +256,29 @@ jobs:
           git config user.name "LMIA Watch"
           git config user.email "ops@lmiawatch.invalid"
           git add LAST_RUN.md
-          git diff --cached --quiet || TZ=UTC git commit -m "refresh: $(date -u +%Y-%m-%d)"
-          git push
+          if git diff --cached --quiet; then exit 0; fi
+          TZ=UTC git commit -m "refresh: $(date -u +%Y-%m-%d)"
+          for attempt in 1 2 3; do
+            if git pull --rebase --quiet origin main && git push origin HEAD:main; then exit 0; fi
+            sleep 15
+          done
+          exit 1
 
       # Last, after everything is saved and recorded: fail the run when an item
       # needs attention, so GitHub's failed-workflow email reaches the operator
       # as well as the Worker's own daily check.
       - name: Items needing attention
+        if: ${{ always() }}
         run: |
           python - <<'PY'
           import json, pathlib, sys
-          s = json.loads(pathlib.Path("data/out/status.json").read_text())
-          items = [f"stage {x['source']} failed: {x['detail']}" for x in s["stages"] if not x["ok"]]
-          if s["x_post"] in ("failed", "no credentials"):
+          p = pathlib.Path("data/out/status.json")
+          if not p.exists():
+              print("ATTENTION: no run status was written")
+              sys.exit(1)
+          s = json.loads(p.read_text())
+          items = [f"{x.get('source')}: {x.get('detail', '')}" for x in s.get("stages", []) if not x.get("ok")]
+          if s.get("x_post") in ("failed", "no credentials"):
               items.append(f"X post: {s['x_post']}")
           for i in items:
               print("ATTENTION:", i)

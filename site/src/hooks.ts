@@ -1,4 +1,5 @@
 import type { Context } from "hono";
+import { readForm } from "./body";
 import type { AppEnv } from "./env";
 
 // The donation page (Ko-fi) sends one notice per payment as a form post whose
@@ -72,10 +73,11 @@ export async function kofiWebhook(c: Context<AppEnv>): Promise<Response> {
   const expected = (c.env.KOFI_VERIFICATION_TOKEN ?? "").trim();
   if (!expected) return c.text("Webhook not configured", 503);
 
+  const form = await readForm(c);
+  if (!form.ok) return c.text(form.status === 413 ? "Payload too large" : "Bad request", form.status);
   let doc: unknown;
   try {
-    const body = (await c.req.parseBody()) as Record<string, unknown>;
-    const raw = body.data;
+    const raw = form.fields.data;
     if (typeof raw !== "string" || raw.length > 20_000) return c.text("Bad request", 400);
     doc = JSON.parse(raw);
   } catch {
@@ -87,6 +89,12 @@ export async function kofiWebhook(c: Context<AppEnv>): Promise<Response> {
 
   const notice = parseNotice(doc);
   if (!notice) return c.text("Ignored", 200);
-  await storeNotice(c.env.DB, notice);
+  try {
+    await storeNotice(c.env.DB, notice);
+  } catch (e) {
+    // Not a 200, so the payment page sends the notice again later.
+    console.error(`donation notice not stored: ${String(e).slice(0, 200)}`);
+    return c.text("Unavailable", 503);
+  }
   return c.text("ok", 200);
 }

@@ -8,10 +8,11 @@ import logging
 import sqlite3
 import sys
 from pathlib import Path
+from typing import Any, Callable
 
 from . import config, export, export_static, indicators, migrate, social, status
 from .db import connect, hours_since, log_run
-from .http import AbortRun, PoliteClient
+from .http import PoliteClient
 from .sources import esdc, geography, ircc, jobbank, lfs, registry_bc, registry_federal, registry_quebec, wages
 
 log = logging.getLogger("lmia_pipeline")
@@ -83,7 +84,27 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     args = build_parser().parse_args(argv)
+    # Every stage reports its own failure; this catches what is left (a
+    # database that will not open, a full disk) so the workflow always gets an
+    # exit code and a log line rather than a traceback from the interpreter.
+    try:
+        return _main(args)
+    except Exception:
+        log.exception("%s stopped", args.command)
+        return 2
+
+
+def _main(args: argparse.Namespace) -> int:
     conn = connect(args.db)
+    try:
+        return _command(conn, args)
+    finally:
+        # Closing folds the write-ahead log into the database file, which is
+        # the file the workflow compresses and saves.
+        conn.close()
+
+
+def _command(conn: sqlite3.Connection, args: argparse.Namespace) -> int:
 
     if args.command == "mark-synced":
         n = export.mark_synced(conn, Path(args.manifest) if args.manifest else None)
@@ -104,7 +125,7 @@ def main(argv: list[str] | None = None) -> int:
     selected = [s for s in STAGES if getattr(args, s)]
     stages = selected or STAGES
     client = PoliteClient()
-    failed = False
+    ok = True
 
     # Employer ids are derived from normalized names; when the normalization
     # changed since this database was built, re-derive them once before any
@@ -116,19 +137,9 @@ def main(argv: list[str] | None = None) -> int:
     log.info("fsa centroids loaded: %d", load_fsa_centroids(conn))
 
     if "esdc" in stages:
-        try:
-            log.info("esdc: %s", esdc.run(conn, client))
-        except AbortRun as exc:
-            failed = True
-            log.error("esdc aborted: %s", exc)
-            log_run(conn, "esdc", detail=str(exc), ok=False)
+        ok &= _stage(conn, "esdc", lambda: esdc.run(conn, client))
     if "ircc" in stages:
-        try:
-            log.info("ircc: %d new findings", ircc.run(conn, client))
-        except Exception as exc:  # the list is small; a failure must not stop the night
-            failed = True
-            log.error("ircc failed: %s", exc)
-            log_run(conn, "ircc", detail=str(exc), ok=False)
+        ok &= _stage(conn, "ircc", lambda: ircc.run(conn, client), "new findings")
     if "jobbank" in stages:
         allowed, reason = jobbank_allowed(conn, force=args.force)
         if not allowed:
@@ -136,70 +147,68 @@ def main(argv: list[str] | None = None) -> int:
             log_run(conn, "jobbank", detail=f"skipped: {reason}")
             stages = [s for s in stages if s != "jobbank"]
     if "jobbank" in stages:
-        try:
-            log.info("jobbank: %s", jobbank.run(conn, client, limit=args.limit, detail_budget=args.detail_budget))
-        except AbortRun as exc:
-            failed = True
-            log.error("jobbank aborted: %s", exc)
-            log_run(conn, "jobbank", detail=str(exc), ok=False)
+        ok &= _stage(
+            conn, "jobbank", lambda: jobbank.run(conn, client, limit=args.limit, detail_budget=args.detail_budget),
+            failed_when=lambda stats: bool(stats.problems),
+        )
     if "registry" in stages:
-        try:
-            log.info("registry bc: %d matches", registry_bc.run(conn, client, budget=args.registry_budget))
-        except AbortRun as exc:
-            failed = True
-            log.error("registry aborted: %s", exc)
-            log_run(conn, "registry", detail=str(exc), ok=False)
-        try:
-            log.info("registry federal: %d matches", registry_federal.run(conn, client))
-        except Exception as exc:  # a 260 MB download can fail; the rest of the night still runs
-            failed = True
-            log.error("registry federal failed: %s", exc)
-            log_run(conn, "registry_federal", detail=str(exc), ok=False)
-        try:
-            log.info("registry quebec: %d matches", registry_quebec.run(conn, client))
-        except Exception as exc:  # same: a 270 MB download, and the night carries on without it
-            failed = True
-            log.error("registry quebec failed: %s", exc)
-            log_run(conn, "registry_quebec", detail=str(exc), ok=False)
+        ok &= _stage(conn, "registry", lambda: registry_bc.run(conn, client, budget=args.registry_budget), "matches")
+        # A 260 MB download can fail; the rest of the night still runs.
+        ok &= _stage(conn, "registry_federal", lambda: registry_federal.run(conn, client), "matches")
+        # Same for the 270 MB Quebec extract.
+        ok &= _stage(conn, "registry_quebec", lambda: registry_quebec.run(conn, client), "matches")
     # The reference tables for the wage and unemployment indicators. Each is
     # cached: wages and the LFS table are revalidated at most once a month,
     # the boundary files never after the first load. A failure leaves the
     # previous table in place and the indicators say what is missing.
     if "wages" in stages:
-        try:
-            log.info("wages: %d rows loaded", wages.run(conn, client))
-        except Exception as exc:
-            failed = True
-            log.error("wages failed: %s", exc)
-            log_run(conn, "wages", detail=str(exc), ok=False)
+        ok &= _stage(conn, "wages", lambda: wages.run(conn, client), "rows loaded")
     if "lfs" in stages:
-        try:
-            log.info("lfs: %d rows loaded", lfs.run(conn, client))
-        except Exception as exc:
-            failed = True
-            log.error("lfs failed: %s", exc)
-            log_run(conn, "lfs", detail=str(exc), ok=False)
+        ok &= _stage(conn, "lfs", lambda: lfs.run(conn, client), "rows loaded")
     if "geography" in stages:
-        try:
-            # The boundary service answers some requests with HTTP 500 and the
-            # next attempt succeeds, so this client retries more before giving up.
-            geo_client = PoliteClient(max_attempts=geography.MAX_ATTEMPTS)
-            log.info("geography: %d areas placed", geography.run(conn, geo_client))
-        except Exception as exc:
-            failed = True
-            log.error("geography failed: %s", exc)
-            log_run(conn, "geography", detail=str(exc), ok=False)
+        # The boundary service answers some requests with HTTP 500 and the
+        # next attempt succeeds, so this client retries more before giving up.
+        ok &= _stage(conn, "geography", lambda: geography.run(conn, PoliteClient(max_attempts=geography.MAX_ATTEMPTS)),
+                     "areas placed")
+    # A failure here leaves the previous indicator states and statuses in the
+    # database, which are consistent with each other, so the export still runs
+    # and the site keeps its last good figures for them.
     if "indicators" in stages or "export" in stages or not selected:
-        log.info("indicators changed: %d", indicators.compute(conn))
-        log.info("employers updated: %d", status.recompute(conn))
+        ok &= _stage(conn, "indicators", lambda: indicators.compute(conn), "changed")
+        ok &= _stage(conn, "status", lambda: status.recompute(conn), "employers updated")
     if "export" in stages:
-        log.info("csv rows: %s", export.export_csv(conn))
-        log.info("mirror files: %d", export.export_mirror(conn))
-        log.info("static files: %s", export_static.export_static(conn))
+        ok &= _stage(conn, "export_csv", lambda: export.export_csv(conn), "csv rows")
+        ok &= _stage(conn, "export_mirror", lambda: export.export_mirror(conn), "mirror files")
+        ok &= _stage(conn, "export", lambda: export_static.export_static(conn), "static files")
         if args.d1:
-            manifest = export.export_d1(conn, full=args.full)
-            log.info("d1 files: %d rows: %s", len(manifest["files"]), manifest["row_counts"])
-    return 1 if failed else 0
+            ok &= _stage(conn, "export_d1", lambda: export.export_d1(conn, full=args.full)["row_counts"], "d1 rows")
+    return 0 if ok else 1
+
+
+def _stage(
+    conn: sqlite3.Connection,
+    source: str,
+    fn: Callable[[], Any],
+    label: str = "",
+    *,
+    failed_when: Callable[[Any], bool] | None = None,
+) -> bool:
+    """Run one stage. Any exception is logged, recorded in sources_log (which
+    is what the run status reports) and returned as False, so the stages after
+    it still run and nothing propagates out of main. Work the stage left
+    uncommitted is rolled back rather than committed by the log row."""
+    try:
+        result = fn()
+    except Exception as exc:
+        log.exception("%s failed", source)
+        try:
+            conn.rollback()
+            log_run(conn, source, detail=f"{type(exc).__name__}: {exc}"[:900], ok=False)
+        except sqlite3.Error as db_exc:
+            log.error("%s: the failure could not be recorded: %s", source, db_exc)
+        return False
+    log.info("%s%s: %s", source, f" {label}" if label else "", result)
+    return not (failed_when and failed_when(result))
 
 
 if __name__ == "__main__":

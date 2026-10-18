@@ -76,9 +76,15 @@ def run(conn: sqlite3.Connection, client: PoliteClient, *, now: str | None = Non
     sha = hashlib.sha256(data).hexdigest()
     loaded = 0
     if get_meta(conn, "lfs_sha") != sha:
-        rows = parse_table(data)
-        if not rows:
-            raise ValueError("LFS table held no CMA unemployment rates")
+        try:
+            rows = parse_table(data)
+            if not rows:
+                raise ValueError("LFS table held no CMA unemployment rates")
+        except Exception:
+            # Drop the cached body so the next check downloads it again rather
+            # than revalidating a broken copy against its own ETag.
+            client.forget(URL)
+            raise
         conn.execute("DELETE FROM lfs_unemployment")
         conn.executemany(
             "INSERT INTO lfs_unemployment (cma_uid, ref_month, rate, cma_name, vector) VALUES (?, ?, ?, ?, ?)", rows

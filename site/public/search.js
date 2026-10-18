@@ -26,6 +26,8 @@
   var LANG = I18N.lang === "fr" ? "fr" : "en";
   var LOCALE = I18N.locale || "en-CA";
   var today = results.getAttribute("data-today") || new Date().toISOString().slice(0, 10);
+  var WEEK_AGO = shiftDate(today, -7);
+  var QUARTER_AGO = shiftDate(today, -92);
   var years = (results.getAttribute("data-years") || "").split(",").filter(Boolean);
   var latestLabel = periodLabel(results.getAttribute("data-latest"));
   var fromLabel = periodLabel(results.getAttribute("data-from"));
@@ -37,6 +39,8 @@
   var longRows = null;      // the long scope, once the visitor asked for it
   var longLoading = false;
   var current = [];
+  var viewSource = null;    // the rows and the filter key behind current
+  var viewKey = null;
   var state = readState();
 
   // -- helpers --------------------------------------------------------------
@@ -55,7 +59,26 @@
   function has(key) { return STRINGS[key] != null; }
   function decimal(text) { return LANG === "fr" ? text.replace(".", ",") : text; }
   function fold(s) { return (s || "").toString().normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase(); }
-  function shiftDate(iso, days) { var d = new Date(iso + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + days); return d.toISOString().slice(0, 10); }
+  // Plain ASCII text (most names) needs no Unicode normalisation, which is
+  // the expensive part of fold.
+  function quickFold(s) { var t = (s || "").toString(); return /[^\x00-\x7f]/.test(t) ? fold(t) : t.toLowerCase(); }
+  // Folded text kept on the row the first time a filter or a sort needs it:
+  // the long scope holds about 190,000 rows, and folding every name again on
+  // each change and in each sort comparison took most of a second.
+  function hay(r) {
+    if (r._hay === undefined) r._hay = quickFold(r.employer) + " " + quickFold(r.city) + " " + quickFold(r.postal) + " " + quickFold(r.job);
+    return r._hay;
+  }
+  function nameKey(r) {
+    if (r._name === undefined) r._name = quickFold(r.employer);
+    return r._name;
+  }
+  function shiftDate(iso, days) {
+    var d = new Date(iso + "T00:00:00Z");
+    if (isNaN(d.getTime())) return "";
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+  }
   function fmt(n) { return (n || 0).toLocaleString(LOCALE); }
   function mb(bytes) { return tx("size.mb", { n: decimal((bytes / 1048576).toFixed(1)) }); }
   function periodLabel(p) {
@@ -78,12 +101,16 @@
   function readState() {
     var fd = new FormData(form);
     var params = new URLSearchParams(location.search);
+    var q = (fd.get("q") || "").toString().trim();
+    var noc = (fd.get("noc") || "").toString().trim().toLowerCase();
     return {
-      q: (fd.get("q") || "").toString().trim(),
+      q: q,
+      qFold: quickFold(q),
       status: fd.getAll("status"),
       province: fd.getAll("province"),
       stream: fd.getAll("stream"),
-      noc: (fd.get("noc") || "").toString().trim().toLowerCase(),
+      noc: noc,
+      nocFold: quickFold(noc),
       wageMin: parseFloat(fd.get("wage_min")), wageMax: parseFloat(fd.get("wage_max")),
       date: (fd.get("date") || "any").toString(),
       indicator: (fd.get("indicator") || "").toString(),
@@ -145,28 +172,25 @@
     }
     if (skip !== "province" && state.province.length && state.province.indexOf(r.prov || "UN") < 0) return false;
     if (state.stream.length && state.stream.indexOf(r.stream) < 0) return false;
-    if (state.q) {
-      var hay = fold(r.employer) + " " + fold(r.city) + " " + fold(r.postal) + " " + fold(r.job);
-      if (hay.indexOf(fold(state.q)) < 0) return false;
-    }
+    if (state.q && hay(r).indexOf(state.qFold) < 0) return false;
     if (state.noc) {
-      var code = (r.noc || "").toLowerCase(), job = fold(r.job);
-      if (code.indexOf(state.noc) !== 0 && job.indexOf(fold(state.noc)) < 0) return false;
+      var code = (r.noc || "").toLowerCase();
+      if (code.indexOf(state.noc) !== 0 && quickFold(r.job).indexOf(state.nocFold) < 0) return false;
     }
     if (!isNaN(state.wageMin) && !(r.wage_min != null && r.wage_min >= state.wageMin)) return false;
     if (!isNaN(state.wageMax) && !(r.wage_max != null && r.wage_max <= state.wageMax)) return false;
     if (state.date === "7d") {
-      if (r.kind !== "posting" || !r.date || r.date < shiftDate(today, -7)) return false;
+      if (r.kind !== "posting" || !r.date || r.date < WEEK_AGO) return false;
     } else if (state.date === "last_quarter") {
-      if (r.kind === "posting" && (!r.date || r.date < shiftDate(today, -92))) return false;
+      if (r.kind === "posting" && (!r.date || r.date < QUARTER_AGO)) return false;
     }
     if (state.indicator && (r.ind || []).indexOf(state.indicator) < 0) return false;
     return true;
   }
   function sortRows(rows) {
     if (state.sort === "positions") rows.sort(function (a, b) { return (b.positions || 0) - (a.positions || 0) || (b.sort_date > a.sort_date ? 1 : -1); });
-    else if (state.sort === "name") rows.sort(function (a, b) { return fold(a.employer) < fold(b.employer) ? -1 : 1; });
-    else rows.sort(function (a, b) { return b.sort_date > a.sort_date ? 1 : b.sort_date < a.sort_date ? -1 : fold(a.employer) < fold(b.employer) ? -1 : 1; });
+    else if (state.sort === "name") rows.sort(function (a, b) { return nameKey(a) < nameKey(b) ? -1 : 1; });
+    else rows.sort(function (a, b) { return b.sort_date > a.sort_date ? 1 : b.sort_date < a.sort_date ? -1 : nameKey(a) < nameKey(b) ? -1 : 1; });
     return rows;
   }
 
@@ -272,15 +296,21 @@
     }
     setCounts(byStatus, byProv);
   }
+  // The server renders each control as a link (a page it can serve) or as a
+  // plain button (a page only this script can draw). Both get the handler,
+  // once; a link becomes a button first.
   function swapToButtons() {
     ["page-prev", "page-next"].forEach(function (id) {
       var el = document.getElementById(id);
-      if (el && el.tagName === "A") {
-        var b = document.createElement("button");
+      if (!el || el.getAttribute("data-wired")) return;
+      var b = el;
+      if (el.tagName === "A") {
+        b = document.createElement("button");
         b.type = "button"; b.className = "btn"; b.id = id; b.textContent = el.textContent;
         el.replaceWith(b);
-        b.addEventListener("click", id === "page-prev" ? function () { state.page -= 1; render(); } : function () { state.page += 1; render(); });
       }
+      b.setAttribute("data-wired", "1");
+      b.addEventListener("click", id === "page-prev" ? function () { state.page -= 1; render(); } : function () { state.page += 1; render(); });
     });
   }
 
@@ -298,7 +328,13 @@
       return; // nothing in memory yet; the server-rendered rows stay on screen
     }
     hideGate();
-    var rows = sortRows(source.filter(function (r) { return passes(r, null); }));
+    // A page change reuses the filtered, sorted rows; only a new filter, sort
+    // or data set filters again.
+    var key = JSON.stringify([state.q, state.status, state.province, state.stream, state.noc, state.wageMin,
+      state.wageMax, state.date, state.indicator, state.sort]);
+    var fresh = source !== viewSource || key !== viewKey;
+    var rows = fresh ? sortRows(source.filter(function (r) { return passes(r, null); })) : current;
+    viewSource = source; viewKey = key;
     current = rows;
     var total = rows.length;
     var pages = Math.max(1, Math.ceil(total / PAGE));
@@ -324,7 +360,7 @@
     swapToButtons();
     document.getElementById("page-prev").disabled = state.page <= 1;
     document.getElementById("page-next").disabled = state.page >= pages;
-    facetCounts(source, complete);
+    if (fresh) facetCounts(source, complete);
     writeUrl();
   }
 
@@ -375,6 +411,7 @@
     }
   }
   function loadLong(files) {
+    if (longLoading) return; // a second click while the files arrive
     longLoading = true;
     var acc = [], i = 0;
     var msg = document.getElementById("load-gate");

@@ -14,8 +14,9 @@ Every day at 06:00 UTC (after the nightly run's window) a cron trigger runs
   X post's outcome).
 
 It emails when the data is more than two and a half days old, the backup or
-the status is missing or older than 36 hours, a stage failed, or X refused
-the post. One email a day at most, repeated while an item remains. Nothing
+the status is missing or older than 36 hours, a stage or a workflow step
+(restore, deploy, save) failed, the checks held back the night's data, the
+status file cannot be read, or X refused the post. One email a day at most, repeated while an item remains. Nothing
 is sent on a healthy day.
 
 ### One-time setup (dashboard, since the project token cannot do it)

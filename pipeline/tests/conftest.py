@@ -24,7 +24,7 @@ class FakeSession:
         self.mapping = mapping
         self.calls: list[tuple[str, dict]] = []
 
-    def get(self, url: str, headers: dict | None = None, timeout: float | None = None) -> FakeResponse:
+    def get(self, url: str, headers: dict | None = None, timeout: float | None = None, stream: bool = False) -> FakeResponse:
         self.calls.append((url, headers or {}))
         value = self.mapping.get(url)
         if value is None:

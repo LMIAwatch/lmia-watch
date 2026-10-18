@@ -8,10 +8,12 @@ is failing.
 
 from __future__ import annotations
 
+import email.utils
 import hashlib
 import json
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import urlsplit
@@ -19,6 +21,15 @@ from urllib.parse import urlsplit
 import requests
 
 from . import config
+
+# A host that asks for a pause (429 or 503 with Retry-After) gets it, up to
+# this long; a longer request ends the attempt instead of retrying early.
+MAX_RETRY_AFTER_S = 300.0
+# The read timeout applies between bytes, so a server that trickles a body
+# could hold a request open indefinitely. A body must arrive within this many
+# seconds, or four read timeouts when that is longer.
+MIN_BODY_SECONDS = 900.0
+CHUNK_BYTES = 1 << 16
 
 
 def decode_text(data: bytes) -> str:
@@ -29,12 +40,35 @@ def decode_text(data: bytes) -> str:
         return data.decode("cp1252", errors="replace")
 
 
+def retry_after_seconds(value: str | None, now: datetime | None = None) -> float | None:
+    """Seconds asked for by a Retry-After header (a number of seconds or an HTTP
+    date); None when the header is absent or unreadable."""
+    if not value:
+        return None
+    text = value.strip()
+    if text.isdigit():
+        return float(text)
+    try:
+        when = email.utils.parsedate_to_datetime(text)
+    except (TypeError, ValueError, IndexError):
+        return None
+    if when is None:
+        return None
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    return max(0.0, (when - (now or datetime.now(timezone.utc))).total_seconds())
+
+
 class FetchError(Exception):
     """One request failed in a way that retries did not fix."""
 
 
 class AbortRun(Exception):
     """Too many requests failed in a row; the run stops to protect the host."""
+
+
+class _SlowBody(Exception):
+    """The body did not finish arriving within the request's time limit."""
 
 
 @dataclass
@@ -109,12 +143,14 @@ class PoliteClient:
             if entry.meta.get("last_modified"):
                 req_headers["If-Modified-Since"] = entry.meta["last_modified"]
 
+        body_limit = max(MIN_BODY_SECONDS, 4 * timeout)
         attempt = 0
         while True:
             attempt += 1
             self._wait_for_host(host)
+            started = self._clock()
             try:
-                resp = self.session.get(url, headers=req_headers, timeout=timeout)
+                resp = self.session.get(url, headers=req_headers, timeout=timeout, stream=True)
             except requests.RequestException as exc:
                 self._mark(host)
                 self._retry_or_fail(url, attempt, repr(exc))
@@ -123,21 +159,36 @@ class PoliteClient:
             self.requests_made += 1
 
             if resp.status_code == 304 and entry is not None:
+                _close(resp)
                 entry.touch()
                 self._consecutive_failures = 0
                 return entry.content
             if resp.status_code >= 500 or resp.status_code == 429:
-                self._retry_or_fail(url, attempt, f"HTTP {resp.status_code}")
+                wait = retry_after_seconds(_header(resp, "Retry-After"))
+                _close(resp)
+                self._retry_or_fail(url, attempt, f"HTTP {resp.status_code}", wait)
                 continue
             if resp.status_code >= 400:
+                _close(resp)
                 # A missing resource is a data fact, not a host problem, so it
                 # does not count toward the circuit breaker.
                 raise FetchError(f"HTTP {resp.status_code} for {url}")
 
+            try:
+                content = self._read_body(resp, started, body_limit)
+            except (requests.RequestException, _SlowBody) as exc:
+                # A body cut short (the length check or the chunked framing
+                # fails) or one that trickles past the limit is retried, and
+                # never cached.
+                _close(resp)
+                self._mark(host)
+                self._retry_or_fail(url, attempt, repr(exc))
+                continue
+            self._mark(host)
             self._consecutive_failures = 0
             if cache:
-                self._store(url, resp)
-            return resp.content
+                self._store(url, resp, content)
+            return content
 
     def get_text(self, url: str, **kwargs: Any) -> str:
         return decode_text(self.get(url, **kwargs))
@@ -164,10 +215,26 @@ class PoliteClient:
     def _mark(self, host: str) -> None:
         self._last_request[host] = self._clock()
 
-    def _retry_or_fail(self, url: str, attempt: int, reason: str) -> None:
-        if attempt < self.max_attempts:
-            self._sleep(min(2**attempt, 60))
+    def _read_body(self, resp: Any, started: float, limit: float) -> bytes:
+        chunks = getattr(resp, "iter_content", None)
+        if chunks is None:  # a stand-in response that holds its body already
+            return resp.content
+        parts: list[bytes] = []
+        for chunk in chunks(chunk_size=CHUNK_BYTES):
+            if chunk:
+                parts.append(chunk)
+            if self._clock() - started > limit:
+                raise _SlowBody(f"body still arriving after {limit:.0f} s")
+        return b"".join(parts)
+
+    def _retry_or_fail(self, url: str, attempt: int, reason: str, wait: float | None = None) -> None:
+        # The host's own Retry-After wins over the backoff when it is longer;
+        # one longer than MAX_RETRY_AFTER_S is not retried early at all.
+        if attempt < self.max_attempts and (wait is None or wait <= MAX_RETRY_AFTER_S):
+            self._sleep(max(min(2**attempt, 60), wait or 0.0))
             return
+        if wait is not None and wait > MAX_RETRY_AFTER_S:
+            reason += f" (Retry-After {wait:.0f} s)"
         self._consecutive_failures += 1
         if self._consecutive_failures >= self.max_consecutive_failures:
             raise AbortRun(
@@ -189,14 +256,33 @@ class PoliteClient:
             return None
         return _CacheEntry(path_bin, path_meta, meta)
 
-    def _store(self, url: str, resp: Any) -> None:
+    def _store(self, url: str, resp: Any, content: bytes) -> None:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         path_bin, path_meta = self._cache_paths(url)
-        path_bin.write_bytes(resp.content)
+        path_bin.write_bytes(content)
         meta = {
             "url": url,
-            "etag": resp.headers.get("ETag"),
-            "last_modified": resp.headers.get("Last-Modified"),
+            "etag": _header(resp, "ETag"),
+            "last_modified": _header(resp, "Last-Modified"),
             "fetched_at": time.time(),
         }
         path_meta.write_text(json.dumps(meta), encoding="utf-8")
+
+
+def _header(resp: Any, name: str) -> str | None:
+    headers = getattr(resp, "headers", None) or {}
+    value = headers.get(name)
+    if value is None:  # a plain dict in a test is case-sensitive; requests' headers are not
+        lowered = name.lower()
+        value = next((v for k, v in headers.items() if str(k).lower() == lowered), None)
+    return value
+
+
+def _close(resp: Any) -> None:
+    """Release a streamed response's connection without reading the rest of it."""
+    close = getattr(resp, "close", None)
+    if close is not None:
+        try:
+            close()
+        except Exception:
+            pass

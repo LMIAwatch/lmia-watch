@@ -26,7 +26,42 @@ export type Inputs = {
   dataAsOf: string | null; // YYYY-MM-DD from stats.json, or null when missing
   backupUploaded: Date | null; // lmia.sqlite.gz uploaded time in R2
   status: RunStatus | null; // status.json from R2
+  statusProblem?: string | null; // why status.json could not be read in full
 };
+
+// status.json is written by the workflow, so its shape is checked here rather
+// than trusted: a field of the wrong type must produce an alert, never an
+// exception that stops the check from sending anything. A stage entry that
+// cannot be read counts as a failed stage.
+export function readStatus(raw: unknown): { status: RunStatus | null; problem: string | null } {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return { status: null, problem: "The run status (status.json) in R2 is not a JSON object." };
+  }
+  const r = raw as Record<string, unknown>;
+  const unreadable: string[] = [];
+  const status: RunStatus = {};
+  if (typeof r.run_at === "string" && !Number.isNaN(Date.parse(r.run_at))) status.run_at = r.run_at;
+  else unreadable.push("run_at");
+  if (typeof r.ok === "boolean") status.ok = r.ok;
+  if (typeof r.x_post === "string") status.x_post = r.x_post;
+  if (Array.isArray(r.stages)) {
+    status.stages = r.stages.map((s) => {
+      if (!s || typeof s !== "object") return { source: "unknown", ok: false, detail: "unreadable stage entry" };
+      const e = s as Record<string, unknown>;
+      return {
+        source: typeof e.source === "string" ? e.source : "unknown",
+        ok: e.ok === true,
+        detail: typeof e.detail === "string" ? e.detail : undefined,
+      };
+    });
+  } else if (r.stages !== undefined) {
+    unreadable.push("stages");
+  }
+  const problem = unreadable.length
+    ? `The run status (status.json) in R2 has unreadable fields (${unreadable.join(", ")}).`
+    : null;
+  return { status, problem };
+}
 
 export function collectAlerts(i: Inputs): string[] {
   const out: string[] = [];
@@ -34,10 +69,13 @@ export function collectAlerts(i: Inputs): string[] {
     out.push("The site has no data file (stats.json is missing): the pages show Data Not Published Yet.");
   } else {
     const age = (i.now.getTime() - Date.parse(`${i.dataAsOf}T00:00:00Z`)) / HOUR;
-    if (age > DATA_STALE_HOURS + 24) {
+    if (Number.isNaN(age)) {
+      out.push(`The data date in stats.json (${String(i.dataAsOf).slice(0, 40)}) is not a date.`);
+    } else if (age > DATA_STALE_HOURS + 24) {
       out.push(`The data is dated ${i.dataAsOf}, ${Math.floor(age / 24)} days old: the nightly refresh has not published since.`);
     }
   }
+  if (i.statusProblem) out.push(i.statusProblem);
   if (!i.backupUploaded) {
     out.push("No database backup (lmia.sqlite.gz) is in R2.");
   } else if ((i.now.getTime() - i.backupUploaded.getTime()) / HOUR > BACKUP_STALE_HOURS) {
@@ -87,21 +125,30 @@ export async function gatherInputs(env: Env, now: Date): Promise<Inputs> {
   const stats = await loadStats(env).catch(() => null);
   let backupUploaded: Date | null = null;
   let status: RunStatus | null = null;
+  const problems: string[] = [];
   if (env.DATA) {
     try {
       const head = await env.DATA.head("lmia.sqlite.gz");
       backupUploaded = head ? head.uploaded : null;
-    } catch {
+    } catch (e) {
       backupUploaded = null;
+      problems.push(`The data bucket (R2) could not be read: ${String(e).slice(0, 120)}`);
     }
     try {
       const obj = await env.DATA.get("status.json");
-      status = obj ? ((await obj.json()) as RunStatus) : null;
-    } catch {
+      if (obj) {
+        const read = readStatus(JSON.parse(await obj.text()));
+        status = read.status;
+        if (read.problem) problems.push(read.problem);
+      }
+    } catch (e) {
       status = null;
+      problems.push(`The run status (status.json) in R2 could not be read: ${String(e).slice(0, 120)}`);
     }
   }
-  return { now, dataAsOf: stats?.data_as_of ?? null, backupUploaded, status };
+  const raw = stats?.data_as_of;
+  const dataAsOf = typeof raw === "string" ? raw : raw == null ? null : String(raw);
+  return { now, dataAsOf, backupUploaded, status, statusProblem: problems.join(" ") || null };
 }
 
 export async function runWatchdog(env: Env, now: Date = new Date()): Promise<{ alerts: string[]; sent: boolean; error?: string }> {

@@ -201,13 +201,17 @@ def export_csv(conn: sqlite3.Connection, out_dir: Path | None = None) -> dict[st
     for name, query in CSV_QUERIES.items():
         cur = conn.execute(query)
         headers = [d[0] for d in cur.description]
-        with (out / name).open("w", newline="", encoding="utf-8") as fh:
+        # Each file is written under a temporary name and renamed when
+        # complete, so a failure never leaves a truncated CSV for the upload.
+        part = out / f"{name}.partial"
+        with part.open("w", newline="", encoding="utf-8") as fh:
             writer = csv.writer(fh)
             writer.writerow(headers)
             n = 0
             for row in cur:
                 writer.writerow([row[h] for h in headers])
                 n += 1
+        part.replace(out / name)
         counts[name] = n
     return counts
 

@@ -44,7 +44,7 @@ def test_retries_then_succeeds(tmp_path):
             self.n = 0
             self.calls = []
 
-        def get(self, url, headers=None, timeout=None):
+        def get(self, url, headers=None, timeout=None, stream=False):
             self.n += 1
             return FakeResponse(503) if self.n < 3 else FakeResponse(200, b"ok")
 
@@ -62,7 +62,7 @@ def test_404_raises_without_tripping_breaker(tmp_path):
 
 def test_breaker_aborts_after_repeated_failures(tmp_path):
     class Down:
-        def get(self, url, headers=None, timeout=None):
+        def get(self, url, headers=None, timeout=None, stream=False):
             return FakeResponse(500)
 
     clock = Clock()

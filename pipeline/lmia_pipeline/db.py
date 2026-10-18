@@ -32,9 +32,10 @@ def connect(path: str | Path | None = None, *, memory: bool = False) -> sqlite3.
     return conn
 
 
-# Columns added to existing tables after the first release. CREATE TABLE IF NOT
-# EXISTS leaves an older table as it was, so each is added here when missing,
-# with the statement that backfills it.
+# Columns added to existing tables after the first release, each with the
+# statement that backfills it. add_missing_columns adds every column the schema
+# has and an older database lacks; this list is for the ones that also need a
+# value for the rows already there.
 ADDED_COLUMNS: list[tuple[str, str, str, str | None]] = [
     ("employers", "street_source", "TEXT",
      "UPDATE employers SET street_source = 'jobbank' WHERE street IS NOT NULL AND street_source IS NULL"),
@@ -43,14 +44,56 @@ ADDED_COLUMNS: list[tuple[str, str, str, str | None]] = [
 
 def apply_schema(conn: sqlite3.Connection, schema_path: Path | None = None) -> None:
     sql = (schema_path or config.SCHEMA_PATH).read_text(encoding="utf-8")
+    # Columns first: an index in the schema may name a column that a database
+    # from an earlier version lacks, and the script would stop there.
+    added = add_missing_columns(conn, sql)
     conn.executescript(sql)
     for table, column, decl, backfill in ADDED_COLUMNS:
         have = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
         if column not in have:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
-            if backfill:
-                conn.execute(backfill)
+            added.append(f"{table}.{column}")
+        # Backfilled once, on the run that added the column (a fresh database
+        # gets it from the schema, with no rows to fill).
+        if backfill and f"{table}.{column}" in added:
+            conn.execute(backfill)
             conn.commit()
+
+
+def add_missing_columns(conn: sqlite3.Connection, sql: str) -> list[str]:
+    """Bring tables from an earlier schema up to date without a migration step.
+
+    New tables come from the schema's CREATE TABLE IF NOT EXISTS, but a column
+    added to an existing table would not, and the first query naming it would
+    stop the run. The schema is built in memory and every column missing from
+    the database is added with its type and default. A key column cannot be
+    added this way and is left for a deliberate migration; a NOT NULL column
+    with no default is added as nullable. Returns the columns added.
+    """
+    added: list[str] = []
+    ref = sqlite3.connect(":memory:")
+    try:
+        ref.executescript(sql)
+        tables = [r[0] for r in ref.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")]
+        for table in tables:
+            have = {r[1] for r in conn.execute(f'PRAGMA table_info("{table}")')}
+            if not have:
+                continue  # not there yet; the schema script creates it whole
+            for _cid, name, ctype, notnull, default, pk in ref.execute(f'PRAGMA table_info("{table}")'):
+                if name in have or pk:
+                    continue
+                clause = f'ALTER TABLE "{table}" ADD COLUMN "{name}" {ctype or ""}'.rstrip()
+                if default is not None:
+                    clause += f" DEFAULT {default}"
+                    if notnull:
+                        clause += " NOT NULL"
+                conn.execute(clause)
+                added.append(f"{table}.{name}")
+        if added:
+            conn.commit()
+    finally:
+        ref.close()
+    return added
 
 
 def set_meta(conn: sqlite3.Connection, key: str, value: object) -> None:

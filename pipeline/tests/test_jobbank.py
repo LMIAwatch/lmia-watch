@@ -46,11 +46,19 @@ def test_parse_detail_pages(fixtures):
     assert (g.city, g.postal_code, g.noc_code) == ("Penticton", "V2A 5L1", "60020")
 
 
+def _counted(html: bytes) -> bytes:
+    """The fixture pages are trimmed to a few results but still state the live
+    page's result count; make the count match the trimmed list, as on a page
+    that really held only these results."""
+    n = len(re.findall(rb'<article[^>]*id="article-\d+"', html))
+    return re.sub(rb'(id="results-count">)[\d,]+', rb"\g<1>" + str(n).encode(), html)
+
+
 def _mapping(fixtures, requested_html: bytes):
     return {
-        search_url("101010", 1): requested_html,
+        search_url("101010", 1): _counted(requested_html),
         search_url("101010", 2): EMPTY,
-        search_url("101020", 1): (fixtures / "jobbank_approved.html").read_bytes(),
+        search_url("101020", 1): _counted((fixtures / "jobbank_approved.html").read_bytes()),
         search_url("101020", 2): EMPTY,
         posting_url(50456228): (fixtures / "jobbank_detail_50456228.html").read_bytes(),
     }
@@ -111,6 +119,6 @@ def test_posting_page_street_outranks_a_finding_street(conn, fixtures, fake_clie
         "flag_first, url, updated_at) VALUES (50440025, ?, 'Penticton Example Ltd.', ?, ?, 'requested', 'requested', "
         "'u', ?)", (eid, stamp, stamp, stamp))
     client = fake_client({posting_url(50440025): (fixtures / "jobbank_detail_50440025.html").read_bytes()})
-    assert jobbank._fetch_details(conn, client, 5, stamp) == 1
+    assert jobbank._fetch_details(conn, client, 5, stamp) == (1, None)
     row = conn.execute("SELECT street, street_source FROM employers WHERE id = ?", (eid,)).fetchone()
     assert tuple(row) == ("405 Martin Street", "jobbank")

@@ -117,32 +117,55 @@ export function esdcSource(list: string, resourceId: string): string {
 
 export async function assetResponse(env: Env, path: string): Promise<Response | null> {
   if (!env.ASSETS) return null;
-  const res = await env.ASSETS.fetch(new Request(`https://assets.invalid/data/${path}`));
-  return res.ok ? res : null;
+  try {
+    const res = await env.ASSETS.fetch(new Request(`https://assets.invalid/data/${path}`));
+    return res.ok ? res : null;
+  } catch (e) {
+    console.error(`asset ${path}: ${String(e).slice(0, 200)}`);
+    return null;
+  }
 }
 
+// A file that does not parse (a truncated or corrupt deploy) reads as missing,
+// so a page answers "not published" or "not found" instead of an error page.
 export async function loadJson<T>(env: Env, path: string): Promise<T | null> {
   const res = await assetResponse(env, path);
   if (!res) return null;
-  return (await res.json()) as T;
+  try {
+    return (await res.json()) as T;
+  } catch (e) {
+    console.error(`asset ${path} is not valid JSON: ${String(e).slice(0, 200)}`);
+    return null;
+  }
 }
 
-export function loadStats(env: Env): Promise<Stats | null> {
-  return loadJson<Stats>(env, "stats.json");
+const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
+
+// The pages read these fields without further checks, so a file without them
+// is treated like a missing one.
+export async function loadStats(env: Env): Promise<Stats | null> {
+  const stats = await loadJson<Stats>(env, "stats.json");
+  return isObject(stats) && isObject(stats.counts) ? stats : null;
 }
 
-export function loadFacets(env: Env): Promise<Facets | null> {
-  return loadJson<Facets>(env, "search/facets.json");
+export async function loadFacets(env: Env): Promise<Facets | null> {
+  const facets = await loadJson<Facets>(env, "search/facets.json");
+  return isObject(facets) && isObject(facets.default) && isObject(facets.long) ? facets : null;
 }
 
 // The newest rows of the default scope: small enough to parse on the server
 // (about 150 KB raw for 500 rows) so a plain visit renders without JavaScript.
-export function loadFirst(env: Env): Promise<SearchRow[] | null> {
-  return loadJson<SearchRow[]>(env, "search/first.json");
+export async function loadFirst(env: Env): Promise<SearchRow[] | null> {
+  const rows = await loadJson<SearchRow[]>(env, "search/first.json");
+  return Array.isArray(rows) ? rows : null;
 }
 
 export async function loadProfile(env: Env, id: string): Promise<Profile | null> {
   if (!EMPLOYER_ID_RE.test(id)) return null;
   const shard = await loadJson<Record<string, Profile>>(env, `profiles/${id.slice(4, 7)}.json`);
-  return shard?.[id] ?? null;
+  const profile: unknown = isObject(shard) ? shard[id] : null;
+  if (!isObject(profile) || !isObject(profile.employer)) return null;
+  return PROFILE_LISTS.every((k) => Array.isArray(profile[k])) ? (profile as unknown as Profile) : null;
 }
+
+const PROFILE_LISTS = ["names", "postings", "esdc", "registry", "indicators", "findings"] as const;

@@ -8,7 +8,7 @@
 import type { Context } from "hono";
 import { assetResponse, type Profile } from "./data";
 import type { AppEnv } from "./env";
-import { frTypography, numberLocale, provinceName, t, type Key, type Lang } from "./i18n";
+import { fmtInt, frTypography, provinceName, t, type Key, type Lang } from "./i18n";
 import { ESDC_HISTORY_START_YEAR } from "./support";
 
 // Canonical URLs name the apex domain whichever host served the request, so
@@ -301,7 +301,7 @@ export function profileBreadcrumbJsonLd(province: string | null, lang: Lang): ob
 }
 
 function count(n: number, lang: Lang): string {
-  return n.toLocaleString(numberLocale(lang));
+  return fmtInt(n, lang);
 }
 
 function plural(n: number, one: string, many: string, lang: Lang): string {

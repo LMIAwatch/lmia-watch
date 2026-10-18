@@ -23,15 +23,18 @@ import { robotsTxt, sitemapFile } from "./seo";
 const app = new Hono<AppEnv>();
 
 // The page loads nothing from third parties except the map library and the
-// map tiles, and the policy says exactly that.
+// map tiles, and the policy says exactly that. The library is allowed by its
+// folder on the CDN, not the whole host, so no other script hosted there can
+// run on the site.
+const LEAFLET = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/";
 app.use(
   "*",
   secureHeaders({
     contentSecurityPolicy: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "https://cdnjs.cloudflare.com"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
-      imgSrc: ["'self'", "data:", "https://*.tile.openstreetmap.org", "https://tile.openstreetmap.org", "https://cdnjs.cloudflare.com"],
+      scriptSrc: ["'self'", LEAFLET],
+      styleSrc: ["'self'", "'unsafe-inline'", LEAFLET],
+      imgSrc: ["'self'", "data:", "https://*.tile.openstreetmap.org", "https://tile.openstreetmap.org", LEAFLET],
       connectSrc: ["'self'"],
       fontSrc: ["'self'"],
       objectSrc: ["'none'"],
@@ -79,7 +82,17 @@ app.get("/:file{sitemap(?:-[0-9]+)?\\.xml}", sitemapFile);
 app.get("/downloads/:file{.+}", async (c) => {
   const file = c.req.param("file");
   const allowed = DOWNLOADS.some((d) => d.file === file) || /^mirror\/[A-Za-z0-9._-]+$/.test(file);
-  const object = allowed && c.env.DATA ? await c.env.DATA.get(file.startsWith("mirror/") ? file : `downloads/${file}`) : null;
+  let object: R2ObjectBody | null = null;
+  let unavailable = false;
+  if (allowed && c.env.DATA) {
+    try {
+      object = await c.env.DATA.get(file.startsWith("mirror/") ? file : `downloads/${file}`);
+    } catch (e) {
+      // Storage outage: the same page as a missing file, with a status that says try later.
+      console.error(`download ${file}: ${String(e).slice(0, 200)}`);
+      unavailable = true;
+    }
+  }
   if (!object) {
     const stats = await loadStats(c.env);
     const lang = c.get("lang");
@@ -92,7 +105,7 @@ app.get("/downloads/:file{.+}", async (c) => {
           <a href="/data">{t(lang, "error.file_back")}</a>
         </p>
       </Layout>,
-      404,
+      unavailable ? 503 : 404,
     );
   }
   const headers = new Headers();

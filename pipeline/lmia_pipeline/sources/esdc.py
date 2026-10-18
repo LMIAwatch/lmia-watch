@@ -155,6 +155,22 @@ def resource_period(res: dict) -> str | None:
     return period_from_text(res.get("name") or "") or period_from_text(res.get("url") or "")
 
 
+class DuplicateFile(Exception):
+    """A resource whose file is byte for byte one published earlier under another resource."""
+
+
+def _earlier_twin(conn: sqlite3.Connection, res: dict, sha: str) -> sqlite3.Row | None:
+    """The loaded resource with the same file that was published first, when that is not this one."""
+    mine = (iso_date(res.get("created")) or "9999-12-31", res["id"])
+    for row in conn.execute(
+        "SELECT resource_id, period, published FROM esdc_resources WHERE sha256 = ? AND resource_id != ?",
+        (sha, res["id"]),
+    ):
+        if (row["published"] or "9999-12-31", row["resource_id"]) < mine:
+            return row
+    return None
+
+
 def load_resource(
     conn: sqlite3.Connection,
     list_name: str,
@@ -169,6 +185,16 @@ def load_resource(
     ext = url.lower().rsplit(".", 1)[-1]
     period = resource_period(res) or "unknown"
     sha = hashlib.sha256(data).hexdigest()
+    twin = _earlier_twin(conn, res, sha)
+    if twin is not None:
+        # The same bytes were published earlier under another resource: a
+        # second copy, not a second quarter. Loading it would count every row
+        # twice and date the copy to the later period, so its rows are kept
+        # out (and removed if an earlier run loaded them).
+        conn.execute("DELETE FROM esdc_records WHERE resource_id = ?", (res["id"],))
+        conn.execute("DELETE FROM esdc_resources WHERE resource_id = ?", (res["id"],))
+        conn.commit()
+        raise DuplicateFile(f"same file as {twin['period']} (resource {twin['resource_id']})")
     existing = conn.execute(
         "SELECT sha256 FROM esdc_resources WHERE resource_id = ?", (res["id"],)
     ).fetchone()
@@ -243,11 +269,21 @@ def run(conn: sqlite3.Connection, client: PoliteClient, *, now: str | None = Non
     stamp = now or now_iso()
     totals: dict[str, int] = {}
     failures: list[str] = []
+    duplicates: list[str] = []
     for list_name, dataset_id in config.ESDC_DATASETS.items():
-        package = client.get_json(
-            config.CKAN_PACKAGE_SHOW.format(dataset=dataset_id), cache=True, max_age_s=0
-        )
-        resources = english_resources(package)
+        listing = config.CKAN_PACKAGE_SHOW.format(dataset=dataset_id)
+        # A portal outage, or a maintenance page served with HTTP 200, costs
+        # this list one night: the quarters already loaded stay as they are.
+        try:
+            package = client.get_json(listing, cache=True, max_age_s=0)
+            resources = english_resources(package)
+        except (FetchError, ValueError, AttributeError) as exc:
+            client.forget(listing)
+            failures.append(f"{list_name} listing: {exc}"[:300])
+            totals[list_name] = 0
+            continue
+        if not resources:
+            failures.append(f"{list_name} listing: no English resources")
         loaded = 0
         for res in resources:
             url = res.get("url") or ""
@@ -262,8 +298,16 @@ def run(conn: sqlite3.Connection, client: PoliteClient, *, now: str | None = Non
                 continue
             try:
                 n = load_resource(conn, list_name, res, data, now=stamp)
+            except DuplicateFile as exc:
+                # An upstream copy, noted rather than failed: it would otherwise
+                # raise an alert every night for a file nobody here can fix.
+                duplicates.append(f"{resource_period(res) or res.get('id')} {list_name}: {exc}")
+                log.warning("resource %s skipped: %s", res.get("name"), exc)
+                continue
             except Exception as exc:  # keep loading the other quarters
                 conn.rollback()
+                # Fetch it again next time; the file may be fixed upstream.
+                client.forget(url)
                 failures.append(f"{res.get('name')}: {exc}")
                 log.warning("resource %s failed: %s", res.get("name"), exc)
                 continue
@@ -272,6 +316,8 @@ def run(conn: sqlite3.Connection, client: PoliteClient, *, now: str | None = Non
                 log.info("%s %s: %d rows", list_name, resource_period(res), n)
         totals[list_name] = loaded
     detail = f"positive={totals.get('positive', 0)} negative={totals.get('negative', 0)}"
+    if duplicates:
+        detail += " duplicates=" + "; ".join(duplicates)[:400]
     if failures:
         detail += " failures=" + "; ".join(failures)[:900]
     log_run(conn, "esdc", detail=detail, rows_new=sum(totals.values()), ok=not failures)

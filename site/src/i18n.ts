@@ -1323,10 +1323,17 @@ export function periodLabel(period: string, lang: Lang = "en"): string {
   return m[3] ? t(lang, "period.range", { y: m[1], q: m[2], q2: m[3] }) : t(lang, "period.quarter", { y: m[1], q: m[2] });
 }
 
+// One formatter per language, made on first use: toLocaleString builds a new
+// one on every call, which on a long profile page (hundreds of numbers) was a
+// measurable share of the request's CPU time. The output is the same.
+const INT_FORMAT: Partial<Record<Lang, Intl.NumberFormat>> = {};
+
 export function fmtInt(n: number | string | null | undefined, lang: Lang = "en"): string {
   if (n === null || n === undefined || n === "") return "0";
   const v = typeof n === "string" ? Number(n) : n;
-  return Number.isFinite(v) ? v.toLocaleString(numberLocale(lang)) : String(n);
+  if (!Number.isFinite(v)) return String(n);
+  const format = (INT_FORMAT[lang] ??= new Intl.NumberFormat(numberLocale(lang)));
+  return format.format(v);
 }
 
 export function fmtWage(min: number | null, max: number | null, unit: string | null, lang: Lang = "en"): string {

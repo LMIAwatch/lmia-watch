@@ -16,16 +16,19 @@ is ever read from a posting.
 from __future__ import annotations
 
 import logging
+import math
 import re
 import sqlite3
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
+from typing import Callable
 
 from bs4 import BeautifulSoup
 
 from .. import config
 from ..db import log_run, now_iso, set_meta, upsert_employer
 from ..exclusions import is_private_household
-from ..http import PoliteClient
+from ..http import AbortRun, FetchError, PoliteClient
 from ..normalize import POSTAL_RE, format_postal, parse_jobbank_date, parse_salary_text
 
 log = logging.getLogger(__name__)
@@ -33,8 +36,23 @@ log = logging.getLogger(__name__)
 FACETS: dict[str, str] = {"101010": "requested", "101020": "approved"}
 ARTICLE_ID_RE = re.compile(r"article-(\d+)")
 LOCATION_RE = re.compile(r"^(.*?)\s*\(([A-Z]{2})\)\s*$", re.S)
-VACANCY_RE = re.compile(r"(\d+)\s+vacanc", re.I)
+VACANCY_RE = re.compile(r"(\d[\d,]*)\s+vacanc", re.I)
 NOC_TEXT_RE = re.compile(r"\bNOC\s+(\d{4,5})\b")
+RESULTS_COUNT_RE = re.compile(r'id="results-count"[^>]*>\s*([\d,\s]+?)\s*<')
+
+# Bounds on one pass, so a changed or failing site ends the stage with a
+# logged outcome instead of running into the job's time limit. A results page
+# lists 25 postings, so the page cap is 25,000 postings a facet, about four
+# times the whole feed in 2026. The time budgets are several times a normal
+# night (list pages about 25 minutes, 400 posting pages about 35).
+MAX_PAGES = 1000
+LIST_BUDGET_S = 3 * 3600.0
+DETAIL_BUDGET_S = 4 * 3600.0
+# A facet's sweep counts as complete when it ends on an empty page and has
+# listed at least this share of the result count shown on its first page
+# (postings come and go during the sweep, so the two never match exactly).
+COMPLETE_SHARE = 0.9
+MAX_VACANCIES = 1_000_000
 
 
 @dataclass
@@ -74,6 +92,8 @@ class RunStats:
     new_postings: int = 0
     details_fetched: int = 0
     marked_gone: int = 0
+    complete: bool = True       # every facet swept to its end; only then is anything marked gone
+    problems: list[str] = field(default_factory=list)
 
 
 def search_url(facet: str, page: int) -> str:
@@ -97,12 +117,31 @@ def _clean(text: str | None) -> str | None:
 # -- parsing ----------------------------------------------------------------
 
 
+def _date(raw: str | None) -> str | None:
+    """parse_jobbank_date, with an impossible date ("February 30") read as no date."""
+    try:
+        return parse_jobbank_date(raw)
+    except ValueError:
+        return None
+
+
+def parse_results_count(html: str) -> int | None:
+    """The result count a search page states above its list ("5,883 results"); None when absent."""
+    m = RESULTS_COUNT_RE.search(html)
+    if not m:
+        return None
+    digits = re.sub(r"\D", "", m.group(1))
+    return int(digits) if digits else None
+
+
 def parse_search_page(html: str) -> list[ListItem]:
     soup = BeautifulSoup(html, "html.parser")
     items: list[ListItem] = []
     for article in soup.find_all("article", id=ARTICLE_ID_RE):
         m = ARTICLE_ID_RE.search(article.get("id", ""))
-        if not m:
+        # Posting ids are eight digits; anything past fifteen would not fit
+        # the database's integer column.
+        if not m or len(m.group(1)) > 15:
             continue
         title = article.select_one(".noctitle")
         business = article.select_one(".business")
@@ -129,7 +168,7 @@ def parse_search_page(html: str) -> list[ListItem]:
                 employer=_clean(business.get_text(" ")) if business else None,
                 city=city,
                 province=province,
-                date_posted=parse_jobbank_date(date_el.get_text(" ")) if date_el else None,
+                date_posted=_date(date_el.get_text(" ")) if date_el else None,
                 salary_text=salary_text,
             )
         )
@@ -167,15 +206,21 @@ def parse_detail_page(html: str) -> DetailFields:
         f.wage_max = float(max_v.replace(",", "")) if max_v else f.wage_min
     except ValueError:
         f.wage_min = f.wage_max = None
+    # "Infinity" and "1e999" parse as floats; an infinite wage would be written
+    # into the site's JSON as a token no browser can read.
+    if not all(v is None or math.isfinite(v) for v in (f.wage_min, f.wage_max)):
+        f.wage_min = f.wage_max = None
     f.wage_unit = _prop(soup, "unitText")
-    f.date_posted = parse_jobbank_date(_prop(soup, "datePosted"))
+    f.date_posted = _date(_prop(soup, "datePosted"))
     valid = _prop(soup, "validThrough")
     if valid:
         vm = re.search(r"\d{4}-\d{2}-\d{2}", valid)
-        f.valid_through = vm.group(0) if vm else parse_jobbank_date(valid)
+        f.valid_through = vm.group(0) if vm else _date(valid)
     text = soup.get_text(" ")
     vm2 = VACANCY_RE.search(text)
-    f.vacancies = int(vm2.group(1)) if vm2 else None
+    f.vacancies = int(vm2.group(1).replace(",", "")) if vm2 else None
+    if f.vacancies is not None and f.vacancies > MAX_VACANCIES:
+        f.vacancies = None  # not a count a posting could carry; also past the integer column
     nm = NOC_TEXT_RE.search(text)
     f.noc_code = nm.group(1) if nm else None
     lowered = text.lower()
@@ -196,27 +241,68 @@ def run(
     limit: int | None = None,
     detail_budget: int = 600,
     now: str | None = None,
+    clock: Callable[[], float] = time.monotonic,
 ) -> RunStats:
+    """One pass over both facets, then posting pages within the budget.
+
+    Never raises for a failing or changed site: a page that cannot be
+    fetched, a pager that repeats itself or never ends, a layout the parser
+    no longer reads, or a host that stops answering ends the sweep where it
+    is, records the reason, and leaves every posting it did not see as it
+    was. Only a complete sweep marks postings gone and records the pass as
+    the day's (jobbank_last_run), which is what the daily digest counts.
+    """
     stamp = now or now_iso()
+    started = clock()
     stats = RunStats()
     seen: set[int] = set()
+    aborted = False
 
     for facet, flag in FACETS.items():
+        if aborted:
+            stats.complete = False
+            break
+        facet_ids: set[int] = set()
+        no_employer = 0
+        expected: int | None = None
+        ended = False
         page = 1
         while True:
             if limit is not None and page > limit:
                 break
-            html = client.get_text(search_url(facet, page))
+            if page > MAX_PAGES:
+                stats.problems.append(f"{flag}: stopped at the {MAX_PAGES}-page cap")
+                break
+            if clock() - started > LIST_BUDGET_S:
+                stats.problems.append(f"{flag}: list pages stopped at page {page}, past the {LIST_BUDGET_S / 3600:.0f} h budget")
+                break
+            try:
+                html = client.get_text(search_url(facet, page))
+            except AbortRun as exc:
+                stats.problems.append(f"{flag} page {page}: {exc}")
+                aborted = True
+                break
+            except FetchError as exc:
+                stats.problems.append(f"{flag} page {page}: {exc}")
+                break
+            if page == 1:
+                expected = parse_results_count(html)
             items = parse_search_page(html)
             if not items:
+                ended = True
+                break
+            if all(item.posting_id in facet_ids for item in items):
+                stats.problems.append(f"{flag}: page {page} repeats earlier results")
                 break
             stats.pages += 1
             for item in items:
+                facet_ids.add(item.posting_id)
                 stats.listed += 1
                 if is_private_household(item.employer, item.title):
                     stats.excluded += 1
                     continue
                 if not item.employer:
+                    no_employer += 1
                     continue
                 seen.add(item.posting_id)
                 if _upsert_listing(conn, item, flag, facet, stamp):
@@ -224,32 +310,69 @@ def run(
             conn.commit()
             page += 1
 
-    # A capped dev run has not seen the whole feed, so it must not declare
-    # everything it missed as gone.
-    if limit is None and seen:
-        placeholders = ",".join("?" * len(seen))
-        cur = conn.execute(
-            f"UPDATE jobbank_postings SET flag_current = 'gone', updated_at = ? "
-            f"WHERE flag_current != 'gone' AND posting_id NOT IN ({placeholders})",
-            (stamp, *seen),
-        )
-        stats.marked_gone = cur.rowcount
-        conn.commit()
+        if limit is not None:
+            continue
+        listed = len(facet_ids)
+        if not ended:
+            stats.complete = False
+        elif expected == 0:
+            pass
+        elif listed == 0:
+            stats.complete = False
+            stats.problems.append(f"{flag}: the first results page listed no postings (page layout changed?)")
+        elif expected is not None and listed < COMPLETE_SHARE * expected:
+            stats.complete = False
+            stats.problems.append(f"{flag}: listed {listed} of the {expected} results the search reported")
+        if listed and no_employer * 2 > listed:
+            stats.complete = False
+            stats.problems.append(f"{flag}: no employer name on {no_employer} of {listed} results (page layout changed?)")
 
-    stats.details_fetched = _fetch_details(conn, client, detail_budget, stamp)
-    set_meta(conn, "jobbank_last_run", stamp)
+    full_pass = limit is None and stats.complete and not aborted
+    # A capped dev run, or a sweep that stopped short, has not seen the whole
+    # feed, so it must not declare everything it missed as gone.
+    if full_pass and seen:
+        stats.marked_gone = _mark_gone(conn, seen, stamp)
+
+    if not aborted:
+        stats.details_fetched, problem = _fetch_details(
+            conn, client, detail_budget, stamp, deadline=started + DETAIL_BUDGET_S, clock=clock,
+        )
+        if problem:
+            stats.problems.append(problem)
+    if limit is not None or full_pass:
+        set_meta(conn, "jobbank_last_run", stamp)
+    detail = (
+        f"pages={stats.pages} listed={stats.listed} new={stats.new_postings} "
+        f"details={stats.details_fetched} gone={stats.marked_gone}"
+    )
+    if stats.problems:
+        detail += " problems=" + "; ".join(stats.problems)[:700]
     log_run(
         conn,
         "jobbank",
-        detail=(
-            f"pages={stats.pages} listed={stats.listed} new={stats.new_postings} "
-            f"details={stats.details_fetched} gone={stats.marked_gone}"
-        ),
+        detail=detail,
         rows_in=stats.listed,
         rows_new=stats.new_postings,
         excluded=stats.excluded,
+        ok=not stats.problems,
     )
     return stats
+
+
+def _mark_gone(conn: sqlite3.Connection, seen: set[int], stamp: str) -> int:
+    # Through a temporary table rather than NOT IN (?, ?, ...): SQLite caps the
+    # number of bound parameters, and the feed only grows.
+    conn.execute("CREATE TEMP TABLE IF NOT EXISTS jobbank_seen (posting_id INTEGER PRIMARY KEY)")
+    conn.execute("DELETE FROM jobbank_seen")
+    conn.executemany("INSERT OR IGNORE INTO jobbank_seen (posting_id) VALUES (?)", ((i,) for i in seen))
+    cur = conn.execute(
+        "UPDATE jobbank_postings SET flag_current = 'gone', updated_at = ? "
+        "WHERE flag_current != 'gone' AND posting_id NOT IN (SELECT posting_id FROM jobbank_seen)",
+        (stamp,),
+    )
+    conn.execute("DELETE FROM jobbank_seen")
+    conn.commit()
+    return cur.rowcount
 
 
 def _upsert_listing(
@@ -299,10 +422,12 @@ def _upsert_listing(
 
 
 def _fetch_details(
-    conn: sqlite3.Connection, client: PoliteClient, budget: int, stamp: str
-) -> int:
+    conn: sqlite3.Connection, client: PoliteClient, budget: int, stamp: str,
+    *, deadline: float = float("inf"), clock: Callable[[], float] = time.monotonic,
+) -> tuple[int, str | None]:
+    """Posting pages fetched, and why the loop stopped early (None when it did not)."""
     if budget <= 0:
-        return 0
+        return 0, None
     rows = conn.execute(
         """
         SELECT posting_id, employer_id FROM jobbank_postings
@@ -313,8 +438,14 @@ def _fetch_details(
     ).fetchall()
     fetched = 0
     for row in rows:
+        if clock() > deadline:
+            return fetched, f"posting pages stopped after {fetched}, past the {DETAIL_BUDGET_S / 3600:.0f} h budget"
         try:
             html = client.get_text(posting_url(row["posting_id"]))
+        except AbortRun as exc:
+            # The host stopped answering: stop asking. The posting is left
+            # unfetched so a later night tries it again.
+            return fetched, f"posting pages stopped after {fetched}: {exc}"
         except Exception as exc:  # one missing page must not stop the run
             log.warning("posting %s: %s", row["posting_id"], exc)
             conn.execute(
@@ -360,4 +491,4 @@ def _fetch_details(
             )
         fetched += 1
         conn.commit()
-    return fetched
+    return fetched, None

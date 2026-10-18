@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildEmail, collectAlerts } from "../src/watchdog";
+import { buildEmail, collectAlerts, gatherInputs, readStatus, runWatchdog } from "../src/watchdog";
+import { testEnv } from "./assets";
 
 const now = new Date("2026-10-20T06:00:00Z");
 const healthy = {
@@ -34,5 +35,64 @@ describe("daily check", () => {
     expect(raw).toContain("1. one thing\r\n2. another");
     expect(raw).toContain("https://github.com/LMIAwatch/lmia-watch/actions");
     expect(buildEmail("a@b.ca", "c@d.ca", ["x"], now)).toContain("1 item need attention");
+  });
+});
+
+describe("daily check against a status file of unexpected shape", () => {
+  it("reads a well-formed status unchanged", () => {
+    expect(readStatus(healthy.status)).toEqual({ status: healthy.status, problem: null });
+  });
+
+  it("turns every odd shape into an alert, never an exception", () => {
+    for (const raw of [null, [], "text", 42, true]) {
+      const { status, problem } = readStatus(raw);
+      expect(status).toBeNull();
+      expect(problem).toContain("not a JSON object");
+    }
+    const odd = readStatus({ run_at: 1760000000, stages: { jobbank: true }, x_post: 3 });
+    expect(odd.problem).toContain("run_at, stages");
+    const alerts = collectAlerts({ ...healthy, status: odd.status, statusProblem: odd.problem });
+    expect(alerts).toEqual(["The run status (status.json) in R2 has unreadable fields (run_at, stages)."]);
+    const chars = readStatus({ run_at: "2026-10-20T00:48:00Z", stages: "ok" });
+    expect(chars.problem).toContain("stages");
+    expect(collectAlerts({ ...healthy, status: chars.status, statusProblem: chars.problem })).toHaveLength(1);
+  });
+
+  it("counts an unreadable stage entry as a failed stage", () => {
+    const { status, problem } = readStatus({
+      run_at: "2026-10-20T00:48:00Z",
+      stages: [null, "x", { source: 5, ok: "yes", detail: { long: true } }, { source: "esdc", ok: true }],
+    });
+    expect(problem).toBeNull();
+    expect(collectAlerts({ ...healthy, status })).toEqual([
+      'Stage "unknown" failed in the last run: unreadable stage entry.',
+      'Stage "unknown" failed in the last run: unreadable stage entry.',
+      'Stage "unknown" failed in the last run.',
+    ]);
+  });
+
+  it("flags a data date that is not a date", () => {
+    expect(collectAlerts({ ...healthy, dataAsOf: "yesterday" })).toEqual(["The data date in stats.json (yesterday) is not a date."]);
+  });
+
+  it("gathers from a bucket that returns junk or fails", async () => {
+    const bucket = (statusBody: string | null, headFails = false) =>
+      ({
+        head: async () => {
+          if (headFails) throw new Error("R2 down");
+          return { uploaded: new Date("2026-10-20T00:50:00Z") };
+        },
+        get: async () => (statusBody === null ? null : { text: async () => statusBody }),
+      }) as unknown as R2Bucket;
+    const base = testEnv();
+    const junk = await gatherInputs({ ...base, DATA: bucket("{not json") }, now);
+    expect(junk.status).toBeNull();
+    expect(junk.statusProblem).toContain("could not be read");
+    expect(collectAlerts(junk).join(" ")).toContain("could not be read");
+    const down = await gatherInputs({ ...base, DATA: bucket(JSON.stringify(healthy.status), true) }, now);
+    expect(down.statusProblem).toContain("The data bucket (R2) could not be read");
+    const shapes = await runWatchdog({ ...base, DATA: bucket('{"stages":{"a":1}}') }, now);
+    expect(shapes.sent).toBe(false);
+    expect(shapes.alerts.join(" ")).toContain("unreadable fields (run_at, stages)");
   });
 });

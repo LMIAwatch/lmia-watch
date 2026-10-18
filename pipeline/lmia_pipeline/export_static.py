@@ -74,7 +74,10 @@ SITEMAP_DATED_PAGES = {"/", "/search", "/map", "/data"}
 
 def _dump(path: Path, obj: object) -> int:
     path.parent.mkdir(parents=True, exist_ok=True)
-    data = json.dumps(obj, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    # allow_nan=False: Python would write NaN or Infinity, which no browser's
+    # JSON parser accepts, and one such value would break a whole file on the
+    # site. The export fails instead, and the previous one stays published.
+    data = json.dumps(obj, ensure_ascii=False, separators=(",", ":"), sort_keys=True, allow_nan=False).encode("utf-8")
     path.write_bytes(data)
     return len(data)
 
@@ -435,10 +438,23 @@ def write_sitemaps(conn: sqlite3.Connection, out: Path, base_url: str, data_as_o
 
 
 def export_static(conn: sqlite3.Connection, out_dir: Path | None = None) -> dict[str, int]:
-    out = out_dir or (config.OUT_DIR / "static")
+    final = out_dir or (config.OUT_DIR / "static")
+    # Written beside the final folder and moved into place only when every
+    # file is written, so a failure part way leaves the previous export (or
+    # none at all) rather than a half-written tree the deploy would publish.
+    out = final.with_name(final.name + ".partial")
     if out.exists():
         shutil.rmtree(out)
     out.mkdir(parents=True, exist_ok=True)
+    counts = _write_static(conn, out)
+    if final.exists():
+        shutil.rmtree(final)
+    out.rename(final)
+    log_run(conn, "export", detail=f"static {counts}", rows_in=counts["search_latest"])
+    return counts
+
+
+def _write_static(conn: sqlite3.Connection, out: Path) -> dict[str, int]:
     meta = {r["key"]: r["value"] for r in conn.execute("SELECT key, value FROM meta")}
     latest = meta.get("esdc_latest_period") or ""
     ind = triggered_map(conn)
@@ -466,5 +482,4 @@ def export_static(conn: sqlite3.Connection, out_dir: Path | None = None) -> dict
     counts["profile_shards"] = write_profiles(conn, out)
     counts.update(write_sitemaps(conn, out, config.SITE_URL, stats["data_as_of"]))
     counts["employers"] = stats["counts"]["employers"]
-    log_run(conn, "export", detail=f"static {counts}", rows_in=counts["search_latest"])
     return counts

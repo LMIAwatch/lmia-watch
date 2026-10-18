@@ -166,8 +166,13 @@ def run(conn: sqlite3.Connection, client: PoliteClient, *, now: str | None = Non
         log_run(conn, "wages", detail=f"skipped: checked {hours / 24:.0f} days ago; tables={len(loaded_tables)}",
                 rows_in=len(loaded_tables))
         return 0
-    package = client.get_json(config.CKAN_PACKAGE_SHOW.format(dataset=DATASET), cache=True, max_age_s=3600)
-    keep = newest_resources(package)
+    listing = config.CKAN_PACKAGE_SHOW.format(dataset=DATASET)
+    try:
+        package = client.get_json(listing, cache=True, max_age_s=3600)
+        keep = newest_resources(package)
+    except (ValueError, AttributeError):
+        client.forget(listing)  # an error page cached as the listing is not reused
+        raise
     loaded = 0
     failures: list[str] = []
     for res in keep:
@@ -182,6 +187,10 @@ def run(conn: sqlite3.Connection, client: PoliteClient, *, now: str | None = Non
             n = load_table(conn, res, data, now=stamp)
         except Exception as exc:  # a malformed year must not drop the table already loaded
             conn.rollback()
+            # The file is cached for a year; without this a bad copy (an empty
+            # or truncated download, an error page) would be re-read every
+            # night instead of fetched again.
+            client.forget(res["url"])
             failures.append(f"{res.get('id')}: {exc}")
             log.warning("wage table %s failed: %s", res.get("id"), exc)
             continue
