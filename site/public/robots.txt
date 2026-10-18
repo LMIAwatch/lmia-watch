@@ -13,6 +13,7 @@ Crawl-delay: 5
 # needed to find the records (the data is downloadable on the Data page) and
 # at their pace they use up the daily request allowance that readers depend
 # on. Assistants fetching a single page for a person are not listed here.
+User-agent: ShapBot
 User-agent: ClaudeBot
 User-agent: anthropic-ai
 User-agent: GPTBot
