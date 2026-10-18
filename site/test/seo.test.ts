@@ -242,14 +242,21 @@ describe("crawler files", () => {
     expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
     const text = await res.text();
     const rules = text.split("\n").filter((l) => l && !l.startsWith("#"));
-    expect(rules).toEqual([
+    // Everyone may crawl the pages, at a polite pace; the hooks, API, downloads and the response form are not pages.
+    expect(rules.slice(0, 7)).toEqual([
       "User-agent: *",
       "Allow: /",
       "Disallow: /hooks/",
       "Disallow: /api/",
       "Disallow: /downloads/",
-      "Sitemap: https://lmiawatch.ca/sitemap.xml",
+      "Disallow: /employers/*/respond",
+      "Crawl-delay: 5",
     ]);
+    // Training and bulk-scraping crawlers are kept off the Worker entirely.
+    const aiGroup = rules.slice(7, rules.indexOf("Disallow: /") + 1);
+    for (const bot of ["ClaudeBot", "GPTBot", "Google-Extended", "CCBot", "Bytespider"]) expect(aiGroup).toContain(`User-agent: ${bot}`);
+    expect(aiGroup[aiGroup.length - 1]).toBe("Disallow: /");
+    expect(rules[rules.length - 1]).toBe("Sitemap: https://lmiawatch.ca/sitemap.xml");
     expect(text).not.toContain("\u2014");
   });
 });
