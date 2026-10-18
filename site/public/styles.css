@@ -151,8 +151,11 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); width
 .tile-note { font-size: 14px; color: var(--muted); }
 .two-col { display: flex; flex-wrap: wrap; gap: 0 40px; }
 .two-col > div { flex: 1 1 480px; min-width: 0; }
-.section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px 16px; flex-wrap: wrap; }
-.section-head h2 { margin-bottom: 8px; }
+/* Title left, link right, on one row at every width: a long French label wraps
+   its own words on the right instead of dropping under the title. */
+.section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px 16px; }
+.section-head h2 { margin-bottom: 8px; min-width: 0; }
+.section-head > a { flex: 0 1 auto; text-align: right; }
 .bars { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
 .bar-row { display: grid; grid-template-columns: 180px 1fr 70px; gap: 12px; align-items: center; font-size: 15px; }
 .bar-track { display: block; height: 12px; background: var(--panel); border: 1px solid var(--rule); }

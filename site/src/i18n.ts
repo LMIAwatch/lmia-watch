@@ -163,7 +163,7 @@ const STRINGS = {
     fr: "employeurs inscrits sur la liste des employeurs non conformes d'IRCC",
   },
   "home.applying": { en: "Applying This Week", fr: "Demandes de la semaine" },
-  "home.all_pending": { en: "All Pending ({n})", fr: "Toutes les demandes en attente ({n})" },
+  "home.all_pending": { en: "All Pending ({n})", fr: "Toutes en attente ({n})" },
   "home.recent_approved": { en: "Recently Approved", fr: "Approuvées récemment" },
   "home.all_approved": { en: "All Approved", fr: "Toutes les approbations" },
   "home.recent_approved_note": {
