@@ -53,8 +53,8 @@ to that account; reusing an existing Cloudflare account puts that account's
 `workers.dev` subdomain in the site's public address. The site itself needs no email:
 the user agent and the About page point at the corrections form.
 
-1. **GitHub.** Create the account, then an empty private repository. A private
-   repository gets 2,000 free Actions minutes a month and the nightly run uses
+1. **GitHub.** Create the account, then an empty public repository (public
+   repositories get unlimited Actions minutes; the nightly run uses
    about 45 to 55, so it fits with room to spare, and nobody can see the
    account name. Push this repo to it with the new account's credential, never
    a personal one:

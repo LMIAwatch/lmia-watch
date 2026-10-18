@@ -105,7 +105,7 @@ Worker never parses a large file; a profile page reads one shard), 100,000 Worke
 requests a day. The whole export is about 650 MB raw; `wrangler deploy` uploads
 only files whose content hash changed. Downloads and the SQLite file live in R2
 (10 GB free). D1 free covers the two form tables many times over. GitHub Actions
-gives a private repository 2,000 free minutes a month, which the nightly run fits
+runs on a public repository, so Actions minutes are unlimited; Job Bank's crawl delay sets the pace
 under (see *Automation*). A custom domain is the one optional cost.
 
 `export.py` still writes D1 batches when `run --export --d1` is used; that is the
@@ -208,7 +208,7 @@ paid-plan path and is not part of the nightly run.
   activity; this keeps the schedule alive with no human step.
 - Secrets: `CLOUDFLARE_API_TOKEN` (Workers, R2, D1 on the project account only),
   `CLOUDFLARE_ACCOUNT_ID`. Variables: `SITE_URL`, `CONTACT`.
-- Budget: the repository is private, which gives 2,000 free Actions minutes a
+- Budget: the repository is public (unlimited Actions minutes); the only pace limit is Job Bank's crawl delay, a
   month. List pages for both facets take about 25 minutes at the crawl delay;
   detail pages are fetched only for postings not seen before, 200 a night (the
   workflow passes `--detail-budget 200`), so the first backfill of about 6,000
