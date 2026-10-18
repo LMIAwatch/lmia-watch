@@ -54,9 +54,8 @@ to that account; reusing an existing Cloudflare account puts that account's
 the user agent and the About page point at the corrections form.
 
 1. **GitHub.** Create the account, then an empty public repository (public
-   repositories get unlimited Actions minutes; the nightly run uses
-   about 45 to 55, so it fits with room to spare, and nobody can see the
-   account name. Push this repo to it with the new account's credential, never
+   repositories get unlimited Actions minutes, which a crawl paced by Job
+   Bank's five-second delay needs), with issues, wiki and projects turned off. Push this repo to it with the new account's credential, never
    a personal one:
    `git remote add origin https://<username>@github.com/<username>/lmia-watch.git`
    then `git push -u origin main` (the username in the URL keeps the credential
