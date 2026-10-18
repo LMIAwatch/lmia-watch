@@ -17,8 +17,9 @@
 # optional X_POST_LINK, set to true to put the site link in the text (X bills a
 # post with a link at thirteen times the rate; the attached card carries the
 # address instead).
-# The repository can be private: a private repository gets 2,000 free Actions
-# minutes a month and this run uses about 45 to 55 a night.
+# The repository is public, so Actions minutes are unlimited; the only pace
+# limit is Job Bank's five-second crawl delay, which puts a full sweep at a
+# few hours. The job must finish before the next midnight run.
 
 name: nightly
 
@@ -39,7 +40,7 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 300
+    timeout-minutes: 420
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -75,13 +76,13 @@ jobs:
           npx --yes wrangler r2 object get --remote lmia-watch-data/lmia.sqlite.gz --file data/lmia.sqlite.gz
           gunzip -f data/lmia.sqlite.gz
 
-      # 200 posting pages a night keeps a run near 45 to 55 minutes, which fits a
-      # private repository's 2,000 free Actions minutes a month with room to spare.
+      # 400 posting pages a night: at Job Bank's pace that is a few hours, well
+      # inside the window before the next run.
       - name: Run every stage
         run: |
           mkdir -p data/out
           date -u +"%Y-%m-%dT%H:%M:%SZ" > data/out/run_started.txt
-          python -m lmia_pipeline run --db data/lmia.sqlite --detail-budget 200
+          python -m lmia_pipeline run --db data/lmia.sqlite --detail-budget 400
 
       - name: Bundle the static data for the site
         run: |
