@@ -70,6 +70,18 @@ jobs:
       # size the command-line upload accepts, and it compresses about three to one.
       # --remote on every r2 command: without it Wrangler 4 reads and writes a
       # local simulated bucket on the runner, which is thrown away with the job.
+      # The download cache (ESDC files, the federal extract, the wage tables, the
+      # LFS table, the boundaries) persists between runs through the Actions
+      # cache, so weekly and monthly revalidation means what it says instead
+      # of a fresh download every night. A new key each run saves the latest
+      # state; restore-keys picks the newest previous one.
+      - name: Restore the download cache
+        uses: actions/cache@v4
+        with:
+          path: data/raw/cache
+          key: raw-cache-${{ github.run_id }}
+          restore-keys: raw-cache-
+
       - name: Restore the database from R2 (first run has none)
         continue-on-error: true
         run: |

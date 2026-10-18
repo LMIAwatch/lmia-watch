@@ -226,10 +226,16 @@ paid-plan path and is not part of the nightly run.
 | BC Registry via OrgBook `orgbook.gov.bc.ca/api/v4/search/topic` | name search, graded match, BC employers only | nightly for new BC employers |
 | Corporations Canada, Federal Corporations open data (CBCA active and inactive CSVs) | bulk extract loaded locally, matched on normalized name | weekly download |
 | GeoNames postal codes (CC BY 4.0) | forward sortation area centroids in `pipeline/lmia_pipeline/data/fsa_centroids.csv` | once |
+| ESDC Job Bank wages, CKAN dataset `adad580f-76b0-4502-bd05-20c125de9116` (one CSV a year, about 18 MB) | median by NOC 2021 and economic region, loaded into `jobbank_wages`; the prevailing-wage floor | revalidated monthly from the database's own record |
+| Statistics Canada LFS table 14-10-0459-01 (unemployment rate by CMA, 3-month moving average, unadjusted) | `www150.statcan.gc.ca/n1/tbl/csv/14100459-eng.zip`, loaded into `lfs_unemployment` | monthly |
+| Statistics Canada 2021 cartographic boundaries (economic regions, CMAs, FSAs) via `geo.statcan.gc.ca/geo_wa/rest/services/2021/Cartographic_boundary_files/MapServer` | point-in-polygon of each FSA's point into `fsa_regions` (the zip downloads sit behind a browser challenge) | once |
 
-Licences: ESDC lists and the federal corporations extract are Open Government
-Licence, Canada. Job Bank is Government of Canada content reproduced with
-attribution. GeoNames is CC BY 4.0. Derived files ship under OGL Canada.
+Licences: ESDC lists, the wage table and the federal corporations extract are
+Open Government Licence, Canada. Job Bank is Government of Canada content
+reproduced with attribution. Statistics Canada tables and boundaries are under
+the Statistics Canada Open Licence. GeoNames is CC BY 4.0. Derived files ship
+under OGL Canada. The code itself is source-available (`LICENSE.md`), not open
+source.
 
 ## Run and test
 - Pipeline: `cd pipeline && pip install -e .[dev] && pytest`. Dev run:
@@ -288,11 +294,13 @@ Verified locally:
   no `/config` subpath); wrangler is pinned to the version the pool bundles.
 
 Known gaps, in the order they matter:
-1. Wage and unemployment tables for the two placeholder indicators (Job Bank
-   prevailing wages by economic region; Labour Force Survey by census area).
-2. Turnstile on the two forms (needs the
-   account). The Data page no longer carries placeholders.
-3. Account setup on the project's own Cloudflare and GitHub accounts (see
-   `site/README.md`), then one manual run of the nightly workflow.
+1. The wage-at-floor rule can only judge postings whose page has been parsed
+   (the occupation code lives there); the 400-page nightly budget works through
+   the backlog. The FSA point-in-polygon places a straddling area wholly on one
+   side (about 2 percent of areas).
+2. Turnstile on the two forms.
+3. Registry coverage outside BC, Quebec and the federal register (no free bulk
+   or API access elsewhere); trade-name splitting and dotted-abbreviation
+   normalisation (in progress 2026-10-18).
 4. The long search scope loads several megabytes per province in the browser; a
    compact columnar encoding would halve that if it proves slow on phones.
