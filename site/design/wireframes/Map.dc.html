@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Map</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+body{margin:0;background:#e5e7eb;color:#111827;font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:15px;line-height:1.45}
+a{color:#1d4ed8}a:hover{color:#1e3a8a}
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600;white-space:nowrap;line-height:1.5}
+.pending{background:#fef3c7;color:#92400e}
+.approved{background:#dbeafe;color:#1e3a8a}
+.refused{background:#e5e7eb;color:#374151}
+.mono{font-family:'IBM Plex Mono',monospace;font-size:12px}
+table{border-collapse:collapse;width:100%}
+th{text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#4b5563;padding:8px 10px;border-bottom:2px solid #d1d5db;font-weight:600}
+td{padding:9px 10px;border-bottom:1px solid #e5e7eb;vertical-align:top;font-size:14px}
+</style>
+</helmet>
+<div style="max-width:1280px;margin:0 auto;background:#ffffff;min-height:100%">
+
+<header style="display:flex;flex-wrap:wrap;align-items:center;gap:12px 28px;padding:14px 32px;border-bottom:1px solid #d1d5db">
+<a href="Main.dc.html" style="font-weight:600;font-size:18px;color:#111827;text-decoration:none">LMIA Watch</a>
+<nav aria-label="Main" style="display:flex;flex-wrap:wrap;gap:18px;font-size:14px">
+<a href="Search.dc.html" style="text-decoration:none">Search</a>
+<a href="Map.dc.html" style="text-decoration:none;color:#111827;font-weight:600">Map</a>
+<a href="Methodology.dc.html" style="text-decoration:none">Methodology</a>
+<a href="Data.dc.html" style="text-decoration:none">Data &amp; about</a>
+</nav>
+<div style="margin-left:auto;display:flex;align-items:center;gap:14px;font-size:13px;color:#4b5563">
+<span class="mono">Data as of 2026-10-12</span>
+<button type="button" style="padding:6px 10px;border:1px solid #9ca3af;background:#fff;border-radius:4px;font-family:inherit;font-size:13px;cursor:pointer">FR</button>
+</div>
+</header>
+
+<div style="padding:16px 32px 8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:14px">
+<label for="q3" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Search</label>
+<input id="q3" type="search" value="British Columbia" style="flex:1 1 300px;padding:9px 12px;border:1px solid #9ca3af;border-radius:6px;font-size:15px;font-family:inherit">
+<label style="display:flex;gap:6px;align-items:center"><input type="checkbox" checked> <span class="badge pending">Pending</span></label>
+<label style="display:flex;gap:6px;align-items:center"><input type="checkbox" checked> <span class="badge approved">Approved</span></label>
+<label style="display:flex;gap:6px;align-items:center"><input type="checkbox"> <span class="badge refused">Refused</span></label>
+<label for="per" style="color:#4b5563;margin-left:8px">Period</label>
+<select id="per" style="padding:7px 8px;border:1px solid #9ca3af;border-radius:4px;font-family:inherit;font-size:14px"><option>Pending now + 2026 Q1</option><option>Last 4 quarters</option><option>Since 2023 Q4</option></select>
+<button type="button" style="padding:8px 12px;border:1px solid #9ca3af;background:#fff;border-radius:4px;font-family:inherit;font-size:14px;cursor:pointer">Use my location</button>
+</div>
+
+<div style="display:flex;flex-wrap:wrap;gap:24px;padding:12px 32px 32px">
+
+<div style="flex:999 1 560px;min-width:0;display:flex;flex-direction:column;gap:10px">
+<div role="img" aria-label="Map of British Columbia with clusters of employer records by forward sortation area" style="position:relative;height:620px;border:1px dashed #9ca3af;border-radius:8px;background:#f3f4f6;overflow:hidden">
+<span style="position:absolute;left:16px;top:12px;font-size:13px;color:#4b5563">Base map (OpenStreetMap tiles). Clusters group records by the first three characters of the postal code.</span>
+<div style="position:absolute;left:18%;top:62%;width:120px;height:120px;border-radius:50%;background:#1e3a8a;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:600"><span style="font-size:22px">612</span><span style="font-size:12px;font-weight:400">Metro Vancouver</span></div>
+<div style="position:absolute;left:34%;top:66%;width:86px;height:86px;border-radius:50%;background:#1e3a8a;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:600"><span style="font-size:18px">203</span><span style="font-size:11px;font-weight:400">Fraser Valley</span></div>
+<div style="position:absolute;left:56%;top:52%;width:80px;height:80px;border-radius:50%;background:#1e3a8a;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:600"><span style="font-size:18px">148</span><span style="font-size:11px;font-weight:400">Okanagan</span></div>
+<div style="position:absolute;left:8%;top:40%;width:78px;height:78px;border-radius:50%;background:#1e3a8a;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:600"><span style="font-size:18px">160</span><span style="font-size:11px;font-weight:400">Island</span></div>
+<div style="position:absolute;left:48%;top:14%;width:66px;height:66px;border-radius:50%;background:#1e3a8a;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:600"><span style="font-size:16px">97</span><span style="font-size:11px;font-weight:400">North</span></div>
+<div style="position:absolute;left:28%;top:48%;width:34px;height:34px;border-radius:50%;background:#b45309;border:2px solid #fff;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px" title="Pending: PinkCloud Cleaning, Brackendale">1</div>
+<span style="position:absolute;left:28%;top:48%;margin-left:40px;margin-top:6px;font-size:12px;background:#fff;padding:2px 6px;border:1px solid #d1d5db;border-radius:3px">Brackendale: 1 pending</span>
+<div style="position:absolute;right:16px;bottom:12px;display:flex;flex-direction:column;gap:6px;background:#fff;padding:10px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:12px">
+<span style="display:flex;gap:8px;align-items:center"><span style="width:14px;height:14px;border-radius:50%;background:#1e3a8a;display:inline-block"></span>Cluster (all statuses)</span>
+<span style="display:flex;gap:8px;align-items:center"><span style="width:14px;height:14px;border-radius:50%;background:#b45309;display:inline-block"></span>Pending posting</span>
+<span style="display:flex;gap:8px;align-items:center"><span style="width:14px;height:14px;border-radius:50%;background:#1d4ed8;display:inline-block"></span>Approved record</span>
+</div>
+<div style="position:absolute;left:16px;bottom:12px;display:flex;flex-direction:column;gap:4px">
+<button type="button" aria-label="Zoom in" style="width:32px;height:32px;border:1px solid #9ca3af;background:#fff;border-radius:4px;font-size:18px;cursor:pointer">+</button>
+<button type="button" aria-label="Zoom out" style="width:32px;height:32px;border:1px solid #9ca3af;background:#fff;border-radius:4px;font-size:18px;cursor:pointer">&minus;</button>
+</div>
+</div>
+<p style="margin:0;font-size:13px;color:#4b5563">Cluster counts are placeholders for the wireframe. Live counts come from the database. Points are placed at the postal-code centroid, never at a residence, and private household employers are excluded.</p>
+</div>
+
+<aside aria-label="Selected area" style="flex:1 1 320px;min-width:0;display:flex;flex-direction:column;gap:10px;border:1px solid #d1d5db;border-radius:8px;padding:16px;background:#f9fafb;align-self:flex-start">
+<h2 style="margin:0;font-size:17px;font-weight:600">Selected: Squamish and Brackendale (V0N, V8B)</h2>
+<p style="margin:0;font-size:13px;color:#4b5563">1 pending, [N] approved since 2023 Q4</p>
+<div style="overflow-x:auto">
+<table>
+<thead><tr><th>Status</th><th>Employer</th><th>Job</th><th>Date</th></tr></thead>
+<tbody>
+<tr><td><span class="badge pending">Pending</span></td><td><a href="Employer.dc.html">PinkCloud Cleaning &amp; Home Services</a></td><td>cleaning service manager</td><td class="mono">2026-10-08</td></tr>
+<tr><td><span class="badge approved">Approved</span></td><td>[EMPLOYER]</td><td>[OCCUPATION]</td><td class="mono">[QUARTER]</td></tr>
+<tr><td><span class="badge approved">Approved</span></td><td>[EMPLOYER]</td><td>[OCCUPATION]</td><td class="mono">[QUARTER]</td></tr>
+</tbody>
+</table>
+</div>
+<a href="Search.dc.html" style="font-size:14px">Open as a list</a>
+</aside>
+</div>
+
+<footer style="padding:20px 32px;border-top:1px solid #d1d5db;font-size:13px;color:#4b5563;display:flex;flex-wrap:wrap;gap:8px 24px">
+<span>Sources: Job Bank (ESDC); TFWP positive and negative LMIA employer lists (Open Government Licence, Canada); IRCC non-compliant employers; BC Registry.</span>
+<a href="Data.dc.html">Download the data</a>
+<a href="Data.dc.html">Corrections</a>
+</footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1200}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,259 @@
+{
+  "emp-a000000001": {
+    "employer": {
+      "id": "emp-a000000001",
+      "display_name": "PinkCloud Cleaning & Home Services",
+      "province": "BC",
+      "city": "Brackendale",
+      "postal_code": "V0N 1H0",
+      "street": null,
+      "current_status": "pending",
+      "status_changed_at": "2026-10-12T09:10:00Z",
+      "first_seen": "2026-10-08",
+      "last_seen": "2026-10-12",
+      "pending_count": 1,
+      "approved_lmias": 0,
+      "approved_positions": 0,
+      "refused_lmias": 0,
+      "refused_positions": 0,
+      "finding_count": 0,
+      "indicator_count": 1,
+      "registry_grade": "probable",
+      "updated_at": "2026-10-12T09:10:00Z"
+    },
+    "names": [
+      {
+        "name": "PinkCloud Cleaning & Home Services",
+        "source": "jobbank"
+      }
+    ],
+    "postings": [
+      {
+        "posting_id": 50456228,
+        "employer_raw": "PinkCloud Cleaning & Home Services",
+        "title": "cleaning service manager",
+        "noc_code": "60040",
+        "street": null,
+        "city": "Brackendale",
+        "province": "BC",
+        "postal_code": "V0N 1H0",
+        "wage_min": 38,
+        "wage_max": 40,
+        "wage_unit": "HOUR",
+        "vacancies": 1,
+        "date_posted": "2026-10-08",
+        "valid_through": "2026-10-22",
+        "first_seen": "2026-10-12T09:10:00Z",
+        "last_seen": "2026-10-12T09:10:00Z",
+        "flag_current": "requested",
+        "approved_seen_at": null,
+        "url": "https://www.jobbank.gc.ca/jobsearch/jobposting/50456228"
+      }
+    ],
+    "esdc": [],
+    "registry": [
+      {
+        "registry": "bc_orgbook",
+        "registry_id": "BC1596446",
+        "legal_name": "PINKCLOUD SERVICES LTD.",
+        "entity_type": "BC",
+        "status": "ACT",
+        "registered_on": "2026-06-22",
+        "grade": "probable",
+        "checked_at": "2026-10-12T09:10:00Z"
+      }
+    ],
+    "indicators": [
+      {
+        "indicator": "high_volume",
+        "state": "not_applicable",
+        "basis": "No positive-list rows.",
+        "rule_version": "0.1",
+        "computed_at": "2026-10-12T09:10:00Z"
+      },
+      {
+        "indicator": "newly_incorporated",
+        "state": "triggered",
+        "basis": "Registered 2026-06-22, first record 2026-10-08 (108 days).",
+        "rule_version": "0.1",
+        "computed_at": "2026-10-12T09:10:00Z"
+      },
+      {
+        "indicator": "wage_at_floor",
+        "state": "not_evaluated",
+        "basis": "Prevailing wage table not yet loaded.",
+        "rule_version": "0.1",
+        "computed_at": "2026-10-12T09:10:00Z"
+      }
+    ],
+    "findings": []
+  },
+  "emp-a000000002": {
+    "employer": {
+      "id": "emp-a000000002",
+      "display_name": "Edsa Mini Mart",
+      "province": "BC",
+      "city": "Penticton",
+      "postal_code": "V2A 5L1",
+      "street": "405 Martin Street",
+      "current_status": "pending",
+      "status_changed_at": "2026-10-12T09:10:00Z",
+      "first_seen": "2026-10-06",
+      "last_seen": "2026-10-12",
+      "pending_count": 1,
+      "approved_lmias": 0,
+      "approved_positions": 0,
+      "refused_lmias": 0,
+      "refused_positions": 0,
+      "finding_count": 0,
+      "indicator_count": 0,
+      "registry_grade": "none",
+      "updated_at": "2026-10-12T09:10:00Z"
+    },
+    "names": [
+      {
+        "name": "Edsa Mini Mart",
+        "source": "jobbank"
+      }
+    ],
+    "postings": [
+      {
+        "posting_id": 50440025,
+        "employer_raw": "Edsa Mini Mart",
+        "title": "assistant store manager",
+        "noc_code": "60020",
+        "street": "405 Martin Street",
+        "city": "Penticton",
+        "province": "BC",
+        "postal_code": "V2A 5L1",
+        "wage_min": 40,
+        "wage_max": 40,
+        "wage_unit": "HOUR",
+        "vacancies": 1,
+        "date_posted": "2026-10-06",
+        "valid_through": "2026-10-25",
+        "first_seen": "2026-10-12T09:10:00Z",
+        "last_seen": "2026-10-12T09:10:00Z",
+        "flag_current": "requested",
+        "approved_seen_at": null,
+        "url": "https://www.jobbank.gc.ca/jobsearch/jobposting/50440025"
+      }
+    ],
+    "esdc": [],
+    "registry": [],
+    "indicators": [],
+    "findings": []
+  },
+  "emp-a000000005": {
+    "employer": {
+      "id": "emp-a000000005",
+      "display_name": "Jealous Fruits Ltd.",
+      "province": "BC",
+      "city": "Kelowna",
+      "postal_code": "V4V 1T3",
+      "street": null,
+      "current_status": "approved",
+      "status_changed_at": "2026-07-22T00:00:00Z",
+      "first_seen": "2026-01-01",
+      "last_seen": "2026-03-31",
+      "pending_count": 0,
+      "approved_lmias": 19,
+      "approved_positions": 760,
+      "refused_lmias": 0,
+      "refused_positions": 0,
+      "finding_count": 0,
+      "indicator_count": 1,
+      "registry_grade": "none",
+      "updated_at": "2026-10-12T09:10:00Z"
+    },
+    "names": [
+      {
+        "name": "Jealous Fruits Ltd.",
+        "source": "esdc_positive"
+      }
+    ],
+    "postings": [],
+    "esdc": [
+      {
+        "id": 1,
+        "list": "positive",
+        "period": "2026Q1",
+        "employer_raw": "Jealous Fruits Ltd.",
+        "province": "BC",
+        "stream": "Primary Agriculture",
+        "city": "Kelowna",
+        "postal_code": "V4V 1T3",
+        "noc_code": "85101",
+        "noc_title": "Harvesting labourers",
+        "incorporate_status": "Unknown",
+        "lmias": 19,
+        "positions": 760,
+        "resource_id": "4ee7a4e0-ffc3-47af-94e7-30929d1eeb67",
+        "published": "2026-07-21"
+      }
+    ],
+    "registry": [],
+    "indicators": [
+      {
+        "indicator": "high_volume",
+        "state": "triggered",
+        "basis": "760 positions approved in 2026Q1.",
+        "rule_version": "0.1",
+        "computed_at": "2026-10-12T09:10:00Z"
+      }
+    ],
+    "findings": []
+  },
+  "emp-a000000008": {
+    "employer": {
+      "id": "emp-a000000008",
+      "display_name": "Haveli Restaurant Inc",
+      "province": "NL",
+      "city": "St. John's",
+      "postal_code": "A1C 4M5",
+      "street": null,
+      "current_status": "refused",
+      "status_changed_at": "2026-07-22T00:00:00Z",
+      "first_seen": "2026-01-01",
+      "last_seen": "2026-03-31",
+      "pending_count": 0,
+      "approved_lmias": 0,
+      "approved_positions": 0,
+      "refused_lmias": 1,
+      "refused_positions": 1,
+      "finding_count": 0,
+      "indicator_count": 0,
+      "registry_grade": "none",
+      "updated_at": "2026-10-12T09:10:00Z"
+    },
+    "names": [
+      {
+        "name": "Haveli Restaurant Inc",
+        "source": "esdc_negative"
+      }
+    ],
+    "postings": [],
+    "esdc": [
+      {
+        "id": 2,
+        "list": "negative",
+        "period": "2026Q1",
+        "employer_raw": "Haveli Restaurant Inc",
+        "province": "NL",
+        "stream": "High Wage",
+        "city": "St. John's",
+        "postal_code": "A1C 4M5",
+        "noc_code": "60030",
+        "noc_title": "Restaurant and food service managers",
+        "incorporate_status": "Unknown",
+        "lmias": 1,
+        "positions": 1,
+        "resource_id": "1e854188-18c4-4cbe-b4e0-88561955fe05",
+        "published": "2026-07-21"
+      }
+    ],
+    "registry": [],
+    "indicators": [],
+    "findings": []
+  }
+}

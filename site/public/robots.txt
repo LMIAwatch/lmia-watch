@@ -1,0 +1,9 @@
+# LMIA Watch. Every page is open to crawlers, in English and in French (?lang=fr).
+# The payment webhook, the JSON API and the bulk downloads are not pages.
+User-agent: *
+Allow: /
+Disallow: /hooks/
+Disallow: /api/
+Disallow: /downloads/
+
+Sitemap: https://lmiawatch.ca/sitemap.xml

@@ -1,0 +1,59 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "lmia-watch",
+  "main": "src/index.tsx",
+  "compatibility_date": "2025-12-01",
+  // Never publish under the account's workers.dev subdomain; the site lives on its own domain.
+  "workers_dev": false,
+  "routes": [
+    { "pattern": "lmiawatch.ca", "custom_domain": true },
+    { "pattern": "www.lmiawatch.ca", "custom_domain": true }
+  ],
+  // Per-address request caps, enforced inside the Worker (see src/limits.ts).
+  // Static files under /data/ and /fonts/ never reach the Worker and are not
+  // counted. The edge rule in the dashboard (docs/traffic-limits.md) is the
+  // first line; these are the second, and they protect D1 and the downloads.
+  "ratelimits": [
+    { "name": "PAGE_LIMIT", "namespace_id": "1001", "simple": { "limit": 120, "period": 60 } },
+    { "name": "API_LIMIT", "namespace_id": "1002", "simple": { "limit": 60, "period": 60 } },
+    { "name": "DOWNLOAD_LIMIT", "namespace_id": "1003", "simple": { "limit": 10, "period": 60 } },
+    { "name": "FORM_LIMIT", "namespace_id": "1004", "simple": { "limit": 5, "period": 60 } }
+  ],
+  // The daily check (src/watchdog.ts): 06:00 UTC, after the nightly run has had
+  // its window. It emails the operator through the email binding when the data,
+  // the backup, a stage or the X post needs attention. ALERT_EMAIL is a secret;
+  // the destination must be verified in the zone's Email Routing.
+  "triggers": { "crons": ["0 6 * * *"] },
+  "send_email": [{ "name": "ALERTS" }],
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "lmia-watch",
+      // Replace with the id printed by `wrangler d1 create lmia-watch` on the project account.
+      "database_id": "2da1bc11-f9ae-431e-bef3-ce66b60f5bbd"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "DATA",
+      "bucket_name": "lmia-watch-data"
+    }
+  ],
+  // Support page. Set DONATE_URL to the payment page's https address to show the
+  // donate button; empty keeps donations closed. DONATE_LABEL and
+  // DONATE_LABEL_FR override the button text on English and French pages
+  // (empty uses the default).
+  "vars": {
+    "ALERT_FROM": "alerts@lmiawatch.ca",
+    "DONATE_URL": "https://ko-fi.com/lmiawatch",
+    "DONATE_LABEL": "Support on Ko-fi",
+    "DONATE_LABEL_FR": "Soutenir sur Ko-fi"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

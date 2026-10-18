@@ -1,0 +1,23 @@
+{
+  "name": "lmia-watch-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "db:local": "wrangler d1 execute lmia-watch --local --file=../pipeline/schema.sql && wrangler d1 execute lmia-watch --local --file=./seed/dev_seed.sql",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "deploy": "wrangler deploy",
+    "data:local": "node scripts/copy-data.mjs"
+  },
+  "dependencies": {
+    "hono": "^4.6.0"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "0.16.20",
+    "@cloudflare/workers-types": "^4.20260625.1",
+    "typescript": "^5.6.0",
+    "vitest": "^4.1.9",
+    "wrangler": "4.105.0"
+  }
+}

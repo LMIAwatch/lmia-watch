@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Methodology</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+body{margin:0;background:#e5e7eb;color:#111827;font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:15px;line-height:1.45}
+a{color:#1d4ed8}a:hover{color:#1e3a8a}
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600;white-space:nowrap;line-height:1.5}
+.pending{background:#fef3c7;color:#92400e}
+.approved{background:#dbeafe;color:#1e3a8a}
+.refused{background:#e5e7eb;color:#374151}
+.finding{background:#fee2e2;color:#991b1b}
+.lapsed{background:#f3f4f6;color:#4b5563;border:1px dashed #9ca3af}
+.mono{font-family:'IBM Plex Mono',monospace;font-size:12px}
+table{border-collapse:collapse;width:100%}
+th{text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#4b5563;padding:8px 10px;border-bottom:2px solid #d1d5db;font-weight:600}
+td{padding:9px 10px;border-bottom:1px solid #e5e7eb;vertical-align:top;font-size:14px}
+h2{margin:0;font-size:20px;font-weight:600}
+p{margin:0}
+</style>
+</helmet>
+<div style="max-width:1280px;margin:0 auto;background:#ffffff;min-height:100%">
+
+<header style="display:flex;flex-wrap:wrap;align-items:center;gap:12px 28px;padding:14px 32px;border-bottom:1px solid #d1d5db">
+<a href="Main.dc.html" style="font-weight:600;font-size:18px;color:#111827;text-decoration:none">LMIA Watch</a>
+<nav aria-label="Main" style="display:flex;flex-wrap:wrap;gap:18px;font-size:14px">
+<a href="Search.dc.html" style="text-decoration:none">Search</a>
+<a href="Map.dc.html" style="text-decoration:none">Map</a>
+<a href="Methodology.dc.html" style="text-decoration:none;color:#111827;font-weight:600">Methodology</a>
+<a href="Data.dc.html" style="text-decoration:none">Data &amp; about</a>
+</nav>
+<div style="margin-left:auto;display:flex;align-items:center;gap:14px;font-size:13px;color:#4b5563">
+<span class="mono">Data as of 2026-10-12</span>
+<button type="button" style="padding:6px 10px;border:1px solid #9ca3af;background:#fff;border-radius:4px;font-family:inherit;font-size:13px;cursor:pointer">FR</button>
+</div>
+</header>
+
+<div style="display:flex;flex-wrap:wrap;gap:32px;padding:28px 32px 32px">
+<nav aria-label="On this page" style="flex:0 1 200px;align-self:flex-start;display:flex;flex-direction:column;gap:8px;font-size:14px;padding:12px 14px;border:1px solid #d1d5db;border-radius:8px;background:#f9fafb">
+<span style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#4b5563;font-weight:600">On this page</span>
+<a href="#sources">Sources</a>
+<a href="#status">Status lifecycle</a>
+<a href="#indicators">Indicators</a>
+<a href="#matching">Matching employers</a>
+<a href="#exclusions">Exclusions</a>
+<a href="#limits">Limits</a>
+<a href="#versions">Versions</a>
+</nav>
+
+<main style="flex:999 1 560px;min-width:0;display:flex;flex-direction:column;gap:28px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<h1 style="margin:0;font-size:30px;line-height:1.15;font-weight:600">Methodology</h1>
+<p style="font-size:16px;color:#4b5563">What each record means, where it came from, how employers are matched across sources, and the exact rule behind each indicator. Everything here is reproducible from the downloads on the Data page.</p>
+</div>
+
+<section id="sources" style="display:flex;flex-direction:column;gap:10px">
+<h2>Sources</h2>
+<div style="overflow-x:auto;border:1px solid #d1d5db;border-radius:8px">
+<table>
+<thead><tr><th>Source</th><th>Fields</th><th>Cadence</th><th>Lag</th></tr></thead>
+<tbody>
+<tr><td>Job Bank postings with the "LMIA requested" flag (search facet 101010)</td><td>Employer, job title, city, postal code, street when entered, wage, posting and expiry dates, flag text</td><td>Nightly scrape, every observation stored</td><td>None. The flag disappears once a decision lands, so the scrape is the only durable record of a pending application.</td></tr>
+<tr><td>Job Bank postings with the "Approved LMIA" flag (facet 101020)</td><td>Same fields</td><td>Nightly</td><td>None, but only for postings still live when the decision arrived</td></tr>
+<tr><td>ESDC positive LMIA employers list (open.canada.ca)</td><td>Province, stream, employer, city and postal code, NOC 2021 occupation, incorporation status, approved LMIAs, approved positions</td><td>Quarterly spreadsheet</td><td>Three to four months. The Jan to Mar 2026 file was published 2026-07-21.</td></tr>
+<tr><td>ESDC negative LMIA employers list</td><td>Same fields, with requested LMIAs and requested positions</td><td>Quarterly</td><td>Same</td></tr>
+<tr><td>IRCC employers found non-compliant</td><td>Operating and legal name, address, reasons, date of final decision, penalty, status</td><td>Updated as decisions are published</td><td>Varies</td></tr>
+<tr><td>BC Registry via OrgBook; Corporations Canada for federal companies</td><td>Legal name, registration number, entity type, status, registration date</td><td>Nightly for employers in the database</td><td>None</td></tr>
+<tr><td>Job Bank prevailing wage by occupation and region</td><td>Median wage used as the LMIA wage floor</td><td>When Job Bank updates it</td><td>Used only by the wage indicator</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<section id="status" style="display:flex;flex-direction:column;gap:10px">
+<h2>Status lifecycle</h2>
+<p style="font-size:14px;color:#4b5563">Each posting or list row is one record. An employer's status is the most recent record's status.</p>
+<div style="overflow-x:auto;border:1px solid #d1d5db;border-radius:8px">
+<table>
+<thead><tr><th>Status</th><th>Assigned when</th><th>Ends when</th></tr></thead>
+<tbody>
+<tr><td><span class="badge pending">Pending</span></td><td>A Job Bank posting carries the "LMIA requested" flag in the latest scrape</td><td>The flag changes to approved, the employer appears in a quarterly list, or the posting closes with no decision seen</td></tr>
+<tr><td><span class="badge approved">Approved</span></td><td>The Job Bank flag reads "Approved LMIA", or the employer, city and occupation appear in a positive quarterly list</td><td>Never. Approved records stay on the profile with their quarter.</td></tr>
+<tr><td><span class="badge refused">Refused</span></td><td>The employer, city and occupation appear in a negative quarterly list</td><td>Never</td></tr>
+<tr><td><span class="badge lapsed">Lapsed</span></td><td>A pending posting closed and two full quarterly lists have been published since, with no matching row in either</td><td>A later list matches it</td></tr>
+<tr><td><span class="badge finding">Finding</span></td><td>The employer appears on IRCC's non-compliant list</td><td>Never. Shown separately from the statuses above because it is a government decision, not a pattern.</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<section id="indicators" style="display:flex;flex-direction:column;gap:10px">
+<h2>Indicators</h2>
+<p style="font-size:14px;color:#4b5563">Each indicator is a mechanical rule over the records. A triggered indicator means the pattern is present. It does not mean the employer did anything wrong, and every rule has known false positives, listed here.</p>
+<div style="overflow-x:auto;border:1px solid #d1d5db;border-radius:8px">
+<table>
+<thead><tr><th>Indicator</th><th>Rule</th><th>Data</th><th>Known false positives</th></tr></thead>
+<tbody>
+<tr><td>Newly incorporated applicant</td><td>Registration date of the matched entity is less than 12 months before the posting date</td><td>Registry, Job Bank</td><td>An existing business that changed form (sole proprietorship to corporation), a franchise opening, a business that moved provinces</td></tr>
+<tr><td>Repeat applicant</td><td>Same employer and occupation in three or more consecutive quarterly positive lists</td><td>ESDC positive lists</td><td>Seasonal agriculture under the Seasonal Agricultural Worker Program renews yearly by design; hospitals and long-term care recruit continuously</td></tr>
+<tr><td>Wage at the prevailing-wage floor</td><td>Posted minimum wage is within 1 percent of the Job Bank median for that occupation and economic region</td><td>Job Bank posting, Job Bank wage table</td><td>Occupations with a narrow wage distribution; a posting whose range starts at the floor but pays above it</td></tr>
+<tr><td>Low-wage stream in a high-unemployment region</td><td>Stream is Low Wage and the census metropolitan area's unemployment rate is at or above 6 percent, the level at which ESDC refuses to process low-wage applications outside exempt sectors</td><td>ESDC lists, Statistics Canada Labour Force Survey</td><td>Exempt sectors: agriculture, food and fish processing, construction, health care</td></tr>
+<tr><td>High volume</td><td>Approved positions in one quarter of 50 or more, or ten times the employer's own median quarter</td><td>ESDC positive lists</td><td>Large farms, greenhouses and packers; health authorities</td></tr>
+<tr><td>Refused then re-posted</td><td>A negative-list row followed by a new pending posting for the same occupation within 90 days of the quarter's publication</td><td>ESDC negative list, Job Bank</td><td>A refusal for a paperwork defect that was corrected and resubmitted</td></tr>
+</tbody>
+</table>
+</div>
+<p style="font-size:14px;color:#4b5563">Rules are versioned. A change to any rule recomputes every profile and is logged on the Data page.</p>
+</section>
+
+<section id="matching" style="display:flex;flex-direction:column;gap:10px">
+<h2>Matching employers across sources</h2>
+<p style="font-size:14px">Names are normalized before comparison: case folded, punctuation removed, legal suffixes stripped (Ltd., Inc., Corp., ULC, Limited Partnership), and accents preserved. A match is then graded:</p>
+<div style="overflow-x:auto;border:1px solid #d1d5db;border-radius:8px">
+<table>
+<thead><tr><th>Grade</th><th>Condition</th><th>Shown as</th></tr></thead>
+<tbody>
+<tr><td>Exact</td><td>Normalized name and full postal code agree</td><td>Merged into one profile</td></tr>
+<tr><td>Probable</td><td>Normalized name and city agree, or name only where the posting uses a trade name</td><td>Merged, with "Probable" on the registry card and both raw strings visible</td></tr>
+<tr><td>Possible</td><td>Name similarity above a threshold, different city</td><td>Listed as "possibly related", never merged</td></tr>
+<tr><td>Unmatched</td><td>Nothing above threshold</td><td>Own profile with no registry card</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<section id="exclusions" style="display:flex;flex-direction:column;gap:10px">
+<h2>Exclusions</h2>
+<p style="font-size:14px">Private households and individuals are not published. Job Bank pending postings include caregiver and home-support jobs where the employer is a person; those postings are dropped before anything is stored. ESDC already removes employers with personal names from its lists, so the site's coverage of caregiver hiring is incomplete by design.</p>
+<p style="font-size:14px">No worker is ever named. Applicant counts, resumes and contact details on a posting are not collected.</p>
+</section>
+
+<section id="limits" style="display:flex;flex-direction:column;gap:10px">
+<h2>Limits</h2>
+<p style="font-size:14px">The ESDC lists count positions on LMIAs, not work permits issued or workers who arrived. The pending flag exists only for employers who advertised on Job Bank, which most streams require. Street addresses appear only when an employer entered one. The quarterly lists give a city and postal code. Registry matches are by name and can be wrong, which is why the raw strings and the grade are shown.</p>
+</section>
+
+<section id="versions" style="display:flex;flex-direction:column;gap:10px">
+<h2>Versions</h2>
+<p style="font-size:14px">Indicator rules: v0.1 (draft, 2026-10-12). Status lifecycle: v0.1. Matching: v0.1. Changes are listed on the <a href="Data.dc.html">Data page</a> with the date and what was recomputed.</p>
+</section>
+</main>
+</div>
+
+<footer style="padding:20px 32px;border-top:1px solid #d1d5db;font-size:13px;color:#4b5563;display:flex;flex-wrap:wrap;gap:8px 24px">
+<span>Sources: Job Bank (ESDC); TFWP positive and negative LMIA employer lists (Open Government Licence, Canada); IRCC non-compliant employers; BC Registry.</span>
+<a href="Data.dc.html">Download the data</a>
+<a href="Data.dc.html">Corrections</a>
+</footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":2000}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+{
+  "data_as_of": "2026-10-12",
+  "jobbank_last_run": "2026-10-12T09:10:00Z",
+  "esdc_latest_period": "2026Q1",
+  "esdc_latest_published": "2026-07-21",
+  "rules_version": "0.1",
+  "search_from_period": "2023Q4",
+  "search_years": [2023, 2024, 2025, 2026],
+  "counts": {
+    "pending": 5883,
+    "approved_records": 8790,
+    "approved_positions": 33216,
+    "refused_records": 3008,
+    "findings": 1423,
+    "employers": 166497
+  },
+  "by_stream": [
+    { "k": "High Wage", "n": 4092 },
+    { "k": "Primary Agriculture", "n": 2265 },
+    { "k": "Low Wage", "n": 2081 },
+    { "k": "Global Talent Stream", "n": 316 },
+    { "k": "Permanent Resident Only", "n": 36 }
+  ],
+  "by_province": [
+    { "k": "QC", "n": 3054 },
+    { "k": "ON", "n": 2633 },
+    { "k": "BC", "n": 1474 },
+    { "k": "AB", "n": 903 }
+  ],
+  "recent_pending": [
+    { "kind": "posting", "ref": 50469136, "employer_id": "emp-a00000000a", "employer": "Restaurant St-Hubert Sept-Îles", "job": "cook", "noc": null, "street": null, "city": "Sept-Îles", "prov": "QC", "postal": null, "wage_min": 16.6, "wage_max": 22.1, "unit": "HOUR", "date": "2026-10-10", "period": null, "positions": null, "status": "pending", "stream": null, "source": "https://www.jobbank.gc.ca/jobsearch/jobposting/50469136", "sort_date": "2026-10-10", "ind": [] },
+    { "kind": "posting", "ref": 50456228, "employer_id": "emp-a000000001", "employer": "PinkCloud Cleaning & Home Services", "job": "cleaning service manager", "noc": "60040", "street": null, "city": "Brackendale", "prov": "BC", "postal": "V0N 1H0", "wage_min": 38.0, "wage_max": 40.0, "unit": "HOUR", "date": "2026-10-08", "period": null, "positions": 1, "status": "pending", "stream": null, "source": "https://www.jobbank.gc.ca/jobsearch/jobposting/50456228", "sort_date": "2026-10-08", "ind": ["newly_incorporated"] },
+    { "kind": "posting", "ref": 50440025, "employer_id": "emp-a000000002", "employer": "Edsa Mini Mart", "job": "assistant store manager", "noc": "60020", "street": "405 Martin Street", "city": "Penticton", "prov": "BC", "postal": "V2A 5L1", "wage_min": 40.0, "wage_max": 40.0, "unit": "HOUR", "date": "2026-10-06", "period": null, "positions": 1, "status": "pending", "stream": null, "source": "https://www.jobbank.gc.ca/jobsearch/jobposting/50440025", "sort_date": "2026-10-06", "ind": [] }
+  ],
+  "recent_approved": [
+    { "kind": "posting", "ref": 50390781, "employer_id": "emp-a000000004", "employer": "KN Berry Farms Inc", "job": "farm worker, fruit", "noc": null, "street": null, "city": "Abbotsford", "prov": "BC", "postal": "V2S 7W1", "wage_min": null, "wage_max": null, "unit": null, "date": "2026-09-29", "period": null, "positions": null, "status": "approved", "stream": null, "source": "https://www.jobbank.gc.ca/jobsearch/jobposting/50390781", "sort_date": "2026-09-29", "ind": [] }
+  ],
+  "top_approvals": [
+    { "employer_id": "emp-a000000005", "employer": "Jealous Fruits Ltd.", "city": "Kelowna", "prov": "BC", "stream": "Primary Agriculture", "positions": 760 }
+  ],
+  "resources": [
+    { "dataset": "positive", "period": "2026Q1", "published": "2026-07-21", "rows_loaded": 8790, "loaded_at": "2026-10-12T08:00:00Z" },
+    { "dataset": "negative", "period": "2026Q1", "published": "2026-07-21", "rows_loaded": 3008, "loaded_at": "2026-10-12T08:00:00Z" }
+  ],
+  "runs": [
+    { "run_at": "2026-10-12T09:10:00Z", "source": "jobbank", "detail": "pages=240 listed=5980 new=5883 details=600 gone=0", "rows_new": 5883, "ok": 1 }
+  ]
+}

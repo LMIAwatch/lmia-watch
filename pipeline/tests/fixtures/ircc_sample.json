@@ -1,0 +1,40 @@
+{
+ "list": [
+  {
+   "bn_operating": "(Surplus) 4046200 Canada Inc.",
+   "bn_legal": "(Surplus) 4046200 Canada Inc.",
+   "bn_address_en": "4100 Saint-Antoine Ouest,<br>Montréal, QC",
+   "bn_address_fr": "4100 Saint-Antoine Ouest,<br>Montréal (Québec)",
+   "reason": "<a href='#list6'>6</a>",
+   "date": "2021-12-02",
+   "penalty_en": "$750",
+   "penalty_fr": " 750 $",
+   "status_en": "<strong>Eligible</strong>",
+   "status_fr": "<strong>Admissible</strong>"
+  },
+  {
+   "bn_operating": "0768384 BC Ltd.",
+   "bn_legal": "0768384 BC Ltd.",
+   "bn_address_en": "213-8334 128 Street<br>Surrey, BC",
+   "bn_address_fr": "213-8334, 128 Street<br>Surrey (Colombie-Britannique)",
+   "reason": "<a href='#list6'>6</a>, <a href='#list15'>15</a>",
+   "date": "2021-12-29",
+   "penalty_en": "$30,000",
+   "penalty_fr": "30 000 $",
+   "status_en": "<strong>Eligible</strong>",
+   "status_fr": "<strong>Admissible</strong>"
+  },
+  {
+   "bn_operating": "0914942 BC Ltd.",
+   "bn_legal": "0914942 BC Ltd.",
+   "bn_address_en": "13903 78A Avenue<br>Surrey, BC",
+   "bn_address_fr": "13903, avenue 78A,<br>Surrey (Colombie-Britannique)",
+   "reason": "<a href='#list9'>9</a>",
+   "date": "2023-03-03",
+   "penalty_en": "$20,000 and a 1-year ban",
+   "penalty_fr": "20 000 $ et une interdiction d’un an",
+   "status_en": "<strong>Eligible</strong>",
+   "status_fr": "<strong>Admissible</strong>"
+  }
+ ]
+}

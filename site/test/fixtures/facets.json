@@ -1,0 +1,25 @@
+{
+  "default": {
+    "total": 5,
+    "status": { "pending": 2, "approved": 2, "refused": 1 },
+    "prov": { "BC": 4, "NL": 1 },
+    "status_prov": { "pending|BC": 2, "approved|BC": 2, "refused|NL": 1 }
+  },
+  "long": {
+    "total": 5,
+    "status": { "pending": 2, "approved": 2, "refused": 1 },
+    "prov": { "BC": 4, "NL": 1 },
+    "prov_year": { "BC|postings": 3, "BC|2026": 1, "NL|2026": 1 },
+    "status_prov": { "pending|BC": 2, "approved|BC": 2, "refused|NL": 1 }
+  },
+  "files": {
+    "search/first.json": { "rows": 5, "bytes": 2600 },
+    "search/latest/all.json": { "rows": 5, "bytes": 2600 },
+    "search/latest/status/pending.json": { "rows": 2, "bytes": 1000 },
+    "search/latest/prov/BC.json": { "rows": 4, "bytes": 2100 },
+    "search/long/BC/postings.json": { "rows": 3, "bytes": 1500 },
+    "search/long/BC/2026.json": { "rows": 1, "bytes": 500 },
+    "search/long/NL/2026.json": { "rows": 1, "bytes": 500 }
+  },
+  "first_rows": 500
+}

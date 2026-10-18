@@ -1,0 +1,10 @@
+{
+  "fsa": "V0N",
+  "prov": "BC",
+  "lat": 49.78,
+  "lon": -123.15,
+  "total": 1,
+  "rows": [
+    { "kind": "posting", "ref": 50456228, "employer_id": "emp-a000000001", "employer": "PinkCloud Cleaning & Home Services", "job": "cleaning service manager", "noc": "60040", "street": null, "city": "Brackendale", "prov": "BC", "postal": "V0N 1H0", "wage_min": 38.0, "wage_max": 40.0, "unit": "HOUR", "date": "2026-10-08", "period": null, "positions": 1, "status": "pending", "stream": null, "source": "https://www.jobbank.gc.ca/jobsearch/jobposting/50456228", "sort_date": "2026-10-08", "ind": ["newly_incorporated"] }
+  ]
+}

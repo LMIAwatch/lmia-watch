@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Data and about</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+body{margin:0;background:#e5e7eb;color:#111827;font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:15px;line-height:1.45}
+a{color:#1d4ed8}a:hover{color:#1e3a8a}
+.mono{font-family:'IBM Plex Mono',monospace;font-size:12px}
+table{border-collapse:collapse;width:100%}
+th{text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#4b5563;padding:8px 10px;border-bottom:2px solid #d1d5db;font-weight:600}
+td{padding:9px 10px;border-bottom:1px solid #e5e7eb;vertical-align:top;font-size:14px}
+h2{margin:0;font-size:20px;font-weight:600}
+p{margin:0}
+label{font-size:14px;display:flex;flex-direction:column;gap:4px}
+input,textarea{padding:8px 10px;border:1px solid #9ca3af;border-radius:4px;font-family:inherit;font-size:14px}
+</style>
+</helmet>
+<div style="max-width:1280px;margin:0 auto;background:#ffffff;min-height:100%">
+
+<header style="display:flex;flex-wrap:wrap;align-items:center;gap:12px 28px;padding:14px 32px;border-bottom:1px solid #d1d5db">
+<a href="Main.dc.html" style="font-weight:600;font-size:18px;color:#111827;text-decoration:none">LMIA Watch</a>
+<nav aria-label="Main" style="display:flex;flex-wrap:wrap;gap:18px;font-size:14px">
+<a href="Search.dc.html" style="text-decoration:none">Search</a>
+<a href="Map.dc.html" style="text-decoration:none">Map</a>
+<a href="Methodology.dc.html" style="text-decoration:none">Methodology</a>
+<a href="Data.dc.html" style="text-decoration:none;color:#111827;font-weight:600">Data &amp; about</a>
+</nav>
+<div style="margin-left:auto;display:flex;align-items:center;gap:14px;font-size:13px;color:#4b5563">
+<span class="mono">Data as of 2026-10-12</span>
+<button type="button" style="padding:6px 10px;border:1px solid #9ca3af;background:#fff;border-radius:4px;font-family:inherit;font-size:13px;cursor:pointer">FR</button>
+</div>
+</header>
+
+<div style="display:flex;flex-wrap:wrap;gap:32px;padding:28px 32px 32px">
+<nav aria-label="On this page" style="flex:0 1 200px;align-self:flex-start;display:flex;flex-direction:column;gap:8px;font-size:14px;padding:12px 14px;border:1px solid #d1d5db;border-radius:8px;background:#f9fafb">
+<span style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#4b5563;font-weight:600">On this page</span>
+<a href="#downloads">Downloads</a>
+<a href="#api">API</a>
+<a href="#licence">Licence</a>
+<a href="#changelog">Changelog</a>
+<a href="#reply">Right of reply and corrections</a>
+<a href="#about">About</a>
+</nav>
+
+<main style="flex:999 1 560px;min-width:0;display:flex;flex-direction:column;gap:28px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<h1 style="margin:0;font-size:30px;line-height:1.15;font-weight:600">Data and about</h1>
+<p style="font-size:16px;color:#4b5563">Everything on the site can be downloaded and rebuilt. Files are regenerated nightly after the scrape and after each quarterly ESDC release.</p>
+</div>
+
+<section id="downloads" style="display:flex;flex-direction:column;gap:10px">
+<h2>Downloads</h2>
+<div style="overflow-x:auto;border:1px solid #d1d5db;border-radius:8px">
+<table>
+<thead><tr><th>File</th><th>Contents</th><th>Updated</th><th style="text-align:right">Rows</th></tr></thead>
+<tbody>
+<tr><td><a href="Data.dc.html" class="mono">pending_observations.csv</a></td><td>Every nightly observation of a Job Bank posting with an LMIA flag: posting ID, employer, job, location, wage, dates, flag state, observed date</td><td class="mono">2026-10-12</td><td class="mono" style="text-align:right">[N]</td></tr>
+<tr><td><a href="Data.dc.html" class="mono">approved_quarterly.csv</a></td><td>ESDC positive lists, all quarters, with a stable employer ID added</td><td class="mono">2026-07-21</td><td class="mono" style="text-align:right">[N]</td></tr>
+<tr><td><a href="Data.dc.html" class="mono">refused_quarterly.csv</a></td><td>ESDC negative lists, all quarters, with a stable employer ID added</td><td class="mono">2026-07-21</td><td class="mono" style="text-align:right">[N]</td></tr>
+<tr><td><a href="Data.dc.html" class="mono">employers.csv</a></td><td>One row per merged employer: names seen, registry match and grade, location, current status, counts</td><td class="mono">2026-10-12</td><td class="mono" style="text-align:right">[N]</td></tr>
+<tr><td><a href="Data.dc.html" class="mono">indicators.csv</a></td><td>Indicator state per employer with the rule version and the basis values</td><td class="mono">2026-10-12</td><td class="mono" style="text-align:right">[N]</td></tr>
+<tr><td><a href="Data.dc.html" class="mono">findings.csv</a></td><td>IRCC non-compliant employers as published, joined to employer IDs</td><td class="mono">2026-10-08</td><td class="mono" style="text-align:right">[N]</td></tr>
+<tr><td><a href="Data.dc.html" class="mono">responses_and_corrections.csv</a></td><td>Employer responses and the corrections log</td><td class="mono">2026-10-12</td><td class="mono" style="text-align:right">[N]</td></tr>
+</tbody>
+</table>
+</div>
+<p style="font-size:13px;color:#4b5563">The original ESDC spreadsheets are mirrored unchanged alongside the derived files, with their SHA-256 checksums, so a reader can verify nothing was altered.</p>
+</section>
+
+<section id="api" style="display:flex;flex-direction:column;gap:10px">
+<h2>API</h2>
+<p style="font-size:14px">Read-only JSON, no key, rate limited. Same data as the downloads.</p>
+<div style="overflow-x:auto;border:1px solid #d1d5db;border-radius:8px">
+<table>
+<thead><tr><th>Endpoint</th><th>Returns</th></tr></thead>
+<tbody>
+<tr><td class="mono">GET /api/employers?q=&amp;province=&amp;status=&amp;noc=</td><td>Paged employer summaries</td></tr>
+<tr><td class="mono">GET /api/employers/{id}</td><td>Profile: records, indicators, registry, responses</td></tr>
+<tr><td class="mono">GET /api/pending?since=</td><td>Postings first observed pending since a date</td></tr>
+<tr><td class="mono">GET /api/stats</td><td>Headline counts and the as-of dates</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<section id="licence" style="display:flex;flex-direction:column;gap:10px">
+<h2>Licence and attribution</h2>
+<p style="font-size:14px">ESDC's positive and negative LMIA employer lists are published under the Open Government Licence, Canada. Job Bank content is Government of Canada material reproduced with attribution. Derived files on this site are released under the Open Government Licence, Canada as well, so anyone can check the work or build on it.</p>
+<p style="font-size:14px">Scraping is polite: one request at a time, a named user agent with a contact address, and the nightly run stops if Job Bank returns errors.</p>
+</section>
+
+<section id="changelog" style="display:flex;flex-direction:column;gap:10px">
+<h2>Changelog</h2>
+<div style="overflow-x:auto;border:1px solid #d1d5db;border-radius:8px">
+<table>
+<thead><tr><th>Date</th><th>Change</th><th>Recomputed</th></tr></thead>
+<tbody>
+<tr><td class="mono">2026-10-12</td><td>Site structure drafted. Indicator rules v0.1. First Job Bank pull: 5,883 pending postings. Loaded ESDC 2026 Q1 positive (8,790 rows) and negative (3,008 rows) lists.</td><td>All</td></tr>
+<tr><td class="mono">[DATE]</td><td>Load ESDC quarters 2023 Q4 to 2025 Q4</td><td>Repeat applicant, High volume</td></tr>
+<tr><td class="mono">[DATE]</td><td>Join IRCC non-compliant list</td><td>Findings</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<section id="reply" style="display:flex;flex-wrap:wrap;gap:16px">
+<div style="flex:1 1 440px;border:1px solid #d1d5db;border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:10px">
+<h2>Right of reply</h2>
+<p style="font-size:14px;color:#4b5563">An employer named on the site can submit a statement. It is posted unedited on the profile with the date received, after a check that the sender controls the contact details on the Job Bank posting or the registry record.</p>
+<form style="display:flex;flex-direction:column;gap:10px">
+<label>Employer profile URL or ID<input type="text" placeholder="emp-00041207"></label>
+<label>Your name and role<input type="text"></label>
+<label>Work email (used only for verification)<input type="email"></label>
+<label>Statement<textarea rows="4"></textarea></label>
+<button type="button" style="align-self:flex-start;padding:9px 14px;background:#1d4ed8;color:#ffffff;border:0;border-radius:4px;font-family:inherit;font-size:14px;cursor:pointer">Submit statement</button>
+</form>
+</div>
+<div style="flex:1 1 440px;border:1px solid #d1d5db;border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:10px">
+<h2>Corrections</h2>
+<p style="font-size:14px;color:#4b5563">Anyone can report a wrong match, a stale record, or an indicator that misfires. Each request gets a reply, and every change made is listed in the profile's corrections log.</p>
+<form style="display:flex;flex-direction:column;gap:10px">
+<label>Profile or record<input type="text" placeholder="emp-00041207 or Job Bank 50456228"></label>
+<label>What is wrong<textarea rows="4"></textarea></label>
+<label>Email for a reply (optional)<input type="email"></label>
+<button type="button" style="align-self:flex-start;padding:9px 14px;border:1px solid #9ca3af;background:#fff;border-radius:4px;font-family:inherit;font-size:14px;cursor:pointer">Send correction</button>
+</form>
+</div>
+</section>
+
+<section id="about" style="display:flex;flex-direction:column;gap:10px">
+<h2>About</h2>
+<p style="font-size:14px">This site collects public records about Labour Market Impact Assessments so that residents, workers and journalists can see which employers are applying to hire temporary foreign workers, where, and when, and which applications were approved or refused. It is run by [OPERATOR], independent of any government, employer or union.</p>
+<p style="font-size:14px">Records are government data reproduced as published. Indicators are pattern flags defined on the Methodology page and are not findings of misconduct. Enforcement belongs to Service Canada and IRCC, and the site links to their reporting channels on every profile.</p>
+<p style="font-size:14px">Contact: [EMAIL]. Privacy: the site stores no visitor accounts, sets no tracking cookies, and keeps correction and response submissions only as long as needed to act on them.</p>
+</section>
+</main>
+</div>
+
+<footer style="padding:20px 32px;border-top:1px solid #d1d5db;font-size:13px;color:#4b5563;display:flex;flex-wrap:wrap;gap:8px 24px">
+<span>Sources: Job Bank (ESDC); TFWP positive and negative LMIA employer lists (Open Government Licence, Canada); IRCC non-compliant employers; BC Registry.</span>
+<a href="Data.dc.html">Download the data</a>
+<a href="Data.dc.html">Corrections</a>
+</footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1560}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

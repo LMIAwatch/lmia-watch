@@ -1,0 +1,23 @@
+# data: raw downloads and pipeline outputs are rebuilt, never committed
+data/raw/
+data/out/
+data/*.sqlite
+data/*.sqlite-journal
+data/*.sqlite-wal
+data/*.sqlite-shm
+*.pyc
+__pycache__/
+.pytest_cache/
+.venv/
+*.egg-info/
+# site
+site/node_modules/
+site/dist/
+site/.wrangler/
+site/.dev.vars
+# local only
+.claude/
+.DS_Store
+
+# nightly data bundle copied in by the workflow or npm run data:local
+site/public/data/

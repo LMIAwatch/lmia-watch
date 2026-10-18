@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Search results</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+body{margin:0;background:#e5e7eb;color:#111827;font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:15px;line-height:1.45}
+a{color:#1d4ed8}a:hover{color:#1e3a8a}
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600;white-space:nowrap;line-height:1.5}
+.pending{background:#fef3c7;color:#92400e}
+.approved{background:#dbeafe;color:#1e3a8a}
+.refused{background:#e5e7eb;color:#374151}
+.finding{background:#fee2e2;color:#991b1b}
+.flag{display:inline-block;padding:1px 6px;border:1px solid #9ca3af;border-radius:3px;font-size:11px;color:#374151;white-space:nowrap}
+.mono{font-family:'IBM Plex Mono',monospace;font-size:12px}
+table{border-collapse:collapse;width:100%}
+th{text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#4b5563;padding:8px 10px;border-bottom:2px solid #d1d5db;font-weight:600}
+td{padding:9px 10px;border-bottom:1px solid #e5e7eb;vertical-align:top;font-size:14px}
+fieldset{border:0;padding:0;margin:0;display:flex;flex-direction:column;gap:6px}
+legend{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#4b5563;font-weight:600;margin-bottom:6px;padding:0}
+label{font-size:14px;display:flex;gap:8px;align-items:center}
+</style>
+</helmet>
+<div style="max-width:1280px;margin:0 auto;background:#ffffff;min-height:100%">
+
+<header style="display:flex;flex-wrap:wrap;align-items:center;gap:12px 28px;padding:14px 32px;border-bottom:1px solid #d1d5db">
+<a href="Main.dc.html" style="font-weight:600;font-size:18px;color:#111827;text-decoration:none">LMIA Watch</a>
+<nav aria-label="Main" style="display:flex;flex-wrap:wrap;gap:18px;font-size:14px">
+<a href="Search.dc.html" style="text-decoration:none;color:#111827;font-weight:600">Search</a>
+<a href="Map.dc.html" style="text-decoration:none">Map</a>
+<a href="Methodology.dc.html" style="text-decoration:none">Methodology</a>
+<a href="Data.dc.html" style="text-decoration:none">Data &amp; about</a>
+</nav>
+<div style="margin-left:auto;display:flex;align-items:center;gap:14px;font-size:13px;color:#4b5563">
+<span class="mono">Data as of 2026-10-12</span>
+<button type="button" style="padding:6px 10px;border:1px solid #9ca3af;background:#fff;border-radius:4px;font-family:inherit;font-size:13px;cursor:pointer">FR</button>
+</div>
+</header>
+
+<div style="padding:20px 32px 8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+<label for="q2" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Search</label>
+<input id="q2" type="search" value="" placeholder="Employer, city, postal code or occupation" style="flex:1 1 420px;padding:10px 12px;border:1px solid #9ca3af;border-radius:6px;font-size:15px;font-family:inherit">
+<button type="button" style="padding:10px 18px;background:#1d4ed8;color:#ffffff;border:0;border-radius:6px;font-size:15px;font-weight:500;font-family:inherit;cursor:pointer">Search</button>
+</div>
+
+<div style="display:flex;flex-wrap:wrap;gap:24px;padding:12px 32px 32px">
+
+<aside aria-label="Filters" style="flex:0 1 240px;display:flex;flex-direction:column;gap:22px;padding:16px;border:1px solid #d1d5db;border-radius:8px;background:#f9fafb;align-self:flex-start">
+<fieldset>
+<legend>Status</legend>
+<label><input type="checkbox" checked> <span class="badge pending">Pending</span> <span class="mono" style="color:#4b5563">5,883</span></label>
+<label><input type="checkbox" checked> <span class="badge approved">Approved</span> <span class="mono" style="color:#4b5563">8,790</span></label>
+<label><input type="checkbox" checked> <span class="badge refused">Refused</span> <span class="mono" style="color:#4b5563">3,008</span></label>
+<label><input type="checkbox"> <span class="badge finding">Finding</span> <span class="mono" style="color:#4b5563">[COUNT]</span></label>
+<label><input type="checkbox"> Lapsed (flag gone, no decision seen)</label>
+</fieldset>
+<fieldset>
+<legend>Province</legend>
+<label><input type="checkbox"> Quebec <span class="mono" style="color:#4b5563">3,054</span></label>
+<label><input type="checkbox"> Ontario <span class="mono" style="color:#4b5563">2,633</span></label>
+<label><input type="checkbox"> British Columbia <span class="mono" style="color:#4b5563">1,474</span></label>
+<label><input type="checkbox"> Alberta <span class="mono" style="color:#4b5563">903</span></label>
+<a href="Search.dc.html" style="font-size:13px">Show all 13</a>
+</fieldset>
+<fieldset>
+<legend>Stream</legend>
+<label><input type="checkbox"> High Wage</label>
+<label><input type="checkbox"> Low Wage</label>
+<label><input type="checkbox"> Primary Agriculture</label>
+<label><input type="checkbox"> Global Talent Stream</label>
+<label><input type="checkbox"> Permanent Resident only</label>
+</fieldset>
+<fieldset>
+<legend>Occupation (NOC 2021)</legend>
+<label for="noc" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Occupation</label>
+<input id="noc" type="text" placeholder="Code or title, e.g. 63200 cooks" style="padding:8px 10px;border:1px solid #9ca3af;border-radius:4px;font-size:14px;font-family:inherit">
+</fieldset>
+<fieldset>
+<legend>Wage</legend>
+<label><input type="checkbox"> At the prevailing-wage floor</label>
+<div style="display:flex;gap:8px;align-items:center;font-size:13px"><label for="wmin" style="margin:0">Min</label><input id="wmin" type="text" placeholder="$/h" style="width:64px;padding:6px 8px;border:1px solid #9ca3af;border-radius:4px;font-family:inherit"><label for="wmax" style="margin:0">Max</label><input id="wmax" type="text" placeholder="$/h" style="width:64px;padding:6px 8px;border:1px solid #9ca3af;border-radius:4px;font-family:inherit"></div>
+</fieldset>
+<fieldset>
+<legend>Date</legend>
+<label><input type="radio" name="d" checked> Any time</label>
+<label><input type="radio" name="d"> Posted in the last 7 days</label>
+<label><input type="radio" name="d"> Last quarter</label>
+<label><input type="radio" name="d"> Since 2023 Q4</label>
+</fieldset>
+<fieldset>
+<legend>Indicators</legend>
+<label><input type="checkbox"> Any indicator triggered</label>
+<label><input type="checkbox"> Newly incorporated</label>
+<label><input type="checkbox"> Repeat applicant</label>
+<label><input type="checkbox"> High volume</label>
+</fieldset>
+<button type="button" style="padding:8px 12px;border:1px solid #9ca3af;background:#fff;border-radius:4px;font-family:inherit;font-size:14px;cursor:pointer">Clear filters</button>
+</aside>
+
+<main style="flex:999 1 560px;min-width:0;display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between">
+<p style="margin:0;font-size:14px"><strong>17,681 records</strong> <span style="color:#4b5563">across pending, approved and refused, all provinces</span></p>
+<div style="display:flex;gap:8px;align-items:center;font-size:14px">
+<span style="color:#4b5563">View</span>
+<a href="Search.dc.html" style="padding:5px 10px;border:1px solid #1d4ed8;border-radius:4px;background:#dbeafe;text-decoration:none">List</a>
+<a href="Map.dc.html" style="padding:5px 10px;border:1px solid #d1d5db;border-radius:4px;text-decoration:none">Map</a>
+<label for="sort" style="margin-left:12px;color:#4b5563">Sort</label>
+<select id="sort" style="padding:5px 8px;border:1px solid #9ca3af;border-radius:4px;font-family:inherit;font-size:14px"><option>Newest</option><option>Positions</option><option>Employer A to Z</option></select>
+</div>
+</div>
+
+<div style="overflow-x:auto;border:1px solid #d1d5db;border-radius:8px">
+<table>
+<thead><tr><th>Status</th><th>Employer</th><th>Job or occupation</th><th>Location</th><th>Wage</th><th>Date</th><th style="text-align:right">Positions</th><th>Indicators</th><th>Source</th></tr></thead>
+<tbody>
+<tr><td><span class="badge pending">Pending</span></td><td><a href="Employer.dc.html">PinkCloud Cleaning &amp; Home Services</a></td><td>cleaning service manager</td><td>Brackendale, BC V0N 1H0</td><td class="mono">$38.00 to 40.00/h</td><td class="mono">2026-10-08</td><td class="mono" style="text-align:right">1</td><td><span class="flag">Newly incorporated</span></td><td><a href="Search.dc.html" class="mono">Job Bank 50456228</a></td></tr>
+<tr><td><span class="badge pending">Pending</span></td><td><a href="Employer.dc.html">Edsa Mini Mart</a></td><td>assistant store manager</td><td>405 Martin Street, Penticton, BC V2A 5L1</td><td class="mono">$40.00/h</td><td class="mono">2026-10-06</td><td class="mono" style="text-align:right">1</td><td></td><td><a href="Search.dc.html" class="mono">Job Bank 50440025</a></td></tr>
+<tr><td><span class="badge pending">Pending</span></td><td><a href="Employer.dc.html">Sukh Hair &amp; Beauty Salon</a></td><td>hairdresser</td><td>Surrey, BC V3W 4E1</td><td class="mono">$38.40/h</td><td class="mono">2026-10-06</td><td class="mono" style="text-align:right">1</td><td></td><td><a href="Search.dc.html" class="mono">Job Bank 50436247</a></td></tr>
+<tr><td><span class="badge approved">Approved</span></td><td><a href="Employer.dc.html">KN Berry Farms Inc</a></td><td>farm worker, fruit</td><td>Abbotsford, BC</td><td class="mono">see posting</td><td class="mono">2026-09-29</td><td class="mono" style="text-align:right">see posting</td><td></td><td><a href="Search.dc.html" class="mono">Job Bank 50390781</a></td></tr>
+<tr><td><span class="badge approved">Approved</span></td><td><a href="Employer.dc.html">Jealous Fruits Ltd.</a></td><td>84120 Specialized livestock workers and farm machinery operators, and others</td><td>Kelowna, BC V4V 1T3</td><td class="mono">n/a</td><td class="mono">2026 Q1</td><td class="mono" style="text-align:right">760</td><td><span class="flag">High volume</span></td><td><a href="Search.dc.html" class="mono">ESDC positive 2026 Q1</a></td></tr>
+<tr><td><span class="badge approved">Approved</span></td><td><a href="Employer.dc.html">Associated Engineering (B.C.) Ltd.</a></td><td>21300 Civil engineers</td><td>Vancouver, BC V5M 4T5</td><td class="mono">n/a</td><td class="mono">2026 Q1</td><td class="mono" style="text-align:right">1</td><td></td><td><a href="Search.dc.html" class="mono">ESDC positive 2026 Q1</a></td></tr>
+<tr><td><span class="badge approved">Approved</span></td><td><a href="Employer.dc.html">Qwest Helicopters (2020) Ltd.</a></td><td>72600 Air pilots, flight engineers and flying instructors</td><td>Fort Nelson, BC V0C 1R0</td><td class="mono">n/a</td><td class="mono">2026 Q1</td><td class="mono" style="text-align:right">6</td><td></td><td><a href="Search.dc.html" class="mono">ESDC positive 2026 Q1</a></td></tr>
+<tr><td><span class="badge refused">Refused</span></td><td><a href="Employer.dc.html">Haveli Restaurant Inc</a></td><td>60030 Restaurant and food service managers</td><td>St. John's, NL A1C 4M5</td><td class="mono">n/a</td><td class="mono">2026 Q1</td><td class="mono" style="text-align:right">1</td><td></td><td><a href="Search.dc.html" class="mono">ESDC negative 2026 Q1</a></td></tr>
+<tr><td><span class="badge refused">Refused</span></td><td><a href="Employer.dc.html">Green Seafoods Limited</a></td><td>95107 Labourers in fish and seafood processing</td><td>Winterton, NL A0B 3M0</td><td class="mono">n/a</td><td class="mono">2026 Q1</td><td class="mono" style="text-align:right">3</td><td></td><td><a href="Search.dc.html" class="mono">ESDC negative 2026 Q1</a></td></tr>
+<tr><td><span class="badge pending">Pending</span></td><td><a href="Employer.dc.html">S &amp; S Orchards Ltd</a></td><td>fruit farm worker</td><td>Grand Forks, BC</td><td class="mono">see posting</td><td class="mono">2026-10-04</td><td class="mono" style="text-align:right">see posting</td><td></td><td><a href="Search.dc.html" class="mono">Job Bank 50422841</a></td></tr>
+</tbody>
+</table>
+</div>
+
+<nav aria-label="Pagination" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;font-size:14px">
+<span style="color:#4b5563">Showing 1 to 10 of 17,681</span>
+<div style="display:flex;gap:6px">
+<a href="Search.dc.html" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:4px;text-decoration:none">Previous</a>
+<a href="Search.dc.html" style="padding:6px 10px;border:1px solid #1d4ed8;background:#dbeafe;border-radius:4px;text-decoration:none">1</a>
+<a href="Search.dc.html" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:4px;text-decoration:none">2</a>
+<a href="Search.dc.html" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:4px;text-decoration:none">3</a>
+<a href="Search.dc.html" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:4px;text-decoration:none">Next</a>
+</div>
+<a href="Data.dc.html">Download these results (CSV)</a>
+</nav>
+
+<p style="margin:8px 0 0;font-size:13px;color:#4b5563">Wage and positions show "n/a" for ESDC list rows because the quarterly lists do not carry wages. "See posting" means the value is on the linked Job Bank page and has not yet been parsed into the database.</p>
+</main>
+</div>
+
+<footer style="padding:20px 32px;border-top:1px solid #d1d5db;font-size:13px;color:#4b5563;display:flex;flex-wrap:wrap;gap:8px 24px">
+<span>Sources: Job Bank (ESDC); TFWP positive and negative LMIA employer lists (Open Government Licence, Canada); IRCC non-compliant employers; BC Registry.</span>
+<a href="Data.dc.html">Download the data</a>
+<a href="Data.dc.html">Corrections</a>
+</footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1560}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

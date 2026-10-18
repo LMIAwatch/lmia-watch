@@ -1,0 +1,7 @@
+[
+  { "fsa": "A1C", "prov": "NL", "lat": 47.56, "lon": -52.71, "pending": 0, "approved": 0, "refused": 1 },
+  { "fsa": "V0N", "prov": "BC", "lat": 49.78, "lon": -123.15, "pending": 1, "approved": 0, "refused": 0 },
+  { "fsa": "V2A", "prov": "BC", "lat": 49.49, "lon": -119.59, "pending": 1, "approved": 0, "refused": 0 },
+  { "fsa": "V2S", "prov": "BC", "lat": 49.05, "lon": -122.3, "pending": 0, "approved": 1, "refused": 0 },
+  { "fsa": "V4V", "prov": "BC", "lat": 50.03, "lon": -119.41, "pending": 0, "approved": 1, "refused": 0 }
+]

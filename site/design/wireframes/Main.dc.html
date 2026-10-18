@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Home</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+body{margin:0;background:#e5e7eb;color:#111827;font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:15px;line-height:1.45}
+a{color:#1d4ed8}a:hover{color:#1e3a8a}
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600;white-space:nowrap;line-height:1.5}
+.pending{background:#fef3c7;color:#92400e}
+.approved{background:#dbeafe;color:#1e3a8a}
+.refused{background:#e5e7eb;color:#374151}
+.finding{background:#fee2e2;color:#991b1b}
+.mono{font-family:'IBM Plex Mono',monospace;font-size:12px}
+table{border-collapse:collapse;width:100%}
+th{text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#4b5563;padding:8px 10px;border-bottom:2px solid #d1d5db;font-weight:600}
+td{padding:9px 10px;border-bottom:1px solid #e5e7eb;vertical-align:top;font-size:14px}
+</style>
+</helmet>
+<div style="max-width:1280px;margin:0 auto;background:#ffffff;min-height:100%">
+
+<header style="display:flex;flex-wrap:wrap;align-items:center;gap:12px 28px;padding:14px 32px;border-bottom:1px solid #d1d5db">
+<a href="Main.dc.html" style="font-weight:600;font-size:18px;color:#111827;text-decoration:none">LMIA Watch</a>
+<nav aria-label="Main" style="display:flex;flex-wrap:wrap;gap:18px;font-size:14px">
+<a href="Search.dc.html" style="text-decoration:none">Search</a>
+<a href="Map.dc.html" style="text-decoration:none">Map</a>
+<a href="Methodology.dc.html" style="text-decoration:none">Methodology</a>
+<a href="Data.dc.html" style="text-decoration:none">Data &amp; about</a>
+</nav>
+<div style="margin-left:auto;display:flex;align-items:center;gap:14px;font-size:13px;color:#4b5563">
+<span class="mono">Data as of 2026-10-12</span>
+<button type="button" style="padding:6px 10px;border:1px solid #9ca3af;background:#fff;border-radius:4px;font-family:inherit;font-size:13px;cursor:pointer">FR</button>
+</div>
+</header>
+
+<section style="padding:44px 32px 28px;display:flex;flex-direction:column;gap:18px;max-width:900px">
+<h1 style="margin:0;font-size:36px;line-height:1.15;font-weight:600">Who is applying to hire temporary foreign workers, and who was approved</h1>
+<p style="margin:0;font-size:17px;color:#4b5563">Public records from Job Bank and Employment and Social Development Canada, merged by employer and refreshed nightly. Every row links to the government record it came from.</p>
+<form style="display:flex;flex-wrap:wrap;gap:8px">
+<label for="q" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Search</label>
+<input id="q" type="search" placeholder="Employer, city, postal code or occupation" style="flex:1 1 360px;padding:12px 14px;border:1px solid #9ca3af;border-radius:6px;font-size:16px;font-family:inherit">
+<button type="button" style="padding:12px 22px;background:#1d4ed8;color:#ffffff;border:0;border-radius:6px;font-size:16px;font-weight:500;font-family:inherit;cursor:pointer">Search</button>
+</form>
+<div style="display:flex;flex-wrap:wrap;gap:8px;font-size:13px;align-items:center">
+<span style="color:#4b5563">Quick views:</span>
+<a href="Search.dc.html" style="padding:5px 10px;border:1px solid #d1d5db;border-radius:999px;text-decoration:none">Pending now</a>
+<a href="Search.dc.html" style="padding:5px 10px;border:1px solid #d1d5db;border-radius:999px;text-decoration:none">Approved last quarter</a>
+<a href="Search.dc.html" style="padding:5px 10px;border:1px solid #d1d5db;border-radius:999px;text-decoration:none">Refused last quarter</a>
+<a href="Search.dc.html" style="padding:5px 10px;border:1px solid #d1d5db;border-radius:999px;text-decoration:none">Non-compliance findings</a>
+<a href="Map.dc.html" style="padding:5px 10px;border:1px solid #d1d5db;border-radius:999px;text-decoration:none">Near me</a>
+</div>
+</section>
+
+<section aria-label="Headline counts" style="padding:0 32px 32px;display:flex;flex-wrap:wrap;gap:16px">
+<div style="flex:1 1 220px;border:1px solid #d1d5db;border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:6px">
+<span class="badge pending" style="align-self:flex-start">Pending</span>
+<span style="font-size:30px;font-weight:600;line-height:1">5,883</span>
+<span style="font-size:13px;color:#4b5563">postings flagged "LMIA requested" on Job Bank, Canada-wide, 2026-10-12</span>
+</div>
+<div style="flex:1 1 220px;border:1px solid #d1d5db;border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:6px">
+<span class="badge approved" style="align-self:flex-start">Approved</span>
+<span style="font-size:30px;font-weight:600;line-height:1">8,790</span>
+<span style="font-size:13px;color:#4b5563">employer records, 33,216 positions, Jan to Mar 2026 (ESDC list published 2026-07-21)</span>
+</div>
+<div style="flex:1 1 220px;border:1px solid #d1d5db;border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:6px">
+<span class="badge refused" style="align-self:flex-start">Refused</span>
+<span style="font-size:30px;font-weight:600;line-height:1">3,008</span>
+<span style="font-size:13px;color:#4b5563">employer records refused, Jan to Mar 2026 (ESDC negative list)</span>
+</div>
+<div style="flex:1 1 220px;border:1px solid #d1d5db;border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:6px">
+<span class="badge finding" style="align-self:flex-start">Findings</span>
+<span style="font-size:30px;font-weight:600;line-height:1">[COUNT]</span>
+<span style="font-size:13px;color:#4b5563">employers on IRCC's non-compliant list (page updated 2026-10-08)</span>
+</div>
+</section>
+
+<section style="padding:0 32px 32px;display:flex;flex-wrap:wrap;gap:32px">
+<div style="flex:1 1 520px;min-width:0;display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px">
+<h2 style="margin:0;font-size:20px;font-weight:600">Applying this week</h2>
+<a href="Search.dc.html" style="font-size:14px">All pending (5,883)</a>
+</div>
+<p style="margin:0;font-size:13px;color:#4b5563">Job Bank postings carrying the "LMIA requested" flag, newest first. Private household employers are excluded.</p>
+<div style="overflow-x:auto">
+<table>
+<thead><tr><th>Posted</th><th>Employer</th><th>Job</th><th>Location</th></tr></thead>
+<tbody>
+<tr><td class="mono">2026-10-10</td><td><a href="Employer.dc.html">Restaurant St-Hubert Sept-Îles</a></td><td>cook</td><td>Sept-Îles, QC</td></tr>
+<tr><td class="mono">2026-10-09</td><td><a href="Employer.dc.html">Amazing Prices</a></td><td>retail store supervisor</td><td>St. Paul, AB</td></tr>
+<tr><td class="mono">2026-10-08</td><td><a href="Employer.dc.html">PinkCloud Cleaning &amp; Home Services</a></td><td>cleaning service manager</td><td>Brackendale, BC</td></tr>
+<tr><td class="mono">2026-10-08</td><td><a href="Employer.dc.html">IV Crowns Group Corp.</a></td><td>cleaner</td><td>Winnipeg, MB</td></tr>
+<tr><td class="mono">2026-10-07</td><td><a href="Employer.dc.html">EMT Limited Partnership</a></td><td>head chef</td><td>Toronto, ON</td></tr>
+<tr><td class="mono">2026-10-06</td><td><a href="Employer.dc.html">Edsa Mini Mart</a></td><td>assistant store manager</td><td>Penticton, BC</td></tr>
+<tr><td class="mono">2026-10-06</td><td><a href="Employer.dc.html">Sukh Hair &amp; Beauty Salon</a></td><td>hairdresser</td><td>Surrey, BC</td></tr>
+<tr><td class="mono">2026-10-04</td><td><a href="Employer.dc.html">S &amp; S Orchards Ltd</a></td><td>fruit farm worker</td><td>Grand Forks, BC</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+
+<div style="flex:1 1 520px;min-width:0;display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px">
+<h2 style="margin:0;font-size:20px;font-weight:600">Recently approved</h2>
+<a href="Search.dc.html" style="font-size:14px">All approved</a>
+</div>
+<p style="margin:0;font-size:13px;color:#4b5563">Postings whose flag changed to "Approved LMIA" while live on Job Bank.</p>
+<div style="overflow-x:auto">
+<table>
+<thead><tr><th>Posted</th><th>Employer</th><th>Job</th><th>Location</th></tr></thead>
+<tbody>
+<tr><td class="mono">2026-09-29</td><td><a href="Employer.dc.html">KN Berry Farms Inc</a></td><td>farm worker, fruit</td><td>Abbotsford, BC</td></tr>
+<tr><td class="mono">2026-09-16</td><td><a href="Employer.dc.html">The West Coast Fishing Club</a></td><td>outboard motor mechanic</td><td>Masset, BC</td></tr>
+<tr><td class="mono">2026-09-11</td><td><a href="Employer.dc.html">Best Choice Blueberries Limited</a></td><td>farm worker, fruit</td><td>Delta, BC</td></tr>
+<tr><td class="mono">2026-09-08</td><td><a href="Employer.dc.html">Bean Sprout King</a></td><td>field and vegetable crop labourer</td><td>Richmond, BC</td></tr>
+</tbody>
+</table>
+</div>
+<p style="margin:8px 0 0;font-size:13px;color:#4b5563">Largest approvals in British Columbia, Jan to Mar 2026, by positions.</p>
+<div style="overflow-x:auto">
+<table>
+<thead><tr><th>Employer</th><th>Location</th><th>Stream</th><th style="text-align:right">Positions</th></tr></thead>
+<tbody>
+<tr><td><a href="Employer.dc.html">Jealous Fruits Ltd.</a></td><td>Kelowna, BC</td><td>Primary Agriculture</td><td class="mono" style="text-align:right">760</td></tr>
+<tr><td><a href="Employer.dc.html">Oso Berry Farms Inc.</a></td><td>Qualicum Beach, BC</td><td>Primary Agriculture</td><td class="mono" style="text-align:right">141</td></tr>
+<tr><td><a href="Employer.dc.html">Highline Mushrooms West Limited</a></td><td>Langley, BC</td><td>Primary Agriculture</td><td class="mono" style="text-align:right">112</td></tr>
+<tr><td><a href="Employer.dc.html">Champs Fresh Farms Inc</a></td><td>Aldergrove, BC</td><td>Primary Agriculture</td><td class="mono" style="text-align:right">96</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+
+<section style="padding:0 32px 32px;display:flex;flex-wrap:wrap;gap:32px">
+<div style="flex:1 1 400px;min-width:0;display:flex;flex-direction:column;gap:10px">
+<h2 style="margin:0;font-size:18px;font-weight:600">Approved records by stream, Jan to Mar 2026</h2>
+<div style="display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:8px 12px;align-items:center;font-size:14px">
+<span>High Wage</span><div style="display:flex;align-items:center;gap:8px"><div style="height:14px;width:100%;background:#1e3a8a;border-radius:2px"></div><span class="mono">4,092</span></div>
+<span>Primary Agriculture</span><div style="display:flex;align-items:center;gap:8px"><div style="height:14px;width:55%;background:#1e3a8a;border-radius:2px"></div><span class="mono">2,265</span></div>
+<span>Low Wage</span><div style="display:flex;align-items:center;gap:8px"><div style="height:14px;width:51%;background:#1e3a8a;border-radius:2px"></div><span class="mono">2,081</span></div>
+<span>Global Talent Stream</span><div style="display:flex;align-items:center;gap:8px"><div style="height:14px;width:8%;background:#1e3a8a;border-radius:2px"></div><span class="mono">316</span></div>
+<span>Permanent Resident only</span><div style="display:flex;align-items:center;gap:8px"><div style="height:14px;width:1%;background:#1e3a8a;border-radius:2px"></div><span class="mono">36</span></div>
+</div>
+</div>
+<div style="flex:1 1 400px;min-width:0;display:flex;flex-direction:column;gap:10px">
+<h2 style="margin:0;font-size:18px;font-weight:600">Approved records by province, Jan to Mar 2026</h2>
+<div style="display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:8px 12px;align-items:center;font-size:14px">
+<span>Quebec</span><div style="display:flex;align-items:center;gap:8px"><div style="height:14px;width:100%;background:#1e3a8a;border-radius:2px"></div><span class="mono">3,054</span></div>
+<span>Ontario</span><div style="display:flex;align-items:center;gap:8px"><div style="height:14px;width:86%;background:#1e3a8a;border-radius:2px"></div><span class="mono">2,633</span></div>
+<span>British Columbia</span><div style="display:flex;align-items:center;gap:8px"><div style="height:14px;width:48%;background:#1e3a8a;border-radius:2px"></div><span class="mono">1,474</span></div>
+<span>Alberta</span><div style="display:flex;align-items:center;gap:8px"><div style="height:14px;width:30%;background:#1e3a8a;border-radius:2px"></div><span class="mono">903</span></div>
+<span>All other</span><div style="display:flex;align-items:center;gap:8px"><div style="height:14px;width:24%;background:#1e3a8a;border-radius:2px"></div><span class="mono">726</span></div>
+</div>
+</div>
+</section>
+
+<section style="margin:0 32px 36px;padding:20px 24px;border:1px solid #d1d5db;border-radius:8px;background:#f9fafb;display:flex;flex-direction:column;gap:8px">
+<h2 style="margin:0;font-size:18px;font-weight:600">How to read this site</h2>
+<p style="margin:0;font-size:14px">Every record is a government record. Pending status comes from Job Bank's own "LMIA requested" flag, which the site reads as: the employer could not find a Canadian worker for this job and applied to hire a temporary foreign worker.</p>
+<p style="margin:0;font-size:14px">Indicators are pattern flags with written rules and known false positives. They are not findings. Government findings appear only under "Non-compliance findings", from IRCC's published list.</p>
+<p style="margin:0;font-size:14px">Any employer named here can submit a response, which appears on their profile. See <a href="Methodology.dc.html">Methodology</a> and <a href="Data.dc.html">Corrections and right of reply</a>.</p>
+</section>
+
+<footer style="padding:20px 32px;border-top:1px solid #d1d5db;font-size:13px;color:#4b5563;display:flex;flex-wrap:wrap;gap:8px 24px">
+<span>Sources: Job Bank (ESDC); TFWP positive and negative LMIA employer lists (Open Government Licence, Canada); IRCC non-compliant employers; BC Registry.</span>
+<a href="Data.dc.html">Download the data</a>
+<a href="Data.dc.html">Corrections</a>
+</footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1760}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
