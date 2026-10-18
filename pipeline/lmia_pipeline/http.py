@@ -145,6 +145,11 @@ class PoliteClient:
     def get_json(self, url: str, **kwargs: Any) -> Any:
         return json.loads(self.get(url, **kwargs).decode("utf-8"))
 
+    def forget(self, url: str) -> None:
+        """Drop a cached response, so a body that turned out unusable is fetched again."""
+        for path in self._cache_paths(url):
+            path.unlink(missing_ok=True)
+
     # -- internals ----------------------------------------------------------
 
     def _wait_for_host(self, host: str) -> None:

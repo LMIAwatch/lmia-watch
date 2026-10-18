@@ -39,6 +39,13 @@ const SOURCES: [Key, Key, Key, Key][] = [
     "methodology.sources.none",
   ],
   ["methodology.sources.wages.source", "methodology.sources.wages.fields", "methodology.sources.wages.cadence", "methodology.sources.wages.lag"],
+  ["methodology.sources.lfs.source", "methodology.sources.lfs.fields", "methodology.sources.lfs.cadence", "methodology.sources.lfs.lag"],
+  [
+    "methodology.sources.boundaries.source",
+    "methodology.sources.boundaries.fields",
+    "methodology.sources.boundaries.cadence",
+    "methodology.sources.none",
+  ],
 ];
 
 const STATUS_ROWS: [string, Key, Key][] = [

@@ -12,10 +12,10 @@ from pathlib import Path
 from . import config, export, export_static, indicators, social, status
 from .db import connect, hours_since, log_run
 from .http import AbortRun, PoliteClient
-from .sources import esdc, ircc, jobbank, registry_bc, registry_federal
+from .sources import esdc, geography, ircc, jobbank, lfs, registry_bc, registry_federal, wages
 
 log = logging.getLogger("lmia_pipeline")
-STAGES = ["esdc", "ircc", "jobbank", "registry", "indicators", "export"]
+STAGES = ["esdc", "ircc", "jobbank", "registry", "wages", "lfs", "geography", "indicators", "export"]
 
 # Job Bank is crawled once a day and no more. A re-run of a failed night, or a
 # run started by hand, must not send a second pass; the guard is in the
@@ -147,6 +147,34 @@ def main(argv: list[str] | None = None) -> int:
             failed = True
             log.error("registry federal failed: %s", exc)
             log_run(conn, "registry_federal", detail=str(exc), ok=False)
+    # The reference tables for the wage and unemployment indicators. Each is
+    # cached: wages and the LFS table are revalidated at most once a month,
+    # the boundary files never after the first load. A failure leaves the
+    # previous table in place and the indicators say what is missing.
+    if "wages" in stages:
+        try:
+            log.info("wages: %d rows loaded", wages.run(conn, client))
+        except Exception as exc:
+            failed = True
+            log.error("wages failed: %s", exc)
+            log_run(conn, "wages", detail=str(exc), ok=False)
+    if "lfs" in stages:
+        try:
+            log.info("lfs: %d rows loaded", lfs.run(conn, client))
+        except Exception as exc:
+            failed = True
+            log.error("lfs failed: %s", exc)
+            log_run(conn, "lfs", detail=str(exc), ok=False)
+    if "geography" in stages:
+        try:
+            # The boundary service answers some requests with HTTP 500 and the
+            # next attempt succeeds, so this client retries more before giving up.
+            geo_client = PoliteClient(max_attempts=geography.MAX_ATTEMPTS)
+            log.info("geography: %d areas placed", geography.run(conn, geo_client))
+        except Exception as exc:
+            failed = True
+            log.error("geography failed: %s", exc)
+            log_run(conn, "geography", detail=str(exc), ok=False)
     if "indicators" in stages or "export" in stages or not selected:
         log.info("indicators changed: %d", indicators.compute(conn))
         log.info("employers updated: %d", status.recompute(conn))

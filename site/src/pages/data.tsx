@@ -1,7 +1,7 @@
 import type { Context } from "hono";
 import { loadStats } from "../data";
 import type { AppEnv } from "../env";
-import { t, tj, type Key } from "../i18n";
+import { t, tj, type Key, type Lang } from "../i18n";
 import { Layout, fmtInt, noDataPage, page, periodLabel } from "../layout";
 import { datasetJsonLd, pageSeo } from "../seo";
 
@@ -26,6 +26,26 @@ const API_ROWS: [string, Key][] = [
 ];
 
 const LIST_NAME: Record<string, Key> = { positive: "data.list.positive", negative: "data.list.negative" };
+
+// Where the reference tables behind the wage and unemployment indicators are published.
+const SOURCE_LINKS: Record<"wages" | "lfs" | "boundaries" | "statcan", Record<Lang, string>> = {
+  wages: {
+    en: "https://open.canada.ca/data/en/dataset/adad580f-76b0-4502-bd05-20c125de9116",
+    fr: "https://open.canada.ca/data/fr/dataset/adad580f-76b0-4502-bd05-20c125de9116",
+  },
+  lfs: {
+    en: "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1410045901",
+    fr: "https://www150.statcan.gc.ca/t1/tbl1/fr/tv.action?pid=1410045901",
+  },
+  boundaries: {
+    en: "https://www12.statcan.gc.ca/census-recensement/2021/geo/sip-pis/boundary-limites/index2021-eng.cfm",
+    fr: "https://www12.statcan.gc.ca/census-recensement/2021/geo/sip-pis/boundary-limites/index2021-fra.cfm",
+  },
+  statcan: {
+    en: "https://www.statcan.gc.ca/en/reference/licence",
+    fr: "https://www.statcan.gc.ca/fr/reference/licence",
+  },
+};
 
 export async function dataPage(c: Context<AppEnv>): Promise<Response> {
   const lang = c.get("lang");
@@ -132,6 +152,14 @@ export async function dataPage(c: Context<AppEnv>): Promise<Response> {
 
           <h2 id="licence">{t(lang, "data.licence")}</h2>
           <p>{t(lang, "data.licence_text")}</p>
+          <p>
+            {tj(lang, "data.sources_text", {
+              wages: <a href={SOURCE_LINKS.wages[lang]}>{t(lang, "data.src.wages")}</a>,
+              lfs: <a href={SOURCE_LINKS.lfs[lang]}>{t(lang, "data.src.lfs")}</a>,
+              boundaries: <a href={SOURCE_LINKS.boundaries[lang]}>{t(lang, "data.src.boundaries")}</a>,
+              statcan: <a href={SOURCE_LINKS.statcan[lang]}>{t(lang, "data.src.statcan_licence")}</a>,
+            })}
+          </p>
           <p class="muted small">{t(lang, "data.code_licence")}</p>
           <p>{t(lang, "data.crawl_text")}</p>
 
@@ -148,13 +176,13 @@ export async function dataPage(c: Context<AppEnv>): Promise<Response> {
               <tbody>
                 <tr>
                   <td class="mono nw">2026-10-12</td>
-                  <td>{t(lang, "data.change_drafted", { rules: stats.rules_version ?? "0.1", period: latestPeriod })}</td>
+                  <td>{t(lang, "data.change_drafted", { rules: "0.1", period: latestPeriod })}</td>
                   <td>{t(lang, "data.recomputed_all")}</td>
                 </tr>
                 <tr>
-                  <td class="mono nw">{t(lang, "data.planned")}</td>
-                  <td>{t(lang, "data.change_planned")}</td>
-                  <td>{t(lang, "data.recomputed_planned")}</td>
+                  <td class="mono nw">2026-10-17</td>
+                  <td>{t(lang, "data.change_wages", { rules: "0.2" })}</td>
+                  <td>{t(lang, "data.recomputed_wages")}</td>
                 </tr>
               </tbody>
             </table>

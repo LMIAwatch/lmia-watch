@@ -188,6 +188,41 @@ describe("indicator basis sentences", () => {
         "2 refusal record(s), no new posting within 90 days of publication.",
         "2 dossier(s) de refus, aucune nouvelle offre dans les 90 jours suivant la publication.",
       ],
+      ["No Job Bank posting.", "Aucune offre du Guichet-Emplois."],
+      [
+        "No posting page parsed yet, so the occupation is unknown.",
+        "Aucune page d’offre analysée pour l’instant : la profession est donc inconnue.",
+      ],
+      [
+        "No posting has a postal code that places it in an economic region.",
+        "Aucune offre n’a un code postal qui la situe dans une région économique.",
+      ],
+      ["No Job Bank median for NOC 99999.", "Aucune médiane du Guichet-Emplois pour la CNP 99999."],
+      [
+        "No posted wage matches the hourly or yearly unit of the Job Bank median.",
+        "Aucun salaire affiché n’est dans l’unité horaire ou annuelle de la médiane du Guichet-Emplois.",
+      ],
+      [
+        "Posting 101: posted minimum $17.10/h is within 1 percent of the Job Bank median $16.95/h for NOC 44101 in the Winnipeg economic region (Manitoba), wage table dated 2025-11-19.",
+        "Offre 101 : salaire minimum affiché de 17,10 $/h, à 1 % ou moins de la médiane du Guichet-Emplois de 16,95 $/h pour la CNP 44101 (région économique Winnipeg, Manitoba), table des salaires du 2025-11-19.",
+      ],
+      [
+        "Closest of 2 posting(s) compared: posting 102, posted minimum $99,000/yr against the Job Bank median $84,000/yr for NOC 00010 in Canada (national figure), wage table dated 2025-11-19.",
+        "Offre la plus proche parmi 2 offre(s) comparée(s) : offre 102, salaire minimum affiché de 99 000 $/an pour une médiane du Guichet-Emplois de 84 000 $/an, CNP 00010 (Canada, chiffre national), table des salaires du 2025-11-19.",
+      ],
+      ["No low-wage approvals from 2025Q1 on.", "Aucune approbation dans le volet des postes à bas salaire depuis le T1 2025."],
+      [
+        "The low-wage approvals could not be placed in an area with a published unemployment rate.",
+        "Les approbations dans le volet des postes à bas salaire n’ont pu être situées dans une région dont le taux de chômage est publié.",
+      ],
+      [
+        "Low Wage stream approval in 2025Q4; the Winnipeg CMA unemployment rate was 6.4 percent for the three months ending 2025-06 and 6.6 percent for the three months ending 2025-09 (Statistics Canada LFS).",
+        "Approbation dans le volet des postes à bas salaire, T4 2025; taux de chômage de 6,4 % pour les trois mois se terminant en 2025-06 et de 6,6 % pour les trois mois se terminant en 2025-09, région métropolitaine de recensement : Winnipeg (EPA de Statistique Canada).",
+      ],
+      [
+        "1 low-wage positive-list row(s) from 2025Q1 on; none in a census metropolitan area at or above 6 percent in both three-month periods checked.",
+        "1 inscription(s) sur la liste positive dans le volet des postes à bas salaire depuis le T1 2025; aucune dans une région métropolitaine de recensement à 6 % ou plus pendant les deux périodes de trois mois vérifiées.",
+      ],
     ];
     for (const [en, fr] of cases) {
       const out = basisText("fr", en);
@@ -197,6 +232,22 @@ describe("indicator basis sentences", () => {
     }
     const basisKeys = allKeys().filter((k) => k.startsWith("basis."));
     expect(cases.length).toBe(basisKeys.length);
+  });
+
+  it("names provinces, regions and metropolitan areas in French", () => {
+    const fr = (en: string) => nbsp(basisText("fr", en).text);
+    expect(
+      fr("Posting 7: posted minimum $31.00/h is within 1 percent of the Job Bank median $31.00/h for NOC 22101 in British Columbia (provincial figure), wage table dated 2025-11-19."),
+    ).toContain("CNP 22101 (Colombie-Britannique, chiffre provincial)");
+    expect(
+      fr("Closest of 1 posting(s) compared: posting 8, posted minimum $19.00/h against the Job Bank median $18.00/h for NOC 44101 in the Southeast economic region (Manitoba), wage table dated 2025-11-19."),
+    ).toContain("(région économique Sud-est, Manitoba)");
+    expect(
+      fr("Closest of 1 posting(s) compared: posting 9, posted minimum $40.00/h against the Job Bank median $38.00/h for NOC 72106 in the Lower Mainland--Southwest economic region (British Columbia), wage table dated 2025-11-19."),
+    ).toContain("(région économique Lower Mainland--Sud-ouest, Colombie-Britannique)");
+    expect(
+      fr("Low Wage stream approval in 2026Q1; the Greater Sudbury CMA unemployment rate was 6.2 percent for the three months ending 2025-09 and 6.0 percent for the three months ending 2025-12 (Statistics Canada LFS)."),
+    ).toContain("région métropolitaine de recensement : Grand Sudbury");
   });
 
   it("leaves a sentence it does not know in English, flagged", () => {
@@ -282,6 +333,16 @@ describe("rendered French pages", () => {
     const meth = nbsp(await (await get("/methodology?lang=fr")).text());
     expect(meth).toContain('<h2 id="status">Cycle de vie des statuts</h2>');
     expect(meth).toContain("Faux positifs connus");
+    expect(meth).toContain("Enquête sur la population active de Statistique Canada, tableau 14-10-0459-01");
+    expect(meth).toContain("la médiane provinciale, puis nationale");
+    expect(meth).toContain("Depuis le 2024-09-26, EDSC refuse de traiter les demandes à bas salaire");
+    expect(meth).not.toContain("(prévu)");
+
+    const data = nbsp(await (await get("/data?lang=fr")).text());
+    expect(data).toContain("Licence ouverte de Statistique Canada");
+    expect(data).toContain("https://www150.statcan.gc.ca/t1/tbl1/fr/tv.action?pid=1410045901");
+    expect(data).toContain('<td class="mono nw">2026-10-17</td>');
+    expect(data).not.toContain("prévu");
 
     const support = nbsp(await (await get("/support?lang=fr")).text());
     expect(support).toContain("<h1>Soutenir le site</h1>");

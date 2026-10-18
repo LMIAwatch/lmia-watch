@@ -186,7 +186,7 @@ CREATE TABLE IF NOT EXISTS fsa_centroids (
 CREATE TABLE IF NOT EXISTS sources_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   run_at TEXT NOT NULL,
-  source TEXT NOT NULL,                          -- jobbank | esdc | ircc | registry | indicators | export
+  source TEXT NOT NULL,                          -- jobbank | esdc | ircc | registry | wages | lfs | geography | indicators | export
   detail TEXT,
   rows_in INTEGER,
   rows_new INTEGER,
@@ -224,6 +224,64 @@ CREATE TABLE IF NOT EXISTS federal_corporations (
   source_url TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_federal_norm ON federal_corporations(norm_name);
+
+-- Job Bank wage tables loaded from open.canada.ca (ESDC "Wages" dataset),
+-- one row per yearly CSV. The newest two are kept, so a posting is compared
+-- with the table in force on its posting date.
+CREATE TABLE IF NOT EXISTS wage_tables (
+  resource_id TEXT PRIMARY KEY,                  -- CKAN resource id of the CSV
+  name TEXT NOT NULL,                            -- resource name as published, e.g. '2025 Wages'
+  url TEXT NOT NULL,                             -- download URL
+  source_modified TEXT,                          -- CKAN last_modified (or created); a change triggers a new download
+  revision_date TEXT,                            -- ISO date from the file's revision column; in force from this date
+  sha256 TEXT NOT NULL,
+  bytes INTEGER NOT NULL,
+  rows_loaded INTEGER NOT NULL,                  -- rows with a published median
+  loaded_at TEXT NOT NULL
+);
+
+-- Job Bank wages: one row per occupation and area that has a published median.
+CREATE TABLE IF NOT EXISTS jobbank_wages (
+  resource_id TEXT NOT NULL,                     -- wage_tables.resource_id
+  noc_code TEXT NOT NULL,                        -- NOC 2021 five-digit code
+  area_code TEXT NOT NULL,                       -- '00' Canada, two-digit province code ('46'), or four-digit economic region ('4650')
+  province TEXT,                                 -- two-letter code; NULL for Canada
+  area_name TEXT NOT NULL,                       -- English area name as published
+  median REAL NOT NULL,                          -- median wage in dollars, hourly unless annual = 1
+  low REAL,                                      -- low wage as published, same unit
+  high REAL,                                     -- high wage as published, same unit
+  annual INTEGER NOT NULL,                       -- 1 when Job Bank publishes the occupation at an annual rate
+  reference_period TEXT,                         -- survey years behind the figure, e.g. '2023-2024'
+  PRIMARY KEY (resource_id, noc_code, area_code)
+);
+
+-- Labour Force Survey unemployment rate by census metropolitan area
+-- (Statistics Canada table 14-10-0459-01, three-month moving average,
+-- unadjusted: the series ESDC's low-wage refusal table carries).
+CREATE TABLE IF NOT EXISTS lfs_unemployment (
+  cma_uid TEXT NOT NULL,                         -- 2021 Census CMA code, three digits ('602' Winnipeg, '505' Ottawa-Gatineau)
+  ref_month TEXT NOT NULL,                       -- 'YYYY-MM', the last month of the three-month window
+  rate REAL NOT NULL,                            -- unemployment rate, percent
+  cma_name TEXT NOT NULL,                        -- English name without the province, e.g. 'Winnipeg'
+  vector TEXT,                                   -- Statistics Canada vector id, e.g. 'v1643280007'
+  PRIMARY KEY (cma_uid, ref_month)
+);
+
+-- Forward sortation area to 2021 Census economic region and census
+-- metropolitan area, derived from the boundary files (sources/geography.py).
+-- Rebuilt only when the boundary files or the centroids change.
+CREATE TABLE IF NOT EXISTS fsa_regions (
+  fsa TEXT PRIMARY KEY,                          -- first three postal characters
+  er_uid TEXT,                                   -- economic region code ('4650'); NULL when the point fell in none
+  er_name TEXT,                                  -- English economic region name ('Winnipeg', 'Lower Mainland--Southwest')
+  cma_uid TEXT,                                  -- CMA code ('602'); NULL outside every census metropolitan area
+  cma_name TEXT,                                 -- English CMA name from the boundary file
+  lat REAL NOT NULL,                             -- the point that was placed
+  lon REAL NOT NULL,
+  method TEXT NOT NULL                           -- centroid (GeoNames point inside the FSA boundary) | boundary (interior point of the
+                                                 -- FSA boundary) | centroid_unchecked (no 2021 boundary); '+nearest' when the region
+                                                 -- came from the nearest boundary within 10 km (the point lay offshore)
+);
 
 -- ---------------------------------------------------------------------------
 -- Site-owned tables. The pipeline never writes, deletes or exports these.

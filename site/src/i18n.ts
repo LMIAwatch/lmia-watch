@@ -545,12 +545,43 @@ const STRINGS = {
   },
   "methodology.sources.none": { en: "None", fr: "Aucun" },
   "methodology.sources.wages.source": {
-    en: "Job Bank prevailing wage by occupation and region (planned)",
-    fr: "Salaire courant par profession et par région, Guichet-Emplois (prévu)",
+    en: "Job Bank wages by occupation and economic region (ESDC, open.canada.ca)",
+    fr: "Salaires par profession et par région économique du Guichet-Emplois (EDSC, open.canada.ca)",
   },
-  "methodology.sources.wages.fields": { en: "Median wage used as the LMIA wage floor", fr: "Salaire médian utilisé comme plancher salarial de l'EIMT" },
-  "methodology.sources.wages.cadence": { en: "When Job Bank updates it", fr: "Lors des mises à jour du Guichet-Emplois" },
+  "methodology.sources.wages.fields": {
+    en: "Low, median and high wage for each NOC 2021 occupation, by economic region, province and Canada. The median is the LMIA wage floor.",
+    fr: "Salaire bas, médian et élevé de chaque profession de la CNP 2021, par région économique, par province et pour le Canada. La médiane est le plancher salarial de l'EIMT.",
+  },
+  "methodology.sources.wages.cadence": {
+    en: "Yearly (the 2025 table is dated 2025-11-19); checked monthly",
+    fr: "Annuelle (la table de 2025 est datée du 2025-11-19); vérifiée chaque mois",
+  },
   "methodology.sources.wages.lag": { en: "Used only by the wage indicator", fr: "Utilisé seulement par l'indicateur salarial" },
+  "methodology.sources.lfs.source": {
+    en: "Statistics Canada Labour Force Survey, table 14-10-0459-01",
+    fr: "Enquête sur la population active de Statistique Canada, tableau 14-10-0459-01",
+  },
+  "methodology.sources.lfs.fields": {
+    en: "Unemployment rate by census metropolitan area, three-month moving average, unadjusted for seasonality (the figures ESDC's refusal table shows)",
+    fr: "Taux de chômage par région métropolitaine de recensement, moyenne mobile de trois mois, données non désaisonnalisées (les chiffres du tableau des refus d'EDSC)",
+  },
+  "methodology.sources.lfs.cadence": { en: "Monthly; checked monthly", fr: "Mensuelle; vérifiée chaque mois" },
+  "methodology.sources.lfs.lag": {
+    en: "Used only by the low-wage stream indicator",
+    fr: "Utilisé seulement par l'indicateur du volet des postes à bas salaire",
+  },
+  "methodology.sources.boundaries.source": {
+    en: "Statistics Canada 2021 Census boundary files: economic regions, census metropolitan areas, forward sortation areas",
+    fr: "Fichiers des limites du Recensement de 2021 de Statistique Canada : régions économiques, régions métropolitaines de recensement, régions de tri d'acheminement",
+  },
+  "methodology.sources.boundaries.fields": {
+    en: "Place each postal area in an economic region and, where it falls in one, a census metropolitan area. An area that straddles a boundary goes wholly to one side.",
+    fr: "Situent chaque secteur postal dans une région économique et, s'il y a lieu, dans une région métropolitaine de recensement. Un secteur à cheval sur une limite est rattaché en entier à un seul côté.",
+  },
+  "methodology.sources.boundaries.cadence": {
+    en: "Loaded once; boundaries are fixed for a census",
+    fr: "Chargés une seule fois; les limites sont fixes pour un recensement",
+  },
   "methodology.status_note": {
     en: "Each posting or list row is one record. An employer's status is the most recent record's status.",
     fr: "Chaque offre ou inscription de liste constitue un dossier. Le statut d'un employeur est celui de son dossier le plus récent.",
@@ -617,25 +648,28 @@ const STRINGS = {
     fr: "L'agriculture saisonnière relevant du Programme des travailleurs agricoles saisonniers se renouvelle chaque année par conception; les hôpitaux et les soins de longue durée recrutent sans arrêt",
   },
   "methodology.ind.wage_at_floor.rule": {
-    en: "Posted minimum wage is within 1 percent of the Job Bank median for that occupation and economic region",
-    fr: "Le salaire minimum affiché se situe à 1 % ou moins de la médiane du Guichet-Emplois pour cette profession et cette région économique",
+    en: "Posted minimum wage is within 1 percent of the Job Bank median for the posting's occupation and economic region, in the wage table in force on the posting date; where Job Bank publishes no regional median, the provincial and then the national median, as ESDC tells employers",
+    fr: "Le salaire minimum affiché se situe à 1 % ou moins de la médiane du Guichet-Emplois pour la profession et la région économique de l'offre, dans la table des salaires en vigueur à la date de publication; à défaut de médiane régionale, la médiane provinciale, puis nationale, comme EDSC l'indique aux employeurs",
   },
-  "methodology.ind.wage_at_floor.data": { en: "Job Bank posting, Job Bank wage table", fr: "Offre du Guichet-Emplois, table des salaires du Guichet-Emplois" },
+  "methodology.ind.wage_at_floor.data": {
+    en: "Job Bank posting, Job Bank wage table, 2021 Census boundaries",
+    fr: "Offre du Guichet-Emplois, table des salaires du Guichet-Emplois, limites du Recensement de 2021",
+  },
   "methodology.ind.wage_at_floor.fp": {
-    en: "Occupations with a narrow wage distribution; a posting whose range starts at the floor but pays above it",
-    fr: "Professions dont la répartition des salaires est étroite; une offre dont la fourchette commence au plancher mais qui paie davantage",
+    en: "Occupations with a narrow wage distribution; a posting whose range starts at the floor but pays above it; a postal area that straddles two economic regions and is placed in the other one",
+    fr: "Professions dont la répartition des salaires est étroite; une offre dont la fourchette commence au plancher mais qui paie davantage; un secteur postal à cheval sur deux régions économiques et rattaché à l'autre",
   },
   "methodology.ind.low_wage_high_unemployment.rule": {
-    en: "Stream is Low Wage and the census metropolitan area's unemployment rate is at or above 6 percent, the level at which ESDC refuses to process low-wage applications outside exempt sectors",
-    fr: "Le volet est celui des postes à bas salaire et le taux de chômage de la région métropolitaine de recensement est d'au moins 6 %, seuil auquel EDSC refuse de traiter les demandes à bas salaire hors des secteurs exemptés",
+    en: "A positive-list row from 2025 Q1 on is in the Low Wage stream, and its census metropolitan area's unemployment rate was 6 percent or higher in both three-month periods that could have applied: the one in force when the decision quarter began and the one before it. Since 2024-09-26 ESDC refuses to process low-wage applications in such areas outside exempt positions",
+    fr: "Une inscription sur la liste positive depuis le T1 2025 relève du volet des postes à bas salaire, et le taux de chômage de sa région métropolitaine de recensement était d'au moins 6 % pendant les deux périodes de trois mois qui pouvaient s'appliquer : celle en vigueur au début du trimestre de la décision et la précédente. Depuis le 2024-09-26, EDSC refuse de traiter les demandes à bas salaire dans ces régions, sauf pour les postes exemptés",
   },
   "methodology.ind.low_wage_high_unemployment.data": {
-    en: "ESDC lists, Statistics Canada Labour Force Survey",
-    fr: "Listes d'EDSC, Enquête sur la population active de Statistique Canada",
+    en: "ESDC positive lists, Statistics Canada Labour Force Survey, 2021 Census boundaries",
+    fr: "Listes positives d'EDSC, Enquête sur la population active de Statistique Canada, limites du Recensement de 2021",
   },
   "methodology.ind.low_wage_high_unemployment.fp": {
-    en: "Exempt sectors: agriculture, food and fish processing, construction, health care",
-    fr: "Secteurs exemptés : agriculture, transformation des aliments et du poisson, construction, soins de santé",
+    en: "Exempt positions: primary agriculture, construction, food manufacturing including fish processing, hospitals, nursing and residential care, in-home caregivers in a private household, permanent residence only, and stays of 120 days or less; an application submitted before 2024-09-26 and decided later; a postal area that straddles a metropolitan boundary",
+    fr: "Postes exemptés : agriculture primaire, construction, fabrication d'aliments, y compris la transformation du poisson, hôpitaux, soins infirmiers et soins en établissement résidentiel, aides familiaux dans un ménage privé, résidence permanente seulement et séjours de 120 jours ou moins; une demande présentée avant le 2024-09-26 et tranchée plus tard; un secteur postal à cheval sur la limite d'une région métropolitaine",
   },
   "methodology.ind.high_volume.rule": {
     en: "Approved positions in one quarter of 50 or more, or ten times the employer's own median quarter",
@@ -785,6 +819,14 @@ const STRINGS = {
     en: "ESDC's positive and negative LMIA employer lists and the federal corporations extract from Innovation, Science and Economic Development Canada are published under the Open Government Licence, Canada. Derived files on this site are released under the same licence. Job Bank content is Government of Canada material reproduced with attribution. Postal-area centroids come from GeoNames (CC BY 4.0).",
     fr: "Les listes des employeurs ayant reçu une EIMT positive ou négative d'EDSC et l'extrait des sociétés fédérales d'Innovation, Sciences et Développement économique Canada sont publiés sous la Licence du gouvernement ouvert, Canada. Les fichiers dérivés de ce site sont diffusés sous la même licence. Le contenu du Guichet-Emplois est du matériel du gouvernement du Canada reproduit avec attribution. Les centres des secteurs postaux proviennent de GeoNames (CC BY 4.0).",
   },
+  "data.sources_text": {
+    en: "The wage and unemployment indicators use {wages} (Open Government Licence, Canada), Statistics Canada's {lfs} and the {boundaries}, used under the {statcan}.",
+    fr: "Les indicateurs salarial et de chômage utilisent les {wages} (Licence du gouvernement ouvert, Canada), le {lfs} de Statistique Canada et les {boundaries}, utilisés sous la {statcan}.",
+  },
+  "data.src.wages": { en: "Job Bank wages", fr: "salaires du Guichet-Emplois" },
+  "data.src.lfs": { en: "Labour Force Survey table 14-10-0459-01", fr: "tableau 14-10-0459-01 de l'Enquête sur la population active" },
+  "data.src.boundaries": { en: "2021 Census boundary files", fr: "fichiers des limites du Recensement de 2021" },
+  "data.src.statcan_licence": { en: "Statistics Canada Open Licence", fr: "Licence ouverte de Statistique Canada" },
   "data.crawl_text": {
     en: "The nightly check sends one request at a time to Job Bank under a named user agent with a contact address. The run stops if Job Bank returns errors.",
     fr: "La vérification de nuit envoie une requête à la fois au Guichet-Emplois sous un agent utilisateur nommé, avec une adresse de contact. L'exécution s'arrête si le Guichet-Emplois renvoie des erreurs.",
@@ -796,12 +838,11 @@ const STRINGS = {
     fr: "Structure du site ébauchée. Règles des indicateurs v{rules}. Listes d'EDSC chargées jusqu'au {period}. Sociétés fédérales jumelées par nom.",
   },
   "data.recomputed_all": { en: "All", fr: "Tout" },
-  "data.planned": { en: "planned", fr: "prévu" },
-  "data.change_planned": {
-    en: "Load Job Bank prevailing wages and the Labour Force Survey",
-    fr: "Charger les salaires courants du Guichet-Emplois et l'Enquête sur la population active",
+  "data.change_wages": {
+    en: "Indicator rules v{rules}. Wage at the prevailing-wage floor and low-wage stream in a high-unemployment region are evaluated, from Job Bank wages, the Labour Force Survey and the 2021 Census boundaries.",
+    fr: "Règles des indicateurs v{rules}. Le salaire au plancher du salaire courant et le volet des postes à bas salaire dans une région à chômage élevé sont évalués, à partir des salaires du Guichet-Emplois, de l'Enquête sur la population active et des limites du Recensement de 2021.",
   },
-  "data.recomputed_planned": { en: "Wage at floor, low-wage stream", fr: "Salaire au plancher, volet des postes à bas salaire" },
+  "data.recomputed_wages": { en: "Wage at floor, low-wage stream", fr: "Salaire au plancher, volet des postes à bas salaire" },
   "data.runs": { en: "Recent Runs", fr: "Exécutions récentes" },
   "data.col_run": { en: "Run", fr: "Exécution" },
   "data.col_stage": { en: "Stage", fr: "Étape" },
@@ -989,6 +1030,46 @@ const STRINGS = {
   "basis.no_wage_table": { en: "Prevailing wage table not yet loaded.", fr: "Table des salaires courants pas encore chargée." },
   "basis.no_unemployment_table": { en: "Regional unemployment table not yet loaded.", fr: "Table du chômage régional pas encore chargée." },
   "basis.no_low_wage": { en: "No low-wage stream records.", fr: "Aucun dossier dans le volet des postes à bas salaire." },
+  "basis.no_posting": { en: "No Job Bank posting.", fr: "Aucune offre du Guichet-Emplois." },
+  "basis.wage_no_noc": {
+    en: "No posting page parsed yet, so the occupation is unknown.",
+    fr: "Aucune page d'offre analysée pour l'instant : la profession est donc inconnue.",
+  },
+  "basis.wage_no_region": {
+    en: "No posting has a postal code that places it in an economic region.",
+    fr: "Aucune offre n'a un code postal qui la situe dans une région économique.",
+  },
+  "basis.wage_no_median": { en: "No Job Bank median for NOC {noc}.", fr: "Aucune médiane du Guichet-Emplois pour la CNP {noc}." },
+  "basis.wage_unit": {
+    en: "No posted wage matches the hourly or yearly unit of the Job Bank median.",
+    fr: "Aucun salaire affiché n'est dans l'unité horaire ou annuelle de la médiane du Guichet-Emplois.",
+  },
+  // {area} is "the X economic region (Province)", "Province (provincial
+  // figure)" or "Canada (national figure)"; frValue() translates each form.
+  "basis.wage_at_floor": {
+    en: "Posting {id}: posted minimum ${posted}/{unit} is within 1 percent of the Job Bank median ${median}/{unit2} for NOC {noc} in {area}, wage table dated {date}.",
+    fr: "Offre {id} : salaire minimum affiché de {posted} $/{unit}, à 1 % ou moins de la médiane du Guichet-Emplois de {median} $/{unit2} pour la CNP {noc} ({area}), table des salaires du {date}.",
+  },
+  "basis.wage_closest": {
+    en: "Closest of {n} posting(s) compared: posting {id}, posted minimum ${posted}/{unit} against the Job Bank median ${median}/{unit2} for NOC {noc} in {area}, wage table dated {date}.",
+    fr: "Offre la plus proche parmi {n} offre(s) comparée(s) : offre {id}, salaire minimum affiché de {posted} $/{unit} pour une médiane du Guichet-Emplois de {median} $/{unit2}, CNP {noc} ({area}), table des salaires du {date}.",
+  },
+  "basis.low_wage_out_of_scope": {
+    en: "No low-wage approvals from {start} on.",
+    fr: "Aucune approbation dans le volet des postes à bas salaire depuis le {start}.",
+  },
+  "basis.low_wage_unplaced": {
+    en: "The low-wage approvals could not be placed in an area with a published unemployment rate.",
+    fr: "Les approbations dans le volet des postes à bas salaire n'ont pu être situées dans une région dont le taux de chômage est publié.",
+  },
+  "basis.low_wage_high": {
+    en: "Low Wage stream approval in {period}; the {cma} CMA unemployment rate was {rate} percent for the three months ending {month} and {rate2} percent for the three months ending {month2} (Statistics Canada LFS).",
+    fr: "Approbation dans le volet des postes à bas salaire, {period}; taux de chômage de {rate} % pour les trois mois se terminant en {month} et de {rate2} % pour les trois mois se terminant en {month2}, région métropolitaine de recensement : {cma} (EPA de Statistique Canada).",
+  },
+  "basis.low_wage_none_high": {
+    en: "{n} low-wage positive-list row(s) from {start} on; none in a census metropolitan area at or above 6 percent in both three-month periods checked.",
+    fr: "{n} inscription(s) sur la liste positive dans le volet des postes à bas salaire depuis le {start}; aucune dans une région métropolitaine de recensement à 6 % ou plus pendant les deux périodes de trois mois vérifiées.",
+  },
   "basis.no_registry": { en: "No registry match yet.", fr: "Aucune correspondance au registre pour l'instant." },
   "basis.nothing_to_compare": {
     en: "No pending posting or list record to compare against.",
@@ -1246,14 +1327,58 @@ function basisPattern(english: string): RegExp {
 
 const BASIS_PATTERNS: { key: Key; re: RegExp }[] = BASIS_KEYS.map((key) => ({ key, re: basisPattern(STRINGS[key].en) }));
 
-// Quarters become "T1 2026" wherever they appear; counts are grouped and
-// decimals take a comma, but a code (the NOC) is left as written.
-const BASIS_COUNTS = new Set(["days", "top", "n", "run", "median"]);
+// Quarters become "T1 2026" wherever they appear; counts and amounts are
+// grouped and decimals take a comma, but a code (the NOC, a posting ID) is
+// left as written.
+const BASIS_NUMBERS = new Set(["days", "top", "n", "run", "median", "posted", "rate", "rate2"]);
+const BASIS_UNITS: Record<string, string> = { h: "h", yr: "an" };
+
+// Statistics Canada's French names for the economic regions and census
+// metropolitan areas whose English name differs. The rest are the same.
+const PLACE_FR: Record<string, string> = {
+  "South Coast--Burin Peninsula": "Côte-sud--Burin Peninsula",
+  "West Coast--Northern Peninsula--Labrador": "Côte-ouest--Northern Peninsula--Labrador",
+  "Prince Edward Island": "Île-du-Prince-Édouard",
+  "North Shore": "Côte-nord",
+  Southern: "Sud",
+  Northeast: "Nord-est",
+  Northwest: "Nord-ouest",
+  Southeast: "Sud-est",
+  "South Central": "Centre sud",
+  Southwest: "Sud-ouest",
+  "North Central": "Centre nord",
+  North: "Nord",
+  Northern: "Nord",
+  "Vancouver Island and Coast": "Île de Vancouver et la côte",
+  "Lower Mainland--Southwest": "Lower Mainland--Sud-ouest",
+  "North Coast": "Côte-nord",
+  "Northwest Territories": "Territoires du Nord-Ouest",
+  "Greater Sudbury": "Grand Sudbury",
+};
+
+function frProvince(english: string): string {
+  const code = Object.keys(PROVINCE_KEY).find((c) => STRINGS[PROVINCE_KEY[c]].en === english);
+  return code ? t("fr", PROVINCE_KEY[code]) : english;
+}
+
+// The three area forms the wage indicator writes.
+function frArea(v: string): string {
+  const region = /^the (.+) economic region \((.+)\)$/.exec(v);
+  if (region) return `région économique ${PLACE_FR[region[1]] ?? region[1]}, ${frProvince(region[2])}`;
+  const province = /^(.+) \(provincial figure\)$/.exec(v);
+  if (province) return `${frProvince(province[1])}, chiffre provincial`;
+  if (v === "Canada (national figure)") return "Canada, chiffre national";
+  return v;
+}
 
 function frValue(name: string, v: string): string {
   if (/^\d{4}Q\d(?:-Q\d)?$/.test(v)) return periodLabel(v, "fr");
-  if (!BASIS_COUNTS.has(name)) return v;
+  if (name === "unit" || name === "unit2") return BASIS_UNITS[v] ?? v;
+  if (name === "area") return frArea(v);
+  if (name === "cma") return PLACE_FR[v] ?? v;
+  if (!BASIS_NUMBERS.has(name)) return v;
   if (/^\d+$/.test(v)) return fmtInt(Number(v), "fr");
+  if (/^\d{1,3}(,\d{3})+$/.test(v)) return fmtInt(Number(v.replace(/,/g, "")), "fr");
   if (/^\d+\.\d+$/.test(v)) return decimal("fr", v);
   return v;
 }

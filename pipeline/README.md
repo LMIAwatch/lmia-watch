@@ -27,7 +27,8 @@ python -m lmia_pipeline post-digest --dry-run                    # print the dai
 latest Job Bank pass, when `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN` and
 `X_ACCESS_TOKEN_SECRET` are set. It records the posted date in `meta`, so a
 re-run posts nothing, and it always exits 0. Setup: `../docs/x-account.md`.
-Stage order: esdc, ircc, jobbank, registry, indicators and status, export.
+Stage order: esdc, ircc, jobbank, registry, wages, lfs, geography, indicators and status,
+export.
 `--limit` caps Job Bank list pages per facet and also disables the "gone"
 marking, because a capped run has not seen the whole feed.
 
@@ -39,6 +40,9 @@ marking, because a capped run has not seen the whole feed.
 | `sources/ircc.py` | parses the non-compliant employers JSON and the reason legend from the page |
 | `sources/registry_bc.py` | OrgBook BC lookups for BC employers, graded matches |
 | `sources/registry_federal.py` | Corporations Canada bulk extract, matched by normalized name |
+| `sources/wages.py` | Job Bank wages by occupation and area (the prevailing-wage reference), newest two yearly tables |
+| `sources/lfs.py` | Labour Force Survey unemployment rate by census metropolitan area |
+| `sources/geography.py` | 2021 Census boundaries; places every forward sortation area in an economic region and a census metropolitan area (`fsa_regions`) |
 | `indicators.py` | the rules (version in `RULES_VERSION`) |
 | `status.py` | employer rollups, the status lifecycle, meta counters |
 | `export.py` | CSV files, the raw-file mirror with checksums, optional D1 batches |
@@ -69,6 +73,29 @@ static-asset limit because province data is split by year.
 into the local `federal_corporations` table and matches every employer by
 normalized name; a match is exact when the province or postal code agrees,
 probable otherwise.
+
+## Reference tables for the wage and unemployment indicators
+Downloaded into the cache under `data/raw/cache/` like the other open data and
+loaded into pipeline-local tables; none of it is committed.
+
+| Table | Source | Licence | Fetched |
+|---|---|---|---|
+| `wage_tables`, `jobbank_wages` | Wages, ESDC (Job Bank), one CSV a year, about 18 MB (the 2025 file is revised 2025-11-19): low, median and high wage per NOC 2021 occupation for Canada, each province and territory and each economic region. Dataset: https://open.canada.ca/data/en/dataset/adad580f-76b0-4502-bd05-20c125de9116 | Open Government Licence, Canada | listing checked monthly; each yearly file downloaded once; the newest two kept |
+| `lfs_unemployment` | Statistics Canada table 14-10-0459-01, Labour force characteristics by census metropolitan area, three-month moving average (the unadjusted series is kept, which is what ESDC's refusal table shows). Table: https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1410045901, download: https://www150.statcan.gc.ca/n1/tbl/csv/14100459-eng.zip (about 4 MB) | Statistics Canada Open Licence | at most monthly, revalidated by ETag |
+| `fsa_regions` | Statistics Canada 2021 Census cartographic boundary files: economic regions, census metropolitan areas, forward sortation areas (https://www12.statcan.gc.ca/census-recensement/2021/geo/sip-pis/boundary-limites/index2021-eng.cfm). The zipped files there sit behind a browser challenge, so the same layers come from Statistics Canada's map service, https://geo.statcan.gc.ca/geo_wa/rest/services/2021/Cartographic_boundary_files/MapServer (layers 2, 6 and 14), as JSON, one request per province per layer, about 40 MB in all | Statistics Canada Open Licence | once; cached for good |
+
+`fsa_regions` gives each forward sortation area one point: the GeoNames
+centroid when it lies inside the area's own 2021 boundary, otherwise an
+interior point of that boundary (158 of 1,664 areas). The point is placed in
+an economic region (offshore points take the nearest within 10 km) and, when
+it falls inside one, a census metropolitan area. An area that straddles a
+boundary goes wholly to one side; about 2 percent of areas change region
+depending on which point is used, which bounds how many can be misplaced.
+The table is rebuilt only when the cached boundary responses, the centroids
+or `DERIVATION_VERSION` change. The map service answers some requests with
+HTTP 500 and the next attempt succeeds, so that stage uses a client with
+eight attempts. First load takes about two minutes; later nights read the
+cache in seconds.
 
 ## Politeness
 `http.PoliteClient` spaces requests per host (5 s for Job Bank, from its

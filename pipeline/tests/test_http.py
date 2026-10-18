@@ -87,3 +87,14 @@ def test_cache_and_revalidation(tmp_path):
     assert session.calls[-1][1]["If-None-Match"] == "abc"
     session.mapping[url] = FakeResponse(200, b"v2", {"ETag": "def"})
     assert client.get(url, cache=True, max_age_s=0) == b"v2"
+
+
+def test_forget_drops_a_cached_body(tmp_path):
+    url = "https://open.example/layer.json"
+    client, session, clock = make({url: FakeResponse(200, b"bad")}, tmp_path)
+    assert client.get(url, cache=True, max_age_s=float("inf")) == b"bad"
+    client.forget(url)
+    session.mapping[url] = FakeResponse(200, b"good")
+    assert client.get(url, cache=True, max_age_s=float("inf")) == b"good"
+    assert len(session.calls) == 2
+    client.forget("https://open.example/never-fetched")  # nothing cached: no error

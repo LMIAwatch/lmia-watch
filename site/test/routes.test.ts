@@ -112,12 +112,28 @@ describe("pages", () => {
     expect(meth).toContain("<h2 id=\"status\">Status Lifecycle</h2>");
     expect(meth).toContain("Known false positives");
     expect(meth).toContain("Private households and individuals are not published");
+    // The wage and unemployment rules as published, with their sources.
+    expect(meth).toContain("Job Bank wages by occupation and economic region (ESDC, open.canada.ca)");
+    expect(meth).toContain("Statistics Canada Labour Force Survey, table 14-10-0459-01");
+    expect(meth).toContain("Statistics Canada 2021 Census boundary files");
+    expect(meth).toContain("Posted minimum wage is within 1 percent of the Job Bank median for the posting&#39;s occupation and economic region");
+    expect(meth).toContain("the provincial and then the national median");
+    expect(meth).toContain("6 percent or higher in both three-month periods that could have applied");
+    expect(meth).toContain("Since 2024-09-26 ESDC refuses to process low-wage applications");
+    expect(meth).toContain("food manufacturing including fish processing, hospitals, nursing and residential care");
+    expect(meth).not.toContain("(planned)");
 
     const data = await (await get("/data")).text();
     expect(data).toContain("pending_observations.csv");
     expect(data).toContain("Open Government Licence");
     expect(data).toContain("2026Q1");
     expect(data).toContain("GeoNames");
+    expect(data).toContain('href="https://open.canada.ca/data/en/dataset/adad580f-76b0-4502-bd05-20c125de9116"');
+    expect(data).toContain("Labour Force Survey table 14-10-0459-01");
+    expect(data).toContain("Statistics Canada Open Licence");
+    expect(data).toContain('<td class="mono nw">2026-10-17</td>');
+    expect(data).toContain("Indicator rules v0.2.");
+    expect(data).not.toContain("planned");
     expect(data.split('class="table-wrap bordered scroll-y"').length - 1).toBe(2);
   });
 

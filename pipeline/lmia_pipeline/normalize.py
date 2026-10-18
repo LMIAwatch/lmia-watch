@@ -30,6 +30,19 @@ PROVINCES: dict[str, str] = {
 }
 PROVINCE_CODES = set(PROVINCES.values())
 
+# Statistics Canada's two-digit province codes (the first digits of every
+# census geography code) and the English names the site shows.
+PRUID_PROVINCE: dict[str, str] = {
+    "10": "NL", "11": "PE", "12": "NS", "13": "NB", "24": "QC", "35": "ON",
+    "46": "MB", "47": "SK", "48": "AB", "59": "BC", "60": "YT", "61": "NT", "62": "NU",
+}
+PROVINCE_NAMES: dict[str, str] = {
+    "AB": "Alberta", "BC": "British Columbia", "MB": "Manitoba", "NB": "New Brunswick",
+    "NL": "Newfoundland and Labrador", "NS": "Nova Scotia", "NT": "Northwest Territories",
+    "NU": "Nunavut", "ON": "Ontario", "PE": "Prince Edward Island", "QC": "Quebec",
+    "SK": "Saskatchewan", "YT": "Yukon",
+}
+
 POSTAL_RE = re.compile(
     r"\b([ABCEGHJ-NPRSTVXY]\d[ABCEGHJ-NPRSTV-Z])\s*(\d[ABCEGHJ-NPRSTV-Z]\d)\b", re.I
 )
