@@ -345,13 +345,18 @@ def _fetch_details(
             conn.execute(
                 """
                 UPDATE employers SET
-                  postal_code = COALESCE(postal_code, ?),
-                  street = COALESCE(street, ?),
-                  city = COALESCE(city, ?),
-                  updated_at = ?
-                WHERE id = ?
+                  postal_code = COALESCE(postal_code, :postal),
+                  -- a posting page outranks an IRCC finding as the source of a street
+                  street_source = CASE WHEN :street IS NOT NULL AND (street IS NULL OR street_source = 'ircc')
+                                       THEN 'jobbank' ELSE street_source END,
+                  street = CASE WHEN :street IS NOT NULL AND (street IS NULL OR street_source = 'ircc')
+                                THEN :street ELSE street END,
+                  city = COALESCE(city, :city),
+                  updated_at = :stamp
+                WHERE id = :id
                 """,
-                (f.postal_code, f.street, f.city, stamp, row["employer_id"]),
+                {"postal": f.postal_code, "street": f.street, "city": f.city, "stamp": stamp,
+                 "id": row["employer_id"]},
             )
         fetched += 1
         conn.commit()

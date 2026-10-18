@@ -27,8 +27,11 @@ python -m lmia_pipeline post-digest --dry-run                    # print the dai
 latest Job Bank pass, when `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN` and
 `X_ACCESS_TOKEN_SECRET` are set. It records the posted date in `meta`, so a
 re-run posts nothing, and it always exits 0. Setup: `../docs/x-account.md`.
-Stage order: esdc, ircc, jobbank, registry, wages, lfs, geography, indicators and status,
-export.
+Stage order: esdc, ircc, jobbank, registry (BC, federal, Quebec), wages, lfs,
+geography, indicators and status, export.
+Before any stage, `run` compares `meta.normalize_version` with
+`normalize.NORMALIZE_VERSION` and, when the database is older, re-derives every
+employer id once (`migrate.py`).
 `--limit` caps Job Bank list pages per facet and also disables the "gone"
 marking, because a capped run has not seen the whole feed.
 
@@ -37,9 +40,12 @@ marking, because a capped run has not seen the whole feed.
 |---|---|
 | `sources/esdc.py` | discovers every quarterly file through CKAN, downloads and parses it (CSV to 2020 Q3, XLSX after), records provenance in `esdc_resources` |
 | `sources/jobbank.py` | pages both LMIA facets, upserts postings, logs each observation, fetches new posting pages within a budget, drops private-household postings before storage |
-| `sources/ircc.py` | parses the non-compliant employers JSON and the reason legend from the page |
-| `sources/registry_bc.py` | OrgBook BC lookups for BC employers, graded matches |
+| `normalize.py` | name identity (`split_trade_name`, `norm_name`), addresses, dates, codes |
+| `migrate.py` | re-derives employer ids, merges duplicates and rewrites every referencing table after a normalization change |
+| `sources/ircc.py` | parses the non-compliant employers JSON and the reason legend from the page, links findings by legal name first, and copies a finding's street and names onto its employer |
+| `sources/registry_bc.py` | OrgBook BC lookups for BC employers, most useful first, graded matches |
 | `sources/registry_federal.py` | Corporations Canada bulk extract, matched by normalized name |
+| `sources/registry_quebec.py` | Registraire des entreprises du Québec bulk extract, loaded weekly, matched by normalized name |
 | `sources/wages.py` | Job Bank wages by occupation and area (the prevailing-wage reference), newest two yearly tables |
 | `sources/lfs.py` | Labour Force Survey unemployment rate by census metropolitan area |
 | `sources/geography.py` | 2021 Census boundaries; places every forward sortation area in an economic region and a census metropolitan area (`fsa_regions`) |
@@ -66,13 +72,38 @@ The static export is deterministic (sorted keys and rows), so an unchanged file
 keeps its bytes and the deploy skips it. Each file stays under the 25 MiB
 static-asset limit because province data is split by year.
 
+## Employer identity
+An employer is its normalized legal name plus its province
+(`normalize.norm_name`, `employer_id`). The part of a name before a trade-name
+marker (dba, d/b/a, o/a, t/a, operating as, doing business as, trading as,
+carrying on business as, c.o.b., faisant affaire sous, f.a.s.) is the legal
+name; the part after it is recorded in `employer_names` as an operating name.
+Normalization folds case and accents, removes dots inside abbreviations and
+apostrophes inside words, drops other punctuation and "and"/"et", joins runs
+of single letters, spells the jurisdiction of a numbered company one way, and
+strips legal suffixes. Changing any of this means bumping `NORMALIZE_VERSION`;
+the next run then re-derives ids (`migrate.py`), records each retired id in
+`employer_aliases`, and needs a full D1 re-export on the paid-plan path
+(`run --export --d1 --full`).
+
 ## Registries
-`sources/registry_bc.py` queries OrgBook BC per employer (BC only, budgeted).
+`sources/registry_bc.py` queries OrgBook BC per employer (BC only). It takes
+up to 700 lookups a night within 15 minutes at one request a second, ordered:
+a pending posting, then a record on the latest ESDC quarter, then an IRCC
+finding, then the rest; an employer is looked up again after 180 days, under
+its legal name.
 `sources/registry_federal.py` downloads the Corporations Canada open-data CSVs
 (active and inactive CBCA corporations, about 260 MB, cached a week), loads them
 into the local `federal_corporations` table and matches every employer by
 normalized name; a match is exact when the province or postal code agrees,
 probable otherwise.
+`sources/registry_quebec.py` downloads the Registraire des entreprises du
+Québec's open-data ZIP (Données Québec, CC BY-NC-SA 4.0, 269 MB, refreshed
+twice a month) at most once a week, keeps only the names that normalize like a
+Quebec employer's (sole proprietorships are skipped), and grades like the
+federal matcher; a match on a name the enterprise operates under is probable.
+The other provinces publish no free bulk file or API (see the Methodology
+page).
 
 ## Reference tables for the wage and unemployment indicators
 Downloaded into the cache under `data/raw/cache/` like the other open data and

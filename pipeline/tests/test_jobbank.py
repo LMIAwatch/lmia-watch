@@ -99,3 +99,18 @@ def test_capped_run_never_marks_gone(conn, fixtures, fake_client):
     stats = jobbank.run(conn, client2, limit=1, detail_budget=0, now="2026-10-13T00:00:00Z")
     assert stats.marked_gone == 0
     assert conn.execute("SELECT COUNT(*) FROM jobbank_postings WHERE flag_current = 'gone'").fetchone()[0] == 0
+
+
+def test_posting_page_street_outranks_a_finding_street(conn, fixtures, fake_client):
+    from lmia_pipeline.db import upsert_employer
+
+    stamp = "2026-10-12T00:00:00Z"
+    eid = upsert_employer(conn, "Penticton Example Ltd.", "BC", source="ircc", street="1 Old Road", now=stamp)
+    conn.execute(
+        "INSERT INTO jobbank_postings (posting_id, employer_id, employer_raw, first_seen, last_seen, flag_current, "
+        "flag_first, url, updated_at) VALUES (50440025, ?, 'Penticton Example Ltd.', ?, ?, 'requested', 'requested', "
+        "'u', ?)", (eid, stamp, stamp, stamp))
+    client = fake_client({posting_url(50440025): (fixtures / "jobbank_detail_50440025.html").read_bytes()})
+    assert jobbank._fetch_details(conn, client, 5, stamp) == 1
+    row = conn.execute("SELECT street, street_source FROM employers WHERE id = ?", (eid,)).fetchone()
+    assert tuple(row) == ("405 Martin Street", "jobbank")

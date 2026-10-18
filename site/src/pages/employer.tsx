@@ -12,15 +12,20 @@ const REPORT_URL = "https://www.canada.ca/en/employment-social-development/servi
 const ENTITY_TYPE: Record<string, Key> = {
   BC: "entity.BC", SP: "entity.SP", GP: "entity.GP", LP: "entity.LP", ULC: "entity.ULC", S: "entity.S",
   A: "entity.A", C: "entity.C", CBCA: "entity.CBCA",
+  CIE: "entity.CIE", SENC: "entity.SENC", SEC: "entity.SEC", APE: "entity.APE", COP: "entity.COP",
 };
 const REGISTRY_NAME: Record<string, Key> = {
   bc_orgbook: "registry.bc_orgbook",
   corporations_canada: "registry.corporations_canada",
+  quebec_req: "registry.quebec_req",
 };
 const REGISTRY_URL: Record<string, string> = {
   bc_orgbook: "https://orgbook.gov.bc.ca/",
   corporations_canada: "https://ised-isde.canada.ca/cc/lgcy/fdrlCrpSrch.html",
+  quebec_req: "https://www.registreentreprises.gouv.qc.ca/",
 };
+// Registry status words the pipeline stores in English, shown in the page's language.
+const REGISTRY_STATUS: Record<string, Key> = { ACT: "employer.active", Active: "employer.active", "Struck off": "employer.struck_off" };
 
 const registryName = (lang: Lang, registry: string) => (REGISTRY_NAME[registry] ? t(lang, REGISTRY_NAME[registry]) : registry);
 
@@ -217,13 +222,20 @@ export async function employerPage(c: Context<AppEnv>): Promise<Response> {
               <dt>{t(lang, "employer.legal_name")}</dt><dd>{best.legal_name ?? na}</dd>
               <dt>{t(lang, "employer.number")}</dt><dd class="mono id">{best.registry_id}</dd>
               <dt>{t(lang, "employer.type")}</dt><dd>{ENTITY_TYPE[best.entity_type ?? ""] ? t(lang, ENTITY_TYPE[best.entity_type ?? ""]) : best.entity_type ?? na}</dd>
-              <dt>{t(lang, "col.status")}</dt><dd>{best.status === "ACT" ? t(lang, "employer.active") : best.status ?? na}</dd>
+              <dt>{t(lang, "col.status")}</dt><dd>{REGISTRY_STATUS[best.status ?? ""] ? t(lang, REGISTRY_STATUS[best.status ?? ""]) : best.status ?? na}</dd>
               <dt>{t(lang, "employer.registered")}</dt><dd class="mono">{best.registered_on ?? na}</dd>
               <dt>{t(lang, "employer.match")}</dt><dd>{gradeText(lang, best.grade)}</dd>
               <dt>{t(lang, "employer.names_seen")}</dt><dd>{names.map((nm) => nm.name).join("; ")}</dd>
             </dl>
           ) : (
-            <p class="muted">{t(lang, "employer.no_registry")}</p>
+            <>
+              <p class="muted">{t(lang, "employer.no_registry")}</p>
+              {names.length ? (
+                <dl>
+                  <dt>{t(lang, "employer.names_seen")}</dt><dd>{names.map((nm) => nm.name).join("; ")}</dd>
+                </dl>
+              ) : null}
+            </>
           )}
           {best ? (
             <a href={REGISTRY_URL[best.registry] ?? "#"} class="small" rel="noopener">
@@ -239,7 +251,9 @@ export async function employerPage(c: Context<AppEnv>): Promise<Response> {
             <dt>{t(lang, "employer.postal_code")}</dt><dd class="mono">{employer.postal_code ?? na}</dd>
             <dt>{t(lang, "col.source")}</dt>
             <dd>
-              {postings[0]
+              {employer.street_source === "ircc"
+                ? t(lang, "employer.source_finding")
+                : postings[0]
                 ? t(lang, "employer.source_posting", { id: postings[0].posting_id })
                 : esdc[0]
                   ? t(lang, "employer.source_list", { period: periodLabel(esdc[0].period, lang) })

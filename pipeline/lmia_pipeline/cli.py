@@ -9,10 +9,10 @@ import sqlite3
 import sys
 from pathlib import Path
 
-from . import config, export, export_static, indicators, social, status
+from . import config, export, export_static, indicators, migrate, social, status
 from .db import connect, hours_since, log_run
 from .http import AbortRun, PoliteClient
-from .sources import esdc, geography, ircc, jobbank, lfs, registry_bc, registry_federal, wages
+from .sources import esdc, geography, ircc, jobbank, lfs, registry_bc, registry_federal, registry_quebec, wages
 
 log = logging.getLogger("lmia_pipeline")
 STAGES = ["esdc", "ircc", "jobbank", "registry", "wages", "lfs", "geography", "indicators", "export"]
@@ -64,7 +64,8 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--limit", type=int, default=None, help="Job Bank list pages per facet (dev runs)")
     run.add_argument("--force", action="store_true", help="crawl Job Bank even if a pass ran in the last 20 hours (dev only)")
     run.add_argument("--detail-budget", type=int, default=600, help="Job Bank posting pages per run")
-    run.add_argument("--registry-budget", type=int, default=300, help="registry lookups per run")
+    run.add_argument("--registry-budget", type=int, default=registry_bc.DEFAULT_BUDGET,
+                     help="OrgBook lookups per run (also capped at 15 minutes)")
     run.add_argument("--db", default=None, help="SQLite path (default data/lmia.sqlite)")
 
     ms = sub.add_parser("mark-synced", help="record that the exported D1 batches were applied")
@@ -104,6 +105,13 @@ def main(argv: list[str] | None = None) -> int:
     stages = selected or STAGES
     client = PoliteClient()
     failed = False
+
+    # Employer ids are derived from normalized names; when the normalization
+    # changed since this database was built, re-derive them once before any
+    # stage writes under the new rules.
+    report = migrate.ensure_current(conn)
+    if report is not None:
+        log.info("employer ids re-derived: %s", report)
 
     log.info("fsa centroids loaded: %d", load_fsa_centroids(conn))
 
@@ -147,6 +155,12 @@ def main(argv: list[str] | None = None) -> int:
             failed = True
             log.error("registry federal failed: %s", exc)
             log_run(conn, "registry_federal", detail=str(exc), ok=False)
+        try:
+            log.info("registry quebec: %d matches", registry_quebec.run(conn, client))
+        except Exception as exc:  # same: a 270 MB download, and the night carries on without it
+            failed = True
+            log.error("registry quebec failed: %s", exc)
+            log_run(conn, "registry_quebec", detail=str(exc), ok=False)
     # The reference tables for the wage and unemployment indicators. Each is
     # cached: wages and the LFS table are revalidated at most once a month,
     # the boundary files never after the first load. A failure leaves the

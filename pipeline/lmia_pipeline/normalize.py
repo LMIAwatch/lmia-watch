@@ -7,15 +7,92 @@ import re
 import unicodedata
 from datetime import date, datetime
 
+# Bump whenever norm_name or split_trade_name changes what a name normalizes
+# to. Employer ids are a hash of the normalized name, so the pipeline compares
+# this with meta.normalize_version and re-derives every id once (migrate.py).
+NORMALIZE_VERSION = 2
+
 # Trailing tokens that distinguish a legal form, not a business. Stripped
 # repeatedly from the end so "x services ltd" and "x services limited
-# partnership" both normalize to "x services".
+# partnership" both normalize to "x services". Accents are folded first, so
+# "ltée" arrives here as "ltee" and "S.E.C." as "sec".
 LEGAL_SUFFIXES = {
-    "ltd", "ltee", "ltée", "limited", "limitee", "limitée", "inc", "incorporated",
-    "incorporee", "incorporée", "corp", "corporation", "ulc", "llp", "llc", "lp",
-    "co", "company", "cie", "compagnie", "senc", "sencrl", "enr", "enrg",
-    "partnership", "plc",
+    "ltd", "ltee", "limited", "limitee", "inc", "incorporated", "incorporee",
+    "corp", "corporation", "ulc", "llp", "llc", "lp", "co", "company", "cie",
+    "compagnie", "senc", "sencrl", "sec", "enr", "enrg", "partnership", "plc",
 }
+
+# Jurisdiction words in numbered company names ("0704250 B.C. Ltd.",
+# "101184720 SK Ltd", "1174724 Ont. Inc.", "9123-4567 Québec inc."), mapped to
+# one spelling so the same number in the same province is one employer.
+NUMBERED_JURISDICTIONS: dict[tuple[str, ...], str] = {
+    ("bc",): "bc", ("british", "columbia"): "bc",
+    ("alberta",): "alberta", ("alta",): "alberta", ("ab",): "alberta",
+    ("saskatchewan",): "saskatchewan", ("sask",): "saskatchewan", ("sk",): "saskatchewan",
+    ("manitoba",): "manitoba", ("man",): "manitoba", ("mb",): "manitoba",
+    ("ontario",): "ontario", ("ont",): "ontario", ("on",): "ontario",
+    ("quebec",): "quebec", ("que",): "quebec", ("qc",): "quebec",
+    ("new", "brunswick"): "nb", ("nb",): "nb",
+    ("nova", "scotia"): "nova scotia", ("ns",): "nova scotia",
+    ("prince", "edward", "island"): "pei", ("pei",): "pei", ("pe",): "pei",
+    ("northwest", "territories"): "nwt", ("nwt",): "nwt", ("nt",): "nwt",
+    ("yukon",): "yukon", ("yt",): "yukon",
+    ("nunavut",): "nunavut", ("nu",): "nunavut",
+    ("canada",): "canada", ("can",): "canada", ("cda",): "canada",
+}
+NUMBERED_MIN_DIGITS = 5
+
+# "&" is punctuation and drops out, so "and" and "et" drop out too: "Smith &
+# Sons", "Smith and Sons" and "Smith Sons" are one name.
+CONNECTORS = {"and", "et"}
+
+# A trade-name marker starts a word: after a space, a bracket or other
+# punctuation, or after a dot that ends a word of two letters or more
+# ("Ltd.o/a") or stands alone ("Ltd .o/a"). A dot after a single letter does
+# not count, which keeps "G.O.A.T." from reading as "o.a.".
+_MARK_BEFORE = r"(?:(?<![\w.])|(?<=\w\w\.)|(?<=\s\.))"
+_TRADE_MARKERS = [
+    r"d\.\s*b\.\s*a\.?(?!\w)",                       # d.b.a. and d.b.a
+    r"d\s*/\s*b\s*/\s*a(?!\w)",                      # d/b/a
+    r"dba(?!\w)",
+    r"o\s*/\s*a(?!\w)",                              # o/a
+    r"o\.\s*a\.(?!\w)",                              # o.a.
+    r"t\s*/\s*a(?!\w)",                              # t/a, trading as
+    r"(?:operating|doing\s+business|trading)\s+as(?!\w)",
+    r"carrying\s+on\s+business\s+(?:as|under\s+the\s+name(?:\s+of)?|under)(?!\w)",
+    r"c\.\s*o\.\s*b\.?(?!\w)",                       # c.o.b., carrying on business
+    r"faisant\s+affaires?\s+(?:sous|comme)(?:\s+(?:le\s+nom|la\s+raison\s+sociale))?"
+    r"(?:\s+de(?!\w)|\s+d['’]|(?!\w))",
+    r"f\.\s*a\.\s*s\.(?:\s*n\.)?(?!\w)",             # f.a.s. and f.a.s.n., faisant affaire sous (le nom)
+    r"(?:op[eé]rant|exploitant)\s+sous\s+(?:le\s+nom|la\s+raison\s+sociale)"
+    r"(?:\s+de(?!\w)|\s+d['’]|(?!\w))",
+]
+# "c/o" names whoever the mail goes to (often a person), not a trade name, so
+# what follows it is dropped rather than recorded.
+_CARE_OF_MARKERS = [r"c\s*/\s*o(?!\w)", r"care\s+of(?!\w)"]
+MARKER_RE = re.compile(
+    _MARK_BEFORE
+    + "(?:(?P<trade>" + "|".join(_TRADE_MARKERS) + ")"
+    + "|(?P<care>" + "|".join(_CARE_OF_MARKERS) + ")"
+    # Bare "cob" is a word in some names ("Cob Roller Farms"), so it counts only
+    # straight after a legal form ("GPC Investments Limited cob Comfort Inn").
+    + r"|(?P<cob>cob(?!\w)))",
+    re.I,
+)
+_HAS_WORD = re.compile(r"[^\W_]")
+_QUOTES = "\"'“”‘’«»�"
+
+# Single letters each followed by a dot ("B.C.", "U.S.A.", "S.E.C.", "B. C.")
+# form one abbreviation. The dots are removed so "B.C." reads "bc", as most
+# sources spell it, rather than the two tokens "b c". A last letter without
+# its dot joins only when nothing separates it ("B.C Ltd"), so the initials in
+# "W.J. O'Neil" stay apart from the surname.
+ABBREV_RE = re.compile(
+    r"(?<![^\W\d_])(?:[^\W\d_]\.(?:\s(?=[^\W\d_]\.))?)+(?:(?<=\.)[^\W\d_](?![^\W\d_]))?"
+)
+# An apostrophe inside a word is removed, not turned into a space, so
+# "Horton's" and "Hortons", "O'Neil" and "ONeil" agree.
+APOSTROPHE_RE = re.compile(r"(?<=[^\W\d_])['’‘`´](?=[^\W\d_])")
 
 PROVINCES: dict[str, str] = {
     "alberta": "AB", "british columbia": "BC", "colombie-britannique": "BC",
@@ -55,17 +132,155 @@ MONTHS = {m: i for i, m in enumerate(
      "september", "october", "november", "december"], start=1)}
 
 
-def norm_name(raw: str | None) -> str:
-    """Casefolded, punctuation-free name without its legal suffix."""
+# En and em dashes, built here so the module holds neither character.
+_DASHES = chr(0x2013) + chr(0x2014)
+_LEGAL_TAIL = " ,;:-/\\(" + _DASHES
+_OPERATING_HEAD = " ,;:-)/\\." + _DASHES
+_OPERATING_TAIL = " ,;:-/\\" + _DASHES
+
+
+def _clean_legal(text: str) -> str:
+    text = text.rstrip(_LEGAL_TAIL)
+    # "Ltd .o/a" leaves a stray dot after a space.
+    return re.sub(r"\s+\.+$", "", text).rstrip(_LEGAL_TAIL).strip()
+
+
+def _clean_operating(text: str) -> str:
+    text = text.strip().lstrip(_OPERATING_HEAD).rstrip(_OPERATING_TAIL)
+    # "(o/a NTE)" leaves an unbalanced closing bracket behind.
+    while text.endswith(")") and text.count(")") > text.count("("):
+        text = text[:-1].rstrip(" ,;:")
+    return text.strip(_QUOTES + " ")
+
+
+def has_legal_form(text: str | None) -> bool:
+    """True when a name ends in a legal form (Ltd., Inc., Ltée, S.E.N.C.)."""
+    if not text:
+        return False
+    text = ABBREV_RE.sub(_join_abbreviation, fold_accents(text.casefold()))
+    tokens = re.sub(r"[^\w\s]", " ", text).split()
+    return bool(tokens) and tokens[-1] in LEGAL_SUFFIXES
+
+
+def is_numbered_company(text: str | None) -> bool:
+    """'0704250 B.C. Ltd.', '9123-4567 Québec inc.': a company named by its number."""
+    if not text:
+        return False
+    m = re.match(r"\s*(\d[\d\s-]*)", text)
+    return bool(m) and len(re.sub(r"\D", "", m.group(1))) >= NUMBERED_MIN_DIGITS
+
+
+def split_trade_name(raw: str | None) -> tuple[str, str | None]:
+    """'0704250 BC Ltd. dba Assi Supermarket' -> ('0704250 BC Ltd.', 'Assi Supermarket').
+
+    The part before the first trade-name marker (dba, d/b/a, o/a, t/a,
+    operating as, doing business as, trading as, carrying on business as,
+    c.o.b., faisant affaire sous, f.a.s.) is the legal name, which is the
+    identity; the part after it is the operating name. After "c/o" the second
+    part is dropped. A marker with nothing on one side is not a split, and a
+    name without a marker comes back whole with None.
+    """
     if not raw:
+        return "", None
+    text = re.sub(r"\s+", " ", unicodedata.normalize("NFC", raw)).strip()
+    for m in MARKER_RE.finditer(text):
+        legal = _clean_legal(text[: m.start()])
+        if not _HAS_WORD.search(legal):
+            continue
+        if m.group("cob") and not has_legal_form(legal):
+            continue
+        rest = text[m.end():]
+        if not _HAS_WORD.search(rest):
+            continue
+        if m.group("care"):
+            return legal, None
+        operating = _clean_operating(rest)
+        # "dba t/a Picardie Farms": a second marker straight after the first.
+        while (again := MARKER_RE.match(operating)) and again.group("trade"):
+            operating = _clean_operating(operating[again.end():])
+        if not _HAS_WORD.search(operating):
+            continue
+        return legal, operating
+    return text, None
+
+
+def fold_accents(text: str) -> str:
+    """'québec ltée' -> 'quebec ltee'. Sources spell one name with and without accents."""
+    decomposed = unicodedata.normalize("NFD", text)
+    stripped = "".join(ch for ch in decomposed if unicodedata.category(ch) != "Mn")
+    return unicodedata.normalize("NFC", stripped).replace("œ", "oe").replace("æ", "ae")
+
+
+def _join_abbreviation(m: re.Match) -> str:
+    letters = re.sub(r"[.\s]", "", m.group(0))
+    # A lone initial keeps its word break ("G.Mann" reads like "G. Mann"), and a
+    # closing dot still separates what follows ("B.C.Ltd" reads "bc ltd").
+    if len(letters) < 2 or m.group(0).endswith("."):
+        return letters + " "
+    return letters
+
+
+def _join_initials(tokens: list[str]) -> list[str]:
+    """['j', 'm', 'peeters'] -> ['jm', 'peeters']: 'J M Peeters' agrees with 'J.M. Peeters'."""
+    out: list[str] = []
+    run: list[str] = []
+    for tok in tokens + [""]:
+        if len(tok) == 1 and tok.isalpha():
+            run.append(tok)
+            continue
+        if run:
+            out.append("".join(run))
+            run = []
+        if tok:
+            out.append(tok)
+    return out
+
+
+def _canon_numbered(tokens: list[str]) -> list[str]:
+    i = 0
+    while i < len(tokens) and tokens[i].isdigit():
+        i += 1
+    if i == 0 or len("".join(tokens[:i])) < NUMBERED_MIN_DIGITS:
+        return tokens
+    for width in (3, 2, 1):
+        key = tuple(tokens[i:i + width])
+        if len(key) == width and key in NUMBERED_JURISDICTIONS:
+            return tokens[:i] + NUMBERED_JURISDICTIONS[key].split() + tokens[i + width:]
+    return tokens
+
+
+def norm_legal(text: str | None) -> str:
+    """Normalize a name taken as a legal name as it stands, with no trade-name split."""
+    if not text:
         return ""
-    text = unicodedata.normalize("NFC", raw).casefold()
+    text = unicodedata.normalize("NFC", text).casefold()
+    text = ABBREV_RE.sub(_join_abbreviation, text)
+    text = APOSTROPHE_RE.sub("", text)
+    text = fold_accents(text)
     text = re.sub(r"[^\w\s]", " ", text)
     text = text.replace("_", " ")
     tokens = text.split()
+    if any(tok not in CONNECTORS for tok in tokens):
+        tokens = [tok for tok in tokens if tok not in CONNECTORS]
+    tokens = _canon_numbered(_join_initials(tokens))
     while tokens and tokens[-1] in LEGAL_SUFFIXES:
         tokens.pop()
     return " ".join(tokens)
+
+
+def norm_name(raw: str | None) -> str:
+    """Identity form of a name: '0704250 B.C. Ltd. o/a Assi Supermarket' -> '0704250 bc'.
+
+    In order: the legal part only (split_trade_name); casefold; dots out of
+    single-letter abbreviations and apostrophes out of words; accents folded;
+    other punctuation to spaces; "and" and "et" dropped; runs of single
+    letters joined; the jurisdiction in a numbered company name spelled one
+    way; legal suffixes stripped from the end.
+    """
+    if not raw:
+        return ""
+    legal, _ = split_trade_name(raw)
+    return norm_legal(legal)
 
 
 def employer_id(norm: str, province: str | None) -> str:
@@ -96,8 +311,23 @@ def format_postal(first: str, second: str) -> str:
 
 def parse_address(raw: str | None) -> tuple[str | None, str | None, str | None]:
     """'City, PR A1A 1A1' -> (city, province, postal_code), each None when absent."""
+    parts, province, postal = _address_parts(raw)
+    city = parts[-1] if parts else None
+    if city:
+        city = city.title() if city.isupper() or city.islower() else city
+    return city, province, postal
+
+
+def parse_street(raw: str | None) -> str | None:
+    """'A-5593 Kingsway, Burnaby, BC' -> 'A-5593 Kingsway': whatever precedes the city."""
+    parts, _, _ = _address_parts(raw)
+    return ", ".join(parts[:-1]) if len(parts) >= 2 else None
+
+
+def _address_parts(raw: str | None) -> tuple[list[str], str | None, str | None]:
+    """Comma parts left after the postal code and province are taken off the end."""
     if not raw:
-        return None, None, None
+        return [], None, None
     text = re.sub(r"\s+", " ", raw).strip()
     postal = None
     m = POSTAL_RE.search(text)
@@ -117,11 +347,7 @@ def parse_address(raw: str | None) -> tuple[str | None, str | None, str | None]:
                 province = code
                 text = ", ".join(parts[:-1])
     # Older files carry a full street address; the city is the last part.
-    parts = [p.strip() for p in text.split(",") if p.strip()]
-    city = parts[-1] if parts else None
-    if city:
-        city = city.title() if city.isupper() or city.islower() else city
-    return city, province, postal
+    return [p.strip() for p in text.split(",") if p.strip()], province, postal
 
 
 def parse_noc(raw: str | None) -> tuple[str | None, str | None]:

@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import config
-from .normalize import employer_id, norm_name
+from .normalize import employer_id, norm_name, split_trade_name
 
 
 def now_iso() -> str:
@@ -32,9 +32,25 @@ def connect(path: str | Path | None = None, *, memory: bool = False) -> sqlite3.
     return conn
 
 
+# Columns added to existing tables after the first release. CREATE TABLE IF NOT
+# EXISTS leaves an older table as it was, so each is added here when missing,
+# with the statement that backfills it.
+ADDED_COLUMNS: list[tuple[str, str, str, str | None]] = [
+    ("employers", "street_source", "TEXT",
+     "UPDATE employers SET street_source = 'jobbank' WHERE street IS NOT NULL AND street_source IS NULL"),
+]
+
+
 def apply_schema(conn: sqlite3.Connection, schema_path: Path | None = None) -> None:
     sql = (schema_path or config.SCHEMA_PATH).read_text(encoding="utf-8")
     conn.executescript(sql)
+    for table, column, decl, backfill in ADDED_COLUMNS:
+        have = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+        if column not in have:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
+            if backfill:
+                conn.execute(backfill)
+            conn.commit()
 
 
 def set_meta(conn: sqlite3.Connection, key: str, value: object) -> None:
@@ -75,28 +91,44 @@ def upsert_employer(
 ) -> str:
     """Create or refresh the merged employer row and return its id.
 
-    Location fields only fill blanks; status and counts are recomputed by
-    status.recompute, so this function never touches them.
+    The identity is the legal part of the name (normalize.split_trade_name);
+    the raw spelling and any operating name after "dba" or "o/a" are both
+    recorded as names seen. Location fields only fill blanks; status and
+    counts are recomputed by status.recompute, so this function never touches
+    them.
     """
-    norm = norm_name(raw_name)
+    raw = raw_name.strip()
+    norm = norm_name(raw)
     eid = employer_id(norm, province)
     stamp = now or now_iso()
     conn.execute(
         """
-        INSERT INTO employers (id, display_name, norm_name, province, city, postal_code, street, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO employers (id, display_name, norm_name, province, city, postal_code, street, street_source, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           city = COALESCE(employers.city, excluded.city),
           postal_code = COALESCE(employers.postal_code, excluded.postal_code),
+          street_source = CASE WHEN employers.street IS NULL THEN excluded.street_source ELSE employers.street_source END,
           street = COALESCE(employers.street, excluded.street)
         """,
-        (eid, raw_name.strip(), norm, province, city, postal_code, street, stamp),
+        (eid, raw, norm, province, city, postal_code, street, source if street else None, stamp),
     )
-    conn.execute(
-        "INSERT OR IGNORE INTO employer_names (employer_id, raw_name, source) VALUES (?, ?, ?)",
-        (eid, raw_name.strip(), source),
-    )
+    record_names(conn, eid, source, raw, split_trade_name(raw)[1])
     return eid
+
+
+def record_names(conn: sqlite3.Connection, eid: str, source: str, *names: str | None) -> int:
+    """Add names seen for an employer, ignoring blanks and repeats; returns rows added."""
+    added = 0
+    for name in names:
+        text = (name or "").strip()
+        if text:
+            cur = conn.execute(
+                "INSERT OR IGNORE INTO employer_names (employer_id, raw_name, source) VALUES (?, ?, ?)",
+                (eid, text, source),
+            )
+            added += cur.rowcount
+    return added
 
 
 def log_run(

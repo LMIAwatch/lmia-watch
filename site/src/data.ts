@@ -56,7 +56,8 @@ export interface Stats {
 export interface Profile {
   employer: {
     id: string; display_name: string; province: string | null; city: string | null; postal_code: string | null;
-    street: string | null; current_status: string; status_changed_at: string | null; first_seen: string | null;
+    street: string | null; street_source?: string | null; current_status: string; status_changed_at: string | null;
+    first_seen: string | null;
     last_seen: string | null; pending_count: number; approved_lmias: number; approved_positions: number;
     refused_lmias: number; refused_positions: number; finding_count: number; indicator_count: number;
     registry_grade: string; updated_at: string;

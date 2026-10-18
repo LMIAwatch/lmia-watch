@@ -9,18 +9,26 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+import time
 from datetime import datetime, timedelta, timezone
+from typing import Callable
 from urllib.parse import urlencode
 
 from .. import config
 from ..db import log_run, now_iso
 from ..http import FetchError, PoliteClient
-from ..normalize import iso_date, norm_name
+from ..normalize import iso_date, norm_name, period_sort_key, split_trade_name
 
 log = logging.getLogger(__name__)
 
 REGISTRY = "bc_orgbook"
-RECHECK_DAYS = 30
+RECHECK_DAYS = 180
+# OrgBook publishes no crawl delay, so the client's default of one request a
+# second applies. Measured 2026-10-17, a search answers in about 0.3 s, so a
+# lookup takes about 1.3 s with the spacing and 15 minutes hold about 700. The
+# time cap is the binding limit when the API is slow.
+DEFAULT_BUDGET = 700
+MAX_SECONDS = 15 * 60
 
 
 def search(client: PoliteClient, name: str) -> list[dict]:
@@ -68,31 +76,61 @@ def _attrs(result: dict) -> dict[str, str]:
     return out
 
 
+def candidates(conn: sqlite3.Connection, *, budget: int, cutoff_iso: str) -> list[sqlite3.Row]:
+    """BC employers not checked since the cutoff, the most useful first.
+
+    Tier 0 has a pending Job Bank posting, tier 1 a record on the latest ESDC
+    quarter, tier 2 an IRCC finding, tier 3 is everyone else; within a tier the
+    most recently seen come first.
+    """
+    periods = [r["period"] for r in conn.execute("SELECT DISTINCT period FROM esdc_resources")]
+    latest = max(periods, key=period_sort_key) if periods else ""
+    return conn.execute(
+        """
+        SELECT e.id, e.display_name, e.norm_name,
+          CASE
+            WHEN EXISTS (SELECT 1 FROM jobbank_postings p WHERE p.employer_id = e.id AND p.flag_current = 'requested') THEN 0
+            WHEN EXISTS (SELECT 1 FROM esdc_records r WHERE r.employer_id = e.id AND r.period = :latest) THEN 1
+            WHEN EXISTS (SELECT 1 FROM findings f WHERE f.employer_id = e.id) THEN 2
+            ELSE 3
+          END AS tier
+        FROM employers e
+        WHERE e.province = 'BC' AND e.norm_name != ''
+          AND e.id NOT IN (SELECT employer_id FROM registry_checks WHERE registry = :registry AND checked_at > :cutoff)
+        ORDER BY tier, e.last_seen DESC, e.id
+        LIMIT :budget
+        """,
+        {"latest": latest, "registry": REGISTRY, "cutoff": cutoff_iso, "budget": budget},
+    ).fetchall()
+
+
 def run(
     conn: sqlite3.Connection,
     client: PoliteClient,
     *,
-    budget: int = 300,
+    budget: int = DEFAULT_BUDGET,
+    max_seconds: float = MAX_SECONDS,
     now: str | None = None,
+    clock: Callable[[], float] = time.monotonic,
 ) -> int:
     stamp = now or now_iso()
     cutoff = (datetime.fromisoformat(stamp.replace("Z", "+00:00")) - timedelta(days=RECHECK_DAYS))
     cutoff_iso = cutoff.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-    rows = conn.execute(
-        """
-        SELECT e.id, e.display_name, e.norm_name FROM employers e
-        WHERE e.province = 'BC'
-          AND e.id NOT IN (SELECT employer_id FROM registry_checks WHERE registry = ? AND checked_at > ?)
-        ORDER BY e.updated_at DESC LIMIT ?
-        """,
-        (REGISTRY, cutoff_iso, budget),
-    ).fetchall()
-    matched = 0
+    rows = candidates(conn, budget=budget, cutoff_iso=cutoff_iso)
+    started = clock()
+    matched = checked = 0
     for row in rows:
+        if clock() - started > max_seconds:
+            log.info("orgbook: time cap reached after %d lookups", checked)
+            break
+        # The query is the legal name: a trade name after "dba" or "o/a" only
+        # adds noise to OrgBook's search.
+        query = split_trade_name(row["display_name"])[0] or row["display_name"]
+        checked += 1
         try:
-            results = search(client, row["display_name"])
+            results = search(client, query)
         except FetchError as exc:
-            log.warning("orgbook %s: %s", row["display_name"], exc)
+            log.warning("orgbook %s: %s", query, exc)
             continue
         best = pick_match(row["norm_name"], results)
         if best is not None:
@@ -121,5 +159,6 @@ def run(
             (row["id"], REGISTRY, stamp),
         )
         conn.commit()
-    log_run(conn, "registry", detail=f"checked={len(rows)} matched={matched}", rows_in=len(rows), rows_new=matched)
+    log_run(conn, "registry", detail=f"checked={checked} matched={matched} queued={len(rows)}",
+            rows_in=checked, rows_new=matched)
     return matched

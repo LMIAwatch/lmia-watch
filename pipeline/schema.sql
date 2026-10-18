@@ -14,16 +14,20 @@ CREATE TABLE IF NOT EXISTS meta (
 -- esdc_latest_period (2026Q1), esdc_latest_published (ISO date), rules_version,
 -- count_pending, count_approved_records, count_approved_positions,
 -- count_refused_records, count_findings
+-- pipeline-only keys: normalize_version (the name normalization employer ids
+-- were derived with; see migrate.py)
 
--- One row per merged employer. Identity = normalized name + province.
+-- One row per merged employer. Identity = normalized legal name + province:
+-- the part of a name before "dba", "o/a" and similar markers is the legal name.
 CREATE TABLE IF NOT EXISTS employers (
   id TEXT PRIMARY KEY,                           -- 'emp-' + first 10 hex of sha1(norm_name || '|' || province)
   display_name TEXT NOT NULL,                    -- most recently seen raw spelling
-  norm_name TEXT NOT NULL,
+  norm_name TEXT NOT NULL,                       -- normalize.norm_name of the legal name
   province TEXT,                                 -- AB BC MB NB NL NS NT NU ON PE QC SK YT, 'XX' = head office outside Canada, NULL unknown
   city TEXT,
   postal_code TEXT,                              -- 'A1A 1A1' form or NULL
-  street TEXT,                                   -- only when an employer entered one on Job Bank
+  street TEXT,                                   -- from a Job Bank posting page, else from an IRCC finding's address
+  street_source TEXT,                            -- jobbank | ircc: where street came from; NULL when street is NULL
   current_status TEXT NOT NULL DEFAULT 'none',   -- pending | approved | refused | lapsed | none
   status_changed_at TEXT,
   first_seen TEXT,                               -- earliest record date across sources
@@ -43,7 +47,9 @@ CREATE INDEX IF NOT EXISTS idx_employers_prov_status ON employers(province, curr
 CREATE INDEX IF NOT EXISTS idx_employers_postal ON employers(postal_code);
 CREATE INDEX IF NOT EXISTS idx_employers_last_seen ON employers(last_seen);
 
--- Every raw spelling seen for an employer, with where it came from.
+-- Every raw spelling seen for an employer, with where it came from, plus the
+-- operating name split off a raw spelling ("X Ltd. o/a Y" adds "Y") and an
+-- IRCC finding's operating and legal names.
 CREATE TABLE IF NOT EXISTS employer_names (
   employer_id TEXT NOT NULL REFERENCES employers(id),
   raw_name TEXT NOT NULL,
@@ -148,12 +154,13 @@ CREATE TABLE IF NOT EXISTS findings (
   row_hash TEXT NOT NULL UNIQUE,
   fetched_at TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_findings_employer ON findings(employer_id);
 
 -- Corporate registry lookups.
 CREATE TABLE IF NOT EXISTS registry_matches (
   employer_id TEXT NOT NULL REFERENCES employers(id),
-  registry TEXT NOT NULL,                        -- bc_orgbook | corporations_canada
-  registry_id TEXT NOT NULL,                     -- e.g. BC1596446
+  registry TEXT NOT NULL,                        -- bc_orgbook | corporations_canada | quebec_req
+  registry_id TEXT NOT NULL,                     -- e.g. BC1596446, a federal corporation number, a Quebec NEQ
   legal_name TEXT,
   entity_type TEXT,
   status TEXT,
@@ -201,6 +208,15 @@ CREATE TABLE IF NOT EXISTS sources_log (
 CREATE TABLE IF NOT EXISTS d1_sync (
   table_name TEXT PRIMARY KEY,
   high_water TEXT NOT NULL                       -- last exported updated_at / id / observed_at per table
+);
+
+-- Employer ids retired by a normalization change (migrate.py), each with the id
+-- that took over its records, so a link to an old profile can be sent on.
+CREATE TABLE IF NOT EXISTS employer_aliases (
+  old_id TEXT PRIMARY KEY,
+  new_id TEXT NOT NULL,
+  normalize_version INTEGER NOT NULL,            -- the version that retired old_id
+  created_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS registry_checks (
@@ -282,6 +298,25 @@ CREATE TABLE IF NOT EXISTS fsa_regions (
                                                  -- FSA boundary) | centroid_unchecked (no 2021 boundary); '+nearest' when the region
                                                  -- came from the nearest boundary within 10 km (the point lay offshore)
 );
+
+-- Registraire des entreprises du Québec open-data extract (CC BY-NC-SA 4.0),
+-- loaded weekly: one row per name in force of an enterprise registered, or
+-- struck off since 2012, kept only when it normalizes like a Quebec
+-- employer's name. Sole proprietorships are not loaded.
+CREATE TABLE IF NOT EXISTS quebec_enterprises (
+  neq TEXT NOT NULL,                             -- Quebec enterprise number, ten digits
+  name TEXT NOT NULL,                            -- the name as registered
+  norm_name TEXT NOT NULL,
+  name_kind TEXT NOT NULL,                       -- legal (the legal name or its other-language version) | other (a name it operates under)
+  legal_name TEXT NOT NULL,                      -- the enterprise's current legal name
+  status TEXT,                                   -- Active | Struck off
+  form TEXT,                                     -- legal form code: CIE, SENC, SEC, APE, COP, SOC...
+  registered_on TEXT,                            -- registration date (DAT_IMMAT)
+  postal_code TEXT,                              -- domicile address
+  province TEXT,                                 -- from the domicile postal code
+  PRIMARY KEY (neq, norm_name)
+);
+CREATE INDEX IF NOT EXISTS idx_quebec_norm ON quebec_enterprises(norm_name);
 
 -- ---------------------------------------------------------------------------
 -- Site-owned tables. The pipeline never writes, deletes or exports these.

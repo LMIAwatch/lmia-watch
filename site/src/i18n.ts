@@ -32,8 +32,8 @@ const STRINGS = {
   "nav.light": { en: "Light", fr: "Clair" },
   "nav.data_as_of": { en: "Data as of", fr: "Données au" },
   "footer.sources": {
-    en: "Sources: Job Bank (ESDC); TFWP positive and negative LMIA employer lists (Open Government Licence, Canada); IRCC non-compliant employers; BC Registry.",
-    fr: "Sources : Guichet-Emplois (EDSC); listes des employeurs ayant reçu une EIMT positive ou négative du PTET (Licence du gouvernement ouvert, Canada); employeurs jugés non conformes (IRCC); BC Registry (registre des entreprises de la Colombie-Britannique).",
+    en: "Sources: Job Bank (ESDC); TFWP positive and negative LMIA employer lists (Open Government Licence, Canada); IRCC non-compliant employers; BC Registry; Corporations Canada; Registraire des entreprises du Québec (CC BY-NC-SA 4.0).",
+    fr: "Sources : Guichet-Emplois (EDSC); listes des employeurs ayant reçu une EIMT positive ou négative du PTET (Licence du gouvernement ouvert, Canada); employeurs jugés non conformes (IRCC); BC Registry (registre des entreprises de la Colombie-Britannique); Corporations Canada; Registraire des entreprises du Québec (CC BY-NC-SA 4.0).",
   },
   "footer.download": { en: "Download the Data", fr: "Télécharger les données" },
   "footer.corrections": { en: "Corrections", fr: "Corrections" },
@@ -296,9 +296,10 @@ const STRINGS = {
   "employer.names_seen": { en: "Names seen", fr: "Noms relevés" },
   "employer.active": { en: "Active", fr: "Active" },
   "employer.no_registry": {
-    en: "No registry match yet. Federal corporations are matched by name; BC employers are also checked in the BC Registry.",
-    fr: "Aucune correspondance au registre pour l'instant. Les sociétés fédérales sont jumelées par leur nom; les employeurs de la Colombie-Britannique sont aussi vérifiés dans le BC Registry.",
+    en: "No registry match yet. Federal corporations and Quebec enterprises are matched by name; BC employers are also checked in the BC Registry.",
+    fr: "Aucune correspondance au registre pour l'instant. Les sociétés fédérales et les entreprises du Québec sont jumelées par leur nom; les employeurs de la Colombie-Britannique sont aussi vérifiés dans le BC Registry.",
   },
+  "employer.struck_off": { en: "Struck off", fr: "Radiée" },
   "employer.view_on": { en: "View on {registry}", fr: "Consulter {registry}" },
   "employer.grade_exact": {
     en: "Exact (normalized name and province or postal code agree)",
@@ -316,6 +317,7 @@ const STRINGS = {
   "employer.postal_code": { en: "Postal code", fr: "Code postal" },
   "employer.source_posting": { en: "Job Bank posting {id}", fr: "Offre {id} du Guichet-Emplois" },
   "employer.source_list": { en: "ESDC list {period}", fr: "Liste d'EDSC, {period}" },
+  "employer.source_finding": { en: "IRCC finding", fr: "Constat d'IRCC" },
   "employer.map_aria": { en: "Map placeholder at the postal-area centroid", fr: "Emplacement de la carte au centre du secteur postal" },
   "employer.map_text": { en: "Map at postal-area centroid", fr: "Carte au centre du secteur postal" },
   "employer.nearby": { en: "Other Employers Nearby", fr: "Autres employeurs à proximité" },
@@ -425,8 +427,14 @@ const STRINGS = {
     en: "Federal corporation (Canada Business Corporations Act)",
     fr: "Société fédérale (Loi canadienne sur les sociétés par actions)",
   },
+  "entity.CIE": { en: "Business corporation (Quebec)", fr: "Société par actions (Québec)" },
+  "entity.SENC": { en: "General partnership (Quebec)", fr: "Société en nom collectif (Québec)" },
+  "entity.SEC": { en: "Limited partnership (Quebec)", fr: "Société en commandite (Québec)" },
+  "entity.APE": { en: "Non-profit legal person (Quebec)", fr: "Personne morale sans but lucratif (Québec)" },
+  "entity.COP": { en: "Co-operative (Quebec)", fr: "Coopérative (Québec)" },
   "registry.bc_orgbook": { en: "BC Registry (OrgBook)", fr: "BC Registry (OrgBook)" },
   "registry.corporations_canada": { en: "Corporations Canada", fr: "Corporations Canada" },
+  "registry.quebec_req": { en: "Quebec enterprise register", fr: "Registre des entreprises du Québec" },
 
   // -- forms ------------------------------------------------------------------------
   "form.respond_intro": {
@@ -532,16 +540,16 @@ const STRINGS = {
   "methodology.sources.ircc.cadence": { en: "Updated as decisions are published", fr: "Mise à jour à la publication des décisions" },
   "methodology.sources.ircc.lag": { en: "Varies", fr: "Variable" },
   "methodology.sources.registry.source": {
-    en: "BC Registry via OrgBook; Corporations Canada's open-data extract of federal corporations",
-    fr: "BC Registry au moyen d'OrgBook; extrait des données ouvertes de Corporations Canada sur les sociétés fédérales",
+    en: "BC Registry via OrgBook; Corporations Canada's open-data extract of federal corporations; the Registraire des entreprises du Québec's open-data register (CC BY-NC-SA 4.0)",
+    fr: "BC Registry au moyen d'OrgBook; extrait des données ouvertes de Corporations Canada sur les sociétés fédérales; registre des entreprises en données ouvertes du Registraire des entreprises du Québec (CC BY-NC-SA 4.0)",
   },
   "methodology.sources.registry.fields": {
-    en: "Legal name, registration number, entity type, status, registration date",
-    fr: "Dénomination sociale, numéro d'enregistrement, type d'entité, statut, date d'enregistrement",
+    en: "Legal name, registration number (Quebec enterprise number in Quebec), entity type, status, registration date",
+    fr: "Dénomination sociale, numéro d'enregistrement (numéro d'entreprise du Québec au Québec), type d'entité, statut, date d'enregistrement",
   },
   "methodology.sources.registry.cadence": {
-    en: "Nightly for new BC employers; the federal extract is refreshed weekly",
-    fr: "Chaque nuit pour les nouveaux employeurs de la Colombie-Britannique; l'extrait fédéral est actualisé chaque semaine",
+    en: "BC employers nightly, those with current records first, each looked up again after 180 days; the federal extract weekly; the Quebec register weekly",
+    fr: "Employeurs de la Colombie-Britannique chaque nuit, ceux qui ont des dossiers récents d'abord, chacun vérifié de nouveau après 180 jours; extrait fédéral chaque semaine; registre du Québec chaque semaine",
   },
   "methodology.sources.none": { en: "None", fr: "Aucun" },
   "methodology.sources.wages.source": {
@@ -691,33 +699,43 @@ const STRINGS = {
   "methodology.recompute": { en: "A change to any rule recomputes every profile.", fr: "Toute modification d'une règle entraîne le recalcul de tous les profils." },
   "methodology.matching": { en: "Matching Employers Across Sources", fr: "Jumelage des employeurs entre les sources" },
   "methodology.matching_text": {
-    en: "Names are normalized before comparison: case folded, punctuation removed, legal suffixes stripped (Ltd., Inc., Corp., ULC, Limited Partnership), and accents preserved.",
-    fr: "Les noms sont normalisés avant la comparaison : casse uniformisée, ponctuation retirée, suffixes juridiques supprimés (Ltd., Inc., Corp., ULC, Limited Partnership) et accents conservés.",
+    en: 'An employer is its legal name and province. When a name carries a trade name after "dba", "o/a", "operating as", "faisant affaire sous" or a similar marker, the part before the marker is the legal name and the trade name is listed among the names seen. Names are normalized before comparison: case and accents folded; dots in abbreviations (B.C.) and apostrophes removed; other punctuation, "&", "and" and "et" dropped; spaced initials joined (J M Farms reads as JM Farms); the province in a numbered company name spelled one way (0704250 B.C. Ltd. and 0704250 BC Ltd. agree); legal suffixes stripped (Ltd., Inc., Corp., Ltée, S.E.N.C., Limited Partnership). Records whose normalized legal names and provinces agree share one profile.',
+    fr: "Un employeur correspond à sa dénomination sociale et à sa province. Lorsqu'un nom porte un nom commercial après « dba », « o/a », « operating as », « faisant affaire sous » ou une mention semblable, la partie qui précède la mention est la dénomination sociale et le nom commercial figure parmi les noms relevés. Les noms sont normalisés avant la comparaison : casse et accents uniformisés; points des abréviations (B.C.) et apostrophes retirés; autre ponctuation, « & », « and » et « et » supprimés; initiales espacées réunies (J M Farms se lit JM Farms); province d'une société à numéro écrite d'une seule façon (0704250 B.C. Ltd. et 0704250 BC Ltd. concordent); suffixes juridiques supprimés (Ltd., Inc., Corp., Ltée, S.E.N.C., Limited Partnership). Les dossiers dont la dénomination normalisée et la province concordent partagent un profil.",
   },
   "methodology.col_grade": { en: "Grade", fr: "Niveau" },
   "methodology.col_condition": { en: "Condition", fr: "Critère" },
   "methodology.col_shown_as": { en: "Shown as", fr: "Présentation" },
   "methodology.grade.exact": { en: "Exact", fr: "Exacte" },
-  "methodology.grade.exact.condition": { en: "Normalized name and full postal code agree", fr: "Le nom normalisé et le code postal complet concordent" },
-  "methodology.grade.exact.shown": { en: "Merged into one profile", fr: "Regroupés dans un seul profil" },
+  "methodology.grade.exact.condition": {
+    en: "The normalized name equals the registered legal name; for the federal and Quebec registers the province or postal code agrees too",
+    fr: "Le nom normalisé est égal à la dénomination enregistrée; pour les registres fédéral et québécois, la province ou le code postal concorde aussi",
+  },
+  "methodology.grade.exact.shown": { en: 'Registry card marked "Exact"', fr: "Fiche du registre marquée « Exacte »" },
   "methodology.grade.probable": { en: "Probable", fr: "Probable" },
   "methodology.grade.probable.condition": {
-    en: "Normalized name and city agree, or name only where the posting uses a trade name",
-    fr: "Le nom normalisé et la ville concordent, ou le nom seul lorsque l'offre utilise un nom commercial",
+    en: "The names agree but the province and postal code do not, the name is one the enterprise operates under (Quebec), or one name contains the other (BC Registry)",
+    fr: "Les noms concordent mais ni la province ni le code postal, le nom est un nom sous lequel l'entreprise exerce (Québec), ou l'un des noms contient l'autre (BC Registry)",
   },
   "methodology.grade.probable.shown": {
-    en: 'Merged, with "Probable" on the registry card and both raw strings visible',
-    fr: "Regroupés, avec « Probable » sur la fiche du registre et les deux chaînes brutes visibles",
+    en: 'Registry card marked "Probable", with the names seen listed',
+    fr: "Fiche du registre marquée « Probable », avec la liste des noms relevés",
   },
   "methodology.grade.possible": { en: "Possible", fr: "Possible" },
-  "methodology.grade.possible.condition": { en: "Name similarity above a threshold, different city", fr: "Similarité de nom au-dessus d'un seuil, ville différente" },
+  "methodology.grade.possible.condition": {
+    en: "BC Registry only: the closest search result shares no normalized name with the employer",
+    fr: "BC Registry seulement : le résultat de recherche le plus proche ne partage aucun nom normalisé avec l'employeur",
+  },
   "methodology.grade.possible.shown": {
-    en: 'Listed as "possibly related" and kept as a separate profile',
-    fr: "Indiqué comme « possiblement lié » et conservé comme profil distinct",
+    en: 'Registry card marked "Possible"; treat it as a lead, not a match',
+    fr: "Fiche du registre marquée « Possible »; c'est une piste, pas une correspondance",
   },
   "methodology.grade.unmatched": { en: "Unmatched", fr: "Non jumelé" },
-  "methodology.grade.unmatched.condition": { en: "Nothing above threshold", fr: "Rien au-dessus du seuil" },
-  "methodology.grade.unmatched.shown": { en: "Own profile with no registry card", fr: "Profil distinct sans fiche de registre" },
+  "methodology.grade.unmatched.condition": { en: "No result in any register checked", fr: "Aucun résultat dans les registres consultés" },
+  "methodology.grade.unmatched.shown": { en: "Profile with no registry details", fr: "Profil sans renseignements de registre" },
+  "methodology.registry_coverage": {
+    en: "Registry coverage: every employer is compared with the federal corporations extract; BC employers are also looked up in the BC Registry through OrgBook, and Quebec employers in the Quebec enterprise register. Ontario, Alberta, Saskatchewan, Manitoba, New Brunswick, Nova Scotia, Prince Edward Island and Newfoundland and Labrador publish no free bulk file or open interface for their corporate registers: their searches go one name at a time, several charge a fee per search or need an account, and some terms forbid automated searching. A company incorporated in one of those provinces shows registry details only when it is also a federal corporation.",
+    fr: "Couverture des registres : chaque employeur est comparé à l'extrait des sociétés fédérales; les employeurs de la Colombie-Britannique sont aussi cherchés dans le BC Registry au moyen d'OrgBook, et ceux du Québec dans le registre des entreprises du Québec. L'Ontario, l'Alberta, la Saskatchewan, le Manitoba, le Nouveau-Brunswick, la Nouvelle-Écosse, l'Île-du-Prince-Édouard et Terre-Neuve-et-Labrador ne publient ni fichier complet gratuit ni interface ouverte pour leur registre des sociétés : on y cherche un nom à la fois, plusieurs facturent chaque recherche ou exigent un compte, et certaines conditions interdisent la recherche automatisée. Une société constituée dans l'une de ces provinces n'affiche des renseignements de registre que si elle est aussi une société fédérale.",
+  },
   "methodology.exclusions_households": {
     en: "Private households and individuals are not published. Caregiver and home-support postings where the employer is a person are dropped before anything is stored. ESDC already removes employers with personal names from its lists, so coverage of caregiver hiring is incomplete by design.",
     fr: "Les ménages privés et les particuliers ne sont pas publiés. Les offres d'aide familiale et de soutien à domicile dont l'employeur est une personne sont écartées avant tout enregistrement. EDSC retire déjà de ses listes les employeurs portant un nom de personne : la couverture de l'embauche d'aides familiaux est donc incomplète par conception.",
@@ -727,8 +745,8 @@ const STRINGS = {
     fr: "Aucun travailleur n'est jamais nommé. Le nombre de candidats, les curriculum vitæ et les coordonnées figurant sur une offre ne sont pas recueillis.",
   },
   "methodology.limits_text": {
-    en: "The ESDC lists count positions on LMIAs. They do not count work permits issued or workers who arrived. The pending flag exists only for employers who advertised on Job Bank, which most streams require. Street addresses appear only when an employer entered one; the quarterly lists give a city and postal code. Registry matches are by name and can be wrong.",
-    fr: "Les listes d'EDSC comptent les postes visés par des EIMT. Elles ne comptent ni les permis de travail délivrés ni les travailleurs arrivés. La mention « EIMT demandée » n'existe que pour les employeurs qui ont annoncé au Guichet-Emplois, ce que la plupart des volets exigent. Les adresses municipales ne paraissent que si l'employeur en a inscrit une; les listes trimestrielles donnent une ville et un code postal. Les correspondances au registre se fondent sur le nom et peuvent être erronées.",
+    en: "The ESDC lists count positions on LMIAs. They do not count work permits issued or workers who arrived. The pending flag exists only for employers who advertised on Job Bank, which most streams require. Street addresses appear only when an employer entered one on Job Bank or an IRCC finding gives one; the quarterly lists give a city and postal code. Registry matches are by name and can be wrong.",
+    fr: "Les listes d'EDSC comptent les postes visés par des EIMT. Elles ne comptent ni les permis de travail délivrés ni les travailleurs arrivés. La mention « EIMT demandée » n'existe que pour les employeurs qui ont annoncé au Guichet-Emplois, ce que la plupart des volets exigent. Les adresses municipales ne paraissent que si l'employeur en a inscrit une au Guichet-Emplois ou qu'un constat d'IRCC en donne une; les listes trimestrielles donnent une ville et un code postal. Les correspondances au registre se fondent sur le nom et peuvent être erronées.",
   },
   "methodology.versions_text": {
     en: "Indicator rules: v{rules}. Status lifecycle: v{rules}. Matching: v{rules}. Changes are listed on the {data} with the date and what was recomputed.",
@@ -816,8 +834,8 @@ const STRINGS = {
   "data.licence": { en: "Licence and Attribution", fr: "Licence et attribution" },
   "data.code_licence": { en: "The site's own code, text and design are published for inspection and are not licensed for reuse or for running another site; the data licences above are unaffected.", fr: "Le code, les textes et le design du site sont publiés pour consultation et ne sont pas concédés sous licence pour réutilisation ni pour exploiter un autre site; les licences des données ci-dessus demeurent inchangées." },
   "data.licence_text": {
-    en: "ESDC's positive and negative LMIA employer lists and the federal corporations extract from Innovation, Science and Economic Development Canada are published under the Open Government Licence, Canada. Derived files on this site are released under the same licence. Job Bank content is Government of Canada material reproduced with attribution. Postal-area centroids come from GeoNames (CC BY 4.0).",
-    fr: "Les listes des employeurs ayant reçu une EIMT positive ou négative d'EDSC et l'extrait des sociétés fédérales d'Innovation, Sciences et Développement économique Canada sont publiés sous la Licence du gouvernement ouvert, Canada. Les fichiers dérivés de ce site sont diffusés sous la même licence. Le contenu du Guichet-Emplois est du matériel du gouvernement du Canada reproduit avec attribution. Les centres des secteurs postaux proviennent de GeoNames (CC BY 4.0).",
+    en: "ESDC's positive and negative LMIA employer lists and the federal corporations extract from Innovation, Science and Economic Development Canada are published under the Open Government Licence, Canada. Derived files on this site are released under the same licence. Job Bank content is Government of Canada material reproduced with attribution. Quebec registry details (enterprise number, legal name, form, status and registration date) come from the Registre des entreprises dataset of the Registraire des entreprises du Québec, on Données Québec under CC BY-NC-SA 4.0, are shared under that licence for non-commercial use, and do not carry the Registraire's endorsement. Postal-area centroids come from GeoNames (CC BY 4.0).",
+    fr: "Les listes des employeurs ayant reçu une EIMT positive ou négative d'EDSC et l'extrait des sociétés fédérales d'Innovation, Sciences et Développement économique Canada sont publiés sous la Licence du gouvernement ouvert, Canada. Les fichiers dérivés de ce site sont diffusés sous la même licence. Le contenu du Guichet-Emplois est du matériel du gouvernement du Canada reproduit avec attribution. Les renseignements du registre du Québec (numéro d'entreprise, dénomination, forme juridique, statut et date d'immatriculation) proviennent du « Registre des entreprises » du Registraire des entreprises du Québec sur Données Québec sous licence CC BY-NC-SA 4.0, sont diffusés sous cette licence à des fins non commerciales et ne sont pas approuvés par le Registraire. Les centres des secteurs postaux proviennent de GeoNames (CC BY 4.0).",
   },
   "data.sources_text": {
     en: "The wage and unemployment indicators use {wages} (Open Government Licence, Canada), Statistics Canada's {lfs} and the {boundaries}, used under the {statcan}.",
@@ -842,6 +860,11 @@ const STRINGS = {
     en: "Indicator rules v{rules}. Wage at the prevailing-wage floor and low-wage stream in a high-unemployment region are evaluated, from Job Bank wages, the Labour Force Survey and the 2021 Census boundaries.",
     fr: "Règles des indicateurs v{rules}. Le salaire au plancher du salaire courant et le volet des postes à bas salaire dans une région à chômage élevé sont évalués, à partir des salaires du Guichet-Emplois, de l'Enquête sur la population active et des limites du Recensement de 2021.",
   },
+  "data.change_matching": {
+    en: "Employer matching: the legal name before a trade-name marker (dba, o/a, operating as) is the identity; dots in abbreviations, accents, initials and numbered company names are written one way. Some profiles merged and some employer IDs changed. IRCC findings supply a street and names seen. Quebec enterprises matched to the Quebec register.",
+    fr: "Jumelage des employeurs : la dénomination sociale qui précède une mention de nom commercial (dba, o/a, operating as) sert d'identité; les points des abréviations, les accents, les initiales et les noms de sociétés à numéro s'écrivent d'une seule façon. Certains profils ont été regroupés et certains identifiants d'employeur ont changé. Les constats d'IRCC fournissent une adresse et des noms relevés. Entreprises du Québec jumelées au registre du Québec.",
+  },
+  "data.recomputed_profiles": { en: "Employer profiles, registry matches", fr: "Profils d'employeurs, correspondances aux registres" },
   "data.recomputed_wages": { en: "Wage at floor, low-wage stream", fr: "Salaire au plancher, volet des postes à bas salaire" },
   "data.runs": { en: "Recent Runs", fr: "Exécutions récentes" },
   "data.col_run": { en: "Run", fr: "Exécution" },

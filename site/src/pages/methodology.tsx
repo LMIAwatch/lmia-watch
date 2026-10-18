@@ -181,6 +181,7 @@ export async function methodologyPage(c: Context<AppEnv>): Promise<Response> {
               </tbody>
             </table>
           </div>
+          <p>{t(lang, "methodology.registry_coverage")}</p>
 
           <h2 id="exclusions">{t(lang, "methodology.toc_exclusions")}</h2>
           <p>{t(lang, "methodology.exclusions_households")}</p>

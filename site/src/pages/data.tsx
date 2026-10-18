@@ -184,6 +184,11 @@ export async function dataPage(c: Context<AppEnv>): Promise<Response> {
                   <td>{t(lang, "data.change_wages", { rules: "0.2" })}</td>
                   <td>{t(lang, "data.recomputed_wages")}</td>
                 </tr>
+                <tr>
+                  <td class="mono nw">2026-10-18</td>
+                  <td>{t(lang, "data.change_matching")}</td>
+                  <td>{t(lang, "data.recomputed_profiles")}</td>
+                </tr>
               </tbody>
             </table>
           </div>

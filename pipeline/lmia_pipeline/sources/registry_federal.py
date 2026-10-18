@@ -97,9 +97,24 @@ def load_extract(conn: sqlite3.Connection, client: PoliteClient) -> int:
     return loaded
 
 
+def renormalize(conn: sqlite3.Connection) -> int:
+    """Recompute norm_name for every loaded corporation after a normalization change."""
+    changed = [
+        (new, number)
+        for number, legal, old in conn.execute("SELECT number, legal_name, norm_name FROM federal_corporations")
+        if (new := norm_name(legal)) != old
+    ]
+    for i in range(0, len(changed), CHUNK):
+        conn.executemany("UPDATE federal_corporations SET norm_name = ? WHERE number = ?", changed[i:i + CHUNK])
+    conn.commit()
+    return len(changed)
+
+
 def match(conn: sqlite3.Connection, *, now: str | None = None) -> int:
     """Join employers to corporations on the normalized name; keep the best per employer."""
     stamp = now or now_iso()
+    if conn.execute("SELECT 1 FROM federal_corporations LIMIT 1").fetchone() is None:
+        return 0  # nothing loaded yet: no lookup happened, so no check is recorded
     best: dict[str, tuple] = {}
     for r in conn.execute(
         """

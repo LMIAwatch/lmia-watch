@@ -223,8 +223,9 @@ paid-plan path and is not part of the nightly run.
 | ESDC positive list, CKAN dataset `90fed587-1364-4f33-a9ee-208181dc0b97` | `package_show`, English resources, XLSX (2020 Q4 on) and CSV (earlier) | quarterly, 3 to 4 months lag |
 | ESDC negative list, CKAN dataset `f82f66f2-a22b-4511-bccf-e1d74db39ae5` | same | same |
 | IRCC non-compliant employers | the page's table loads `/content/dam/ircc/documents/json/non_compliant.json`; legend text from the page | as published |
-| BC Registry via OrgBook `orgbook.gov.bc.ca/api/v4/search/topic` | name search, graded match, BC employers only | nightly for new BC employers |
+| BC Registry via OrgBook `orgbook.gov.bc.ca/api/v4/search/topic` | name search on the legal name, graded match, BC employers only, most useful first | nightly, up to 700 lookups in 15 minutes, recheck after 180 days |
 | Corporations Canada, Federal Corporations open data (CBCA active and inactive CSVs) | bulk extract loaded locally, matched on normalized name | weekly download |
+| Registraire des entreprises du Québec, Registre des entreprises (`donneesquebec.ca/recherche/dataset/registre-des-entreprises`, ZIP of CSVs) | bulk extract, names that match Quebec employers kept, sole proprietorships skipped | weekly load (published twice a month) |
 | GeoNames postal codes (CC BY 4.0) | forward sortation area centroids in `pipeline/lmia_pipeline/data/fsa_centroids.csv` | once |
 | ESDC Job Bank wages, CKAN dataset `adad580f-76b0-4502-bd05-20c125de9116` (one CSV a year, about 18 MB) | median by NOC 2021 and economic region, loaded into `jobbank_wages`; the prevailing-wage floor | revalidated monthly from the database's own record |
 | Statistics Canada LFS table 14-10-0459-01 (unemployment rate by CMA, 3-month moving average, unadjusted) | `www150.statcan.gc.ca/n1/tbl/csv/14100459-eng.zip`, loaded into `lfs_unemployment` | monthly |
@@ -235,7 +236,11 @@ Open Government Licence, Canada. Job Bank is Government of Canada content
 reproduced with attribution. Statistics Canada tables and boundaries are under
 the Statistics Canada Open Licence. GeoNames is CC BY 4.0. Derived files ship
 under OGL Canada. The code itself is source-available (`LICENSE.md`), not open
-source.
+source. The
+Quebec register is CC BY-NC-SA 4.0 (non-commercial, share-alike): Quebec
+registry details shown on profiles carry that licence, credited on the Data
+page and in the footer. Ontario, Alberta, Saskatchewan, Manitoba and the
+Atlantic provinces offer no free bulk or API registry access.
 
 ## Run and test
 - Pipeline: `cd pipeline && pip install -e .[dev] && pytest`. Dev run:
