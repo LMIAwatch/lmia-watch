@@ -39,6 +39,7 @@ const STRINGS = {
   "footer.corrections": { en: "Corrections", fr: "Corrections" },
   "footer.support": { en: "Support the Site", fr: "Soutenir le site" },
   "footer.x": { en: "LMIA Watch on X", fr: "LMIA Watch sur X" },
+  "footer.copyright": { en: "© 2026 LMIA Watch", fr: "© 2026 LMIA Watch" },
   "search.placeholder": { en: "Employer, city, postal code or occupation", fr: "Employeur, ville, code postal ou profession" },
   "search.button": { en: "Search", fr: "Rechercher" },
   "toc.label": { en: "On this page", fr: "Sur cette page" },
@@ -779,6 +780,7 @@ const STRINGS = {
     fr: "Les lignes de recherche, telles que la page de recherche les charge (liste des fichiers dans les facettes)",
   },
   "data.licence": { en: "Licence and Attribution", fr: "Licence et attribution" },
+  "data.code_licence": { en: "The site's own code, text and design are published for inspection and are not licensed for reuse or for running another site; the data licences above are unaffected.", fr: "Le code, les textes et le design du site sont publiés pour consultation et ne sont pas concédés sous licence pour réutilisation ni pour exploiter un autre site; les licences des données ci-dessus demeurent inchangées." },
   "data.licence_text": {
     en: "ESDC's positive and negative LMIA employer lists and the federal corporations extract from Innovation, Science and Economic Development Canada are published under the Open Government Licence, Canada. Derived files on this site are released under the same licence. Job Bank content is Government of Canada material reproduced with attribution. Postal-area centroids come from GeoNames (CC BY 4.0).",
     fr: "Les listes des employeurs ayant reçu une EIMT positive ou négative d'EDSC et l'extrait des sociétés fédérales d'Innovation, Sciences et Développement économique Canada sont publiés sous la Licence du gouvernement ouvert, Canada. Les fichiers dérivés de ce site sont diffusés sous la même licence. Le contenu du Guichet-Emplois est du matériel du gouvernement du Canada reproduit avec attribution. Les centres des secteurs postaux proviennent de GeoNames (CC BY 4.0).",
@@ -1045,6 +1047,7 @@ type Vars = Record<string, string | number>;
 // key to a French string that differs from the English.
 export const SAME_IN_BOTH: ReadonlySet<Key> = new Set<Key>([
   "site.name",
+  "footer.copyright",
   "footer.corrections",
   "wage.unit.HOUR",
   "col.date",

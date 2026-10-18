@@ -1,6 +1,7 @@
 {
   "name": "lmia-watch-site",
   "private": true,
+  "license": "SEE LICENSE IN ../LICENSE.md",
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",

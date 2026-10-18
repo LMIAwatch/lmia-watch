@@ -120,7 +120,8 @@ html.js .theme-toggle { display: inline-block; }
 .main-nav a:focus-visible { outline-color: #ffffff; outline-offset: 0; }
 .site-footer { border-top: 1px solid var(--rule); margin-top: 48px; color: var(--muted); font-size: 14px; }
 .footer-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; padding-top: 20px; padding-bottom: 24px; }
-.footer-x { display: inline-flex; align-items: center; margin-left: auto; color: var(--muted); }
+.footer-copyright { margin-left: auto; }
+.footer-x { display: inline-flex; align-items: center; color: var(--muted); }
 .footer-x:hover { color: var(--accent); }
 .x-mark { display: block; }
 

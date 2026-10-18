@@ -159,7 +159,7 @@ export const Layout: FC<
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>{title}</title>
-        <link rel="stylesheet" href="/styles.css?v=8" />
+        <link rel="stylesheet" href="/styles.css?v=9" />
         <script src="/theme.js"></script>
         <link rel="preload" href="/fonts/public-sans-latin-var.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
         <link rel="icon" href="/favicon.ico" sizes="48x48" />
@@ -212,6 +212,7 @@ export const Layout: FC<
             <a href="/data#downloads">{t(lang, "footer.download")}</a>
             <a href="/corrections">{t(lang, "footer.corrections")}</a>
             <a href="/support">{t(lang, "footer.support")}</a>
+            <span class="footer-copyright">{t(lang, "footer.copyright")}</span>
             <a href={X_ACCOUNT_URL} class="footer-x" rel="noopener" aria-label={t(lang, "footer.x")} title={t(lang, "footer.x")}>
               <XMark />
             </a>

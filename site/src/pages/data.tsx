@@ -132,6 +132,7 @@ export async function dataPage(c: Context<AppEnv>): Promise<Response> {
 
           <h2 id="licence">{t(lang, "data.licence")}</h2>
           <p>{t(lang, "data.licence_text")}</p>
+          <p class="muted small">{t(lang, "data.code_licence")}</p>
           <p>{t(lang, "data.crawl_text")}</p>
 
           <h2 id="changelog">{t(lang, "data.toc_changelog")}</h2>

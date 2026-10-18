@@ -37,3 +37,10 @@ under the Open Government Licence, Canada. Job Bank content is Government of Can
 material reproduced with attribution. The IRCC list of employers found non-compliant
 is published on canada.ca. Derived files from this project carry the Open
 Government Licence, Canada.
+
+## Code licence
+The code, documentation, page text, design and brand in this repository are
+source-available under [LICENSE.md](LICENSE.md): published for inspection, not
+licensed for copying, redistribution or running another site. The data licences
+above are unaffected. The project does not accept issues, pull requests or
+contributions; reports about records go through the site's corrections form.

@@ -7,6 +7,7 @@ name = "lmia-pipeline"
 version = "0.1.0"
 description = "Collects public LMIA records and builds the LMIA Watch database."
 requires-python = ">=3.11"
+license = { text = "Source-available; see LICENSE.md at the repository root" }
 dependencies = [
   "requests>=2.31",
   "openpyxl>=3.1",
