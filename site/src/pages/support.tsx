@@ -6,6 +6,7 @@ import { t, tj, tn, type Key, type Lang } from "../i18n";
 import { Layout, fmtInt, page, periodLabel } from "../layout";
 import { pageSeo } from "../seo";
 import {
+  ACTIONS_CENTS_PER_MONTH,
   COSTS_TODAY_CENTS,
   DOMAIN_CAD_PER_YEAR,
   DOMAIN_CENTS_PER_MONTH,
@@ -173,6 +174,7 @@ export async function supportPage(c: Context<AppEnv>): Promise<Response> {
             rows={[
               { label: t(lang, "support.bar_domain"), cents: DOMAIN_CENTS_PER_MONTH },
               { label: t(lang, "support.bar_hosting"), cents: HOSTING_CENTS_PER_MONTH },
+              { label: t(lang, "support.bar_github"), cents: ACTIONS_CENTS_PER_MONTH },
               { label: t(lang, "support.bar_x"), cents: X_POST_CENTS_PER_MONTH },
               { label: t(lang, "support.bar_total"), cents: COSTS_TODAY_CENTS, total: true },
             ]}
@@ -180,6 +182,7 @@ export async function supportPage(c: Context<AppEnv>): Promise<Response> {
           <p class="muted small top-gap">
             {t(lang, "support.costs_detail", {
               domain: prose(toCents(DOMAIN_CAD_PER_YEAR), lang),
+              github: money(ACTIONS_CENTS_PER_MONTH),
               usd: fmtUsd(X_POST_USD_EACH, lang),
               monthly: money(X_POST_CENTS_PER_MONTH),
             })}

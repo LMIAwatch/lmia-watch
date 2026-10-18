@@ -73,8 +73,23 @@ export const STORAGE_RESERVE_CAD_PER_MONTH = 1;
 // without it. Revisit with X's pricing page.
 export const X_POST_USD_EACH = 0.015;
 
-// Posts a month: one a day, averaged over the year.
-export const X_POSTS_PER_MONTH = 365 / 12;
+// Nights a month, averaged over the year: one refresh and one post a day.
+export const NIGHTS_PER_MONTH = 365 / 12;
+export const X_POSTS_PER_MONTH = NIGHTS_PER_MONTH;
+
+// The nightly refresh runs as a scheduled task on GitHub, whose runners are
+// billed by the minute past a monthly allowance. Minutes a night is a
+// planning figure for the crawl at Job Bank's pace plus the registry and
+// reference downloads. Revisit against the first month's usage report.
+export const ACTIONS_MINUTES_PER_NIGHT = 120;
+
+// Runner minutes included each month. Host's published allowance. Revisit
+// with the pricing page.
+export const ACTIONS_FREE_MINUTES_PER_MONTH = 2000;
+
+// USD per runner minute past the allowance, standard Linux runner. Host's
+// published rate. Revisit with the pricing page.
+export const ACTIONS_USD_PER_MINUTE = 0.006;
 
 // X Premium for the project's account, USD per month, which carries the
 // verified badge X shows beside the name on every post. Optional: the posts go
@@ -139,7 +154,10 @@ export const DOMAIN_CENTS_PER_MONTH = toCents(DOMAIN_CAD_PER_YEAR / 12);
 export const HOSTING_CENTS_PER_MONTH = toCents(HOSTING_CAD_PER_MONTH);
 export const X_POST_CAD_PER_MONTH = X_POST_USD_EACH * X_POSTS_PER_MONTH * USD_TO_CAD;
 export const X_POST_CENTS_PER_MONTH = toCents(X_POST_CAD_PER_MONTH);
-export const COSTS_TODAY_CENTS = DOMAIN_CENTS_PER_MONTH + HOSTING_CENTS_PER_MONTH + X_POST_CENTS_PER_MONTH;
+export const ACTIONS_CAD_PER_MONTH =
+  Math.max(0, ACTIONS_MINUTES_PER_NIGHT * NIGHTS_PER_MONTH - ACTIONS_FREE_MINUTES_PER_MONTH) * ACTIONS_USD_PER_MINUTE * USD_TO_CAD;
+export const ACTIONS_CENTS_PER_MONTH = toCents(ACTIONS_CAD_PER_MONTH);
+export const COSTS_TODAY_CENTS = DOMAIN_CENTS_PER_MONTH + HOSTING_CENTS_PER_MONTH + ACTIONS_CENTS_PER_MONTH + X_POST_CENTS_PER_MONTH;
 export const WORKERS_PAID_LIST_CENTS = toCents(WORKERS_PAID_USD_PER_MONTH * USD_TO_CAD);
 export const STORAGE_CENTS_PER_GB_MONTH = toCents(STORAGE_USD_PER_GB_MONTH * USD_TO_CAD);
 export const STORAGE_RESERVE_GB = Math.floor(STORAGE_RESERVE_CAD_PER_MONTH / (STORAGE_USD_PER_GB_MONTH * USD_TO_CAD));
@@ -162,7 +180,7 @@ export const TIERS: readonly Tier[] = [
   {
     id: "baseline",
     name: tierName("en", "baseline"),
-    monthlyCost: DOMAIN_CAD_PER_YEAR / 12 + HOSTING_CAD_PER_MONTH + X_POST_CAD_PER_MONTH,
+    monthlyCost: DOMAIN_CAD_PER_YEAR / 12 + HOSTING_CAD_PER_MONTH + ACTIONS_CAD_PER_MONTH + X_POST_CAD_PER_MONTH,
     unlocks: tierUnlocks("en", "baseline"),
   },
   {

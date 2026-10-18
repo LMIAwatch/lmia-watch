@@ -138,9 +138,10 @@ describe("support figures", () => {
     expect(f.monthlySupportCents).toBe(1400); // the October gift is 31 days old
     expect(f.totalReceivedCents).toBe(1900);
     expect(f.totalSpentCents).toBe(COSTS_TODAY_CENTS * 2);
-    expect(f.reserveCents).toBe(1900 - COSTS_TODAY_CENTS * 2);
+    // The sample gifts may not cover two months of cost; the reserve never goes below zero.
+    expect(f.reserveCents).toBe(Math.max(0, 1900 - COSTS_TODAY_CENTS * 2));
     expect(f.ledger).toEqual([
-      { quarter: "2026 Q4", monthlyCostCents: COSTS_TODAY_CENTS, receivedCents: 1900, spentCents: COSTS_TODAY_CENTS * 2, reserveCents: 1900 - COSTS_TODAY_CENTS * 2 },
+      { quarter: "2026 Q4", monthlyCostCents: COSTS_TODAY_CENTS, receivedCents: 1900, spentCents: COSTS_TODAY_CENTS * 2, reserveCents: Math.max(0, 1900 - COSTS_TODAY_CENTS * 2) },
     ]);
     const empty = computeFigures([], new Date("2027-01-10T00:00:00Z"), "2026-10-01");
     expect(empty.ledger.map((r) => [r.quarter, r.spentCents, r.reserveCents])).toEqual([
