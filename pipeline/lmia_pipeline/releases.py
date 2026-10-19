@@ -15,11 +15,10 @@ Two properties of the files shape what is published:
   digits) with the 2024 Q2 file. The two classifications do not map one to
   one, so each is ranked on its own and no table adds them together. The
   era comes from the code's length, not from a date.
-- The 2014 to 2016 files have no stream column, and from 2017 Q1 to 2019 Q2
-  the stream is filled only on the first row of a group, so most of those
-  rows load without one. A breakdown by stream is published only where at
-  most STREAM_MISSING_MAX of the positions (or, for refusals, of the rows)
-  lack one.
+- The 2014 to 2016 files have no stream column (the loader fills the stream
+  down within a block from 2017 on). A breakdown by stream is published only
+  where at most STREAM_MISSING_MAX of the positions (or, for refusals, of the
+  rows) lack one.
 
 Output (under data/out/static):
   releases/index.json      every release, newest first, with its totals

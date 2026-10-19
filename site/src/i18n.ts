@@ -1525,8 +1525,8 @@ const STRINGS = {
   "rank.by_province": { en: "Positions Approved by Province", fr: "Postes approuvés par province" },
   "rank.by_stream": { en: "Positions Approved by Stream", fr: "Postes approuvés par volet" },
   "rank.stream_years": {
-    en: "Years included: {years}. Years in which most rows carry no stream are left out: the 2014 to 2016 files have no stream column, and the files from 2017 to 2019 Q2 fill it only on the first row of each group.",
-    fr: "Années comprises : {years}. Les années où la plupart des inscriptions ne précisent pas de volet sont exclues : les fichiers de 2014 à 2016 n'ont pas de colonne de volet, et ceux de 2017 au T2 2019 ne la remplissent qu'à la première ligne de chaque groupe.",
+    en: "Years included: {years}. Years in which most rows carry no stream are left out: the 2014 to 2016 files have no stream column.",
+    fr: "Années comprises : {years}. Les années où la plupart des inscriptions ne précisent pas de volet sont exclues : les fichiers de 2014 à 2016 n'ont pas de colonne de volet.",
   },
   "rank.stream_missing": {
     en: "Most rows from {year} carry no stream, so no ranking by stream is shown for this year.",
