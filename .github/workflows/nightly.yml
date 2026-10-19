@@ -160,12 +160,22 @@ jobs:
           cp -r data/out/static site/public/data
           tar -czf data/out/static.tar.gz -C data/out static
 
-      # A failed deploy leaves the live site on its previous version.
+      # A failed deploy leaves the live site on its previous version. The
+      # asset upload (thousands of small files) meets a transient API error
+      # now and then after Wrangler's own retries, so the whole deploy is
+      # tried three times with a pause between; files stored by a failed
+      # attempt are not uploaded again, since assets are content-addressed.
       - name: Deploy the Worker with the new data as assets
         id: deploy
         if: ${{ !cancelled() && steps.bundle.outcome == 'success' }}
         working-directory: site
-        run: npx wrangler deploy
+        run: |
+          for attempt in 1 2 3; do
+            if npx wrangler deploy; then exit 0; fi
+            echo "deploy attempt $attempt failed; trying again in two minutes"
+            sleep 120
+          done
+          exit 1
 
       # After the deploy, so the link shows the postings the digest counts, and
       # before the R2 save, so the recorded post date travels with the database.
