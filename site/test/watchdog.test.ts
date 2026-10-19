@@ -28,6 +28,35 @@ describe("daily check", () => {
     expect(collectAlerts({ ...healthy, status: { ...healthy.status, run_at: "2026-10-17T00:48:00Z" } })[0]).toContain("last completed run was 2026-10-17");
   });
 
+  it("flags a refused Bluesky post and a failed Zenodo deposit, and nothing else they report", () => {
+    const with_ = (extra: object) => collectAlerts({ ...healthy, status: { ...healthy.status, ...extra } });
+    expect(with_({ bluesky_post: "failed" })).toEqual([
+      "The daily Bluesky post did not go out (failed). Check the app password in the BSKY_APP_PASSWORD secret and the run log.",
+    ]);
+    expect(with_({ bluesky_post: "no credentials" })[0]).toContain("Bluesky post did not go out (no credentials)");
+    expect(with_({ zenodo_deposit: "failed" })).toEqual([
+      "The Zenodo deposit of the new ESDC quarter failed. The next run tries again; check the ZENODO_TOKEN secret and the run log.",
+    ]);
+    for (const quiet of ["posted", "already posted", "no new postings", "first pass", "bulk pass", "not run", "dry run"]) {
+      expect(with_({ bluesky_post: quiet }), quiet).toEqual([]);
+    }
+    for (const quiet of ["deposited", "no new quarter", "no token", "no data", "not run"]) {
+      expect(with_({ zenodo_deposit: quiet }), quiet).toEqual([]);
+    }
+    const all = with_({ x_post: "failed", bluesky_post: "failed", zenodo_deposit: "failed" });
+    expect(all).toHaveLength(3);
+  });
+
+  it("reads the new status fields and ignores them when they have the wrong type", () => {
+    const read = readStatus({ ...healthy.status, bluesky_post: "posted", zenodo_deposit: "failed" });
+    expect(read).toEqual({ status: { ...healthy.status, bluesky_post: "posted", zenodo_deposit: "failed" }, problem: null });
+    const odd = readStatus({ ...healthy.status, bluesky_post: 1, zenodo_deposit: { x: 1 } });
+    expect(odd.problem).toBeNull();
+    expect(odd.status).toEqual(healthy.status);
+    // A status written before these fields existed stays healthy.
+    expect(collectAlerts({ ...healthy, status: readStatus(healthy.status).status })).toEqual([]);
+  });
+
   it("builds a plain-text email that names every item", () => {
     const raw = buildEmail("alerts@lmiawatch.ca", "owner@example.com", ["one thing", "another"], now);
     expect(raw).toContain("From: LMIA Watch <alerts@lmiawatch.ca>\r\nTo: owner@example.com\r\nSubject: LMIA Watch: 2 items need attention");

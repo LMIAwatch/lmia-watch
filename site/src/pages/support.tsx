@@ -185,7 +185,8 @@ export async function supportPage(c: Context<AppEnv>): Promise<Response> {
               github: money(ACTIONS_CENTS_PER_MONTH),
               usd: fmtUsd(X_POST_USD_EACH, lang),
               monthly: money(X_POST_CENTS_PER_MONTH),
-            })}
+            })}{" "}
+            {t(lang, "support.bluesky_free")}
           </p>
 
           <h2 id="tiers">{t(lang, "support.toc_tiers")}</h2>

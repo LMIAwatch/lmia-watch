@@ -7,6 +7,7 @@ import { loadStats } from "./data";
 import type { AppEnv, Env } from "./env";
 import { kofiWebhook } from "./hooks";
 import { throttle } from "./limits";
+import { measure } from "./views";
 import { runWatchdog } from "./watchdog";
 import { langFrom, t, tj } from "./i18n";
 import { Layout, page } from "./layout";
@@ -60,6 +61,7 @@ app.use("*", async (c, next) => {
 
 // After the language middleware so a 429 page still knows its language later.
 app.use("*", throttle);
+app.use("*", measure);
 
 app.route("/api", api);
 

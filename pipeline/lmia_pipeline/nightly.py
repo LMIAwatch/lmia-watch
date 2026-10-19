@@ -243,10 +243,16 @@ def verify(db: Path, static: Path, started: float | None, before: dict[str, int]
 
 def run_status(
     db: Path, started: str | None, verify_result: dict[str, Any] | None, outcome: str | None,
-    steps: dict[str, str], now: datetime | None = None,
+    steps: dict[str, str], now: datetime | None = None, *, bluesky: str | None = None,
+    zenodo: str | None = None,
 ) -> dict[str, Any]:
     """status.json for the site's daily check. Every input may be missing: the
-    status then says what is missing rather than failing to be written."""
+    status then says what is missing rather than failing to be written.
+
+    outcome, bluesky and zenodo are the outcomes the X post, the Bluesky post
+    and the Zenodo deposit wrote; "not run" when the step did not run. They
+    are reported beside the stages, not as stages, so a refused post or a
+    failed deposit alerts without marking the data refresh failed."""
     stages: list[dict[str, Any]] = []
     for name, result in steps.items():
         if result == "failure":
@@ -277,6 +283,8 @@ def run_status(
         "run_at": stamp,
         "stages": stages,
         "x_post": outcome or "not run",
+        "bluesky_post": bluesky or "not run",
+        "zenodo_deposit": zenodo or "not run",
         "ok": all(s["ok"] for s in stages),
     }
 
@@ -313,7 +321,9 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--db", required=True)
     s.add_argument("--started-file", default=None)
     s.add_argument("--verify", default=None)
-    s.add_argument("--outcome", default=None)
+    s.add_argument("--outcome", default=None, help="the X post's outcome file")
+    s.add_argument("--bluesky-outcome", default=None, help="the Bluesky post's outcome file")
+    s.add_argument("--zenodo-outcome", default=None, help="the Zenodo deposit's outcome file")
     s.add_argument("--step", action="append", default=[], help="name=outcome of a workflow step")
     s.add_argument("--out", required=True)
     args = parser.parse_args(argv)
@@ -348,7 +358,8 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError:
         verify_result = {"problems": ["the check results could not be read"]}
     steps = dict(item.split("=", 1) for item in args.step if "=" in item)
-    status = run_status(Path(args.db), _read(args.started_file), verify_result, _read(args.outcome), steps)
+    status = run_status(Path(args.db), _read(args.started_file), verify_result, _read(args.outcome), steps,
+                        bluesky=_read(args.bluesky_outcome), zenodo=_read(args.zenodo_outcome))
     _write_json(Path(args.out), status)
     print(json.dumps(status, indent=1))
     return 0

@@ -1,5 +1,8 @@
 """Daily X post: a factual digest of the postings first seen on the latest Job Bank pass.
 
+collect, screen, compose and draw_card are shared with bluesky.py, which
+posts the same digest and card to Bluesky.
+
 Why OAuth 1.0a user context: the job posts as one account, its own. The four
 values from the developer console never expire, so they sit in four repository
 secrets and nothing has to be refreshed or written back between runs. OAuth 2.0
@@ -212,8 +215,11 @@ def _join(head: str, provinces: str | None, employers: list[str], link: str | No
     return "\n".join(lines)
 
 
-def compose(d: Digest, *, link: str | None, limit: int = MAX_CHARS) -> str:
-    """The post text. When it runs long, employers go from the end of the list first, then the province line."""
+def compose(d: Digest, *, link: str | None, limit: int = MAX_CHARS,
+            measure: Callable[[str], int] = x_length) -> str:
+    """The post text. When it runs long, employers go from the end of the list first, then the province line.
+
+    measure is the platform's own length rule (X's by default; bluesky.py passes Bluesky's)."""
     head = _headline(d)
     provinces = f"In {', '.join(d.provinces)}" if d.provinces else None
     employers = [_employer_line(e) for e in d.employers]
@@ -221,7 +227,7 @@ def compose(d: Digest, *, link: str | None, limit: int = MAX_CHARS) -> str:
     rungs.append((None, []))
     for prov_line, emp_lines in rungs:
         text = _join(head, prov_line, emp_lines, link)
-        if x_length(text) <= limit:
+        if measure(text) <= limit:
             return text
     # The headline holds a date and two numbers, so this is unreachable at 280.
     return _join(head, None, [], link)
@@ -410,6 +416,42 @@ def _body(resp: Any) -> str:
         return "(no body)"
 
 
+def screen(digest: Digest | None, tag: str) -> str | None:
+    """Why this pass must not be posted, as an outcome, or None when it may be.
+    Shared by every platform so all of them refuse the same nights."""
+    if digest is None:
+        log.info("%s: no Job Bank pass recorded yet; nothing to post", tag)
+        return "no pass"
+    if digest.postings == 0:
+        log.info("%s: the Job Bank pass of %s found no new postings with an LMIA requested; nothing posted",
+                 tag, digest.data_date)
+        return "no new postings"
+    if digest.first_pass:
+        # A fresh database (first run, or a failed restore) sees every posting as new.
+        log.info("%s: the Job Bank pass of %s is the first in this database, so every posting is new; nothing posted",
+                 tag, digest.data_date)
+        return "first pass"
+    if digest.postings > MAX_NEW_POSTINGS:
+        log.info("%s: the Job Bank pass of %s saw %d new postings, more than a day brings; treated as a rebuild, nothing posted",
+                 tag, digest.data_date, digest.postings)
+        return "bulk pass"
+    return None
+
+
+def draw_card(digest: Digest, folder: Path, tag: str) -> tuple[bytes | None, str | None]:
+    """The card PNG and its alt text, saved beside the text as <date>.png. A
+    drawing fault costs the picture, not the post: (None, None)."""
+    try:
+        card = card_for(digest)
+        png = render_card(card)
+        alt = alt_text(card)
+        (folder / f"{digest.data_date}.png").write_bytes(png)
+        return png, alt
+    except Exception as exc:
+        log.error("%s: card not drawn (%s): %s", tag, type(exc).__name__, str(exc)[:200])
+        return None, None
+
+
 def run(
     conn: sqlite3.Connection,
     *,
@@ -441,38 +483,15 @@ def _run(
     echo: Callable[[str], None],
 ) -> str:
     digest = collect(conn)
-    if digest is None:
-        log.info("x: no Job Bank pass recorded yet; nothing to post")
-        return "no pass"
-    if digest.postings == 0:
-        log.info("x: the Job Bank pass of %s found no new postings with an LMIA requested; nothing posted",
-                 digest.data_date)
-        return "no new postings"
-    if digest.first_pass:
-        # A fresh database (first run, or a failed restore) sees every posting as new.
-        log.info("x: the Job Bank pass of %s is the first in this database, so every posting is new; nothing posted",
-                 digest.data_date)
-        return "first pass"
-    if digest.postings > MAX_NEW_POSTINGS:
-        log.info("x: the Job Bank pass of %s saw %d new postings, more than a day brings; treated as a rebuild, nothing posted",
-                 digest.data_date, digest.postings)
-        return "bulk pass"
+    skip = screen(digest, "x")
+    if skip or digest is None:
+        return skip or "no pass"
 
     text = compose(digest, link=search_link() if link else None)
     folder = out_dir or (config.OUT_DIR / "social")
     folder.mkdir(parents=True, exist_ok=True)
     (folder / f"{digest.data_date}.txt").write_text(text + "\n", encoding="utf-8")
-    png: bytes | None = None
-    alt: str | None = None
-    if image:
-        try:
-            card = card_for(digest)
-            png = render_card(card)
-            alt = alt_text(card)
-            (folder / f"{digest.data_date}.png").write_bytes(png)
-        except Exception as exc:  # a drawing fault costs the picture, not the post
-            log.error("x: card not drawn (%s): %s", type(exc).__name__, str(exc)[:200])
-            png = None
+    png, alt = draw_card(digest, folder, "x") if image else (None, None)
 
     if dry_run:
         echo(text)

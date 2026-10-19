@@ -6,8 +6,9 @@
 # Steps: restore the SQLite file from R2, run every pipeline stage (the
 # pipeline itself skips Job Bank if it already ran within the last 20 hours),
 # check the database and the export, deploy the Worker with that data as its
-# assets, post the daily digest to X when its secrets exist, save the database
-# and the public files back to R2, and write the run status.
+# assets, post the daily digest to X and to Bluesky when their secrets exist,
+# deposit a new ESDC quarter on Zenodo when its token exists, save the
+# database and the public files back to R2, and write the run status.
 #
 # What a failure does (lmia_pipeline/nightly.py holds the checks):
 # - A backup that exists but cannot be downloaded or used stops the run before
@@ -24,12 +25,16 @@
 #
 # Secrets on the project account: CLOUDFLARE_API_TOKEN (Workers + R2 + D1),
 # CLOUDFLARE_ACCOUNT_ID. Optional: X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN,
-# X_ACCESS_TOKEN_SECRET (the X post; without them the step does nothing).
+# X_ACCESS_TOKEN_SECRET (the X post; without them the step does nothing);
+# BSKY_HANDLE, BSKY_APP_PASSWORD (the Bluesky post, docs/bluesky-account.md);
+# ZENODO_TOKEN (the Zenodo deposit, docs/zenodo.md).
 # Variables: SITE_URL, CONTACT (the scraper's user agent); X_POST_ENABLED must be
 # "true" for the X step to run at all (X posting is pay-per-use, so it is opt-in);
 # optional X_POST_LINK, set to true to put the site link in the text (X bills a
 # post with a link at thirteen times the rate; the attached card carries the
-# address instead).
+# address instead); BSKY_POST_ENABLED must be "true" for the Bluesky step;
+# optional ZENODO_SANDBOX, set to true to deposit on sandbox.zenodo.org (test
+# DOIs that never reach the site) instead of zenodo.org.
 # The repository is public, so Actions minutes are unlimited; the only pace
 # limit is Job Bank's five-second crawl delay, which puts a full sweep at a
 # few hours. The job must finish before the next midnight run.
@@ -182,6 +187,50 @@ jobs:
           fi
           python -m lmia_pipeline post-digest --db data/lmia.sqlite $LINK
 
+      # The same digest and card on Bluesky, with the link (posting there is
+      # free). Same shape as the X step: after the deploy, before the R2 save
+      # so the recorded post date travels with the database, opt-in through
+      # BSKY_POST_ENABLED, skipped without the two secrets, and never fails the
+      # run. Bluesky keeps its own record of the pass it posted, so each
+      # platform posts a pass at most once whatever the other did.
+      - name: Post the daily digest to Bluesky (only when BSKY_POST_ENABLED is true)
+        id: bluesky
+        if: ${{ !cancelled() && vars.BSKY_POST_ENABLED == 'true' && steps.deploy.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 10
+        env:
+          BSKY_HANDLE: ${{ secrets.BSKY_HANDLE }}
+          BSKY_APP_PASSWORD: ${{ secrets.BSKY_APP_PASSWORD }}
+        run: |
+          if [ -z "$BSKY_HANDLE" ] || [ -z "$BSKY_APP_PASSWORD" ]; then
+            echo "The Bluesky secrets are not set; no post."
+            exit 0
+          fi
+          python -m lmia_pipeline post-bluesky --db data/lmia.sqlite
+
+      # A citable release: when a new ESDC quarter has been loaded (or no
+      # record exists yet), a new version of the Zenodo record with the Open
+      # Government Licence files from tonight's export. After the deploy, so
+      # the deposit matches the files the site serves; before the R2 save, so
+      # the recorded DOIs travel with the database. Skipped without
+      # ZENODO_TOKEN; ZENODO_SANDBOX=true sends it to sandbox.zenodo.org. A
+      # failure discards the draft, is reported in the run status, and is
+      # tried again the next night; it never stops the save.
+      - name: Deposit a new ESDC quarter on Zenodo (only when ZENODO_TOKEN is set)
+        id: zenodo
+        if: ${{ !cancelled() && steps.deploy.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 30
+        env:
+          ZENODO_TOKEN: ${{ secrets.ZENODO_TOKEN }}
+          ZENODO_SANDBOX: ${{ vars.ZENODO_SANDBOX }}
+        run: |
+          if [ -z "$ZENODO_TOKEN" ]; then
+            echo "ZENODO_TOKEN is not set; no deposit."
+            exit 0
+          fi
+          python -m lmia_pipeline deposit-zenodo --db data/lmia.sqlite --csv-dir data/out/csv
+
       # Only a database that passed its checks is saved, whether or not the
       # deploy worked, so a night's Job Bank observations are kept even when
       # the site could not be updated. Last night's backup becomes the previous
@@ -221,14 +270,18 @@ jobs:
           key: raw-cache-${{ github.run_id }}
 
       # What the daily check in the Worker reads: when the run finished, which
-      # stages and steps succeeded, what the checks found, and the X post's
-      # outcome. Written whatever happened above.
+      # stages and steps succeeded, what the checks found, and the outcomes of
+      # the X post, the Bluesky post and the Zenodo deposit. Written whatever
+      # happened above. The Bluesky and Zenodo commands write "failed" before
+      # they start, so a step stopped by its time limit still reads as failed.
       - name: Write the run status
         if: ${{ always() }}
         run: |
           python -m lmia_pipeline.nightly status --db data/lmia.sqlite \
             --started-file data/out/run_started.txt --verify data/out/verify.json \
             --outcome data/out/social/last_outcome.txt \
+            --bluesky-outcome data/out/social/bluesky_outcome.txt \
+            --zenodo-outcome data/out/zenodo/last_outcome.txt \
             --step "restore=${{ steps.restore.outcome }}" --step "pipeline=${{ steps.pipeline.outcome }}" \
             --step "verify=${{ steps.verify.outcome }}" --step "deploy=${{ steps.deploy.outcome }}" \
             --step "save_db=${{ steps.save_db.outcome }}" --step "save_files=${{ steps.save_files.outcome }}" \
@@ -252,6 +305,14 @@ jobs:
           if [ -f data/out/social/last_outcome.txt ]; then
             echo "" >> LAST_RUN.md
             echo "X post: $(cat data/out/social/last_outcome.txt)" >> LAST_RUN.md
+          fi
+          if [ -f data/out/social/bluesky_outcome.txt ]; then
+            echo "" >> LAST_RUN.md
+            echo "Bluesky post: $(cat data/out/social/bluesky_outcome.txt)" >> LAST_RUN.md
+          fi
+          if [ -f data/out/zenodo/last_outcome.txt ]; then
+            echo "" >> LAST_RUN.md
+            echo "Zenodo deposit: $(cat data/out/zenodo/last_outcome.txt)" >> LAST_RUN.md
           fi
           git config user.name "LMIA Watch"
           git config user.email "ops@lmiawatch.invalid"
@@ -280,6 +341,10 @@ jobs:
           items = [f"{x.get('source')}: {x.get('detail', '')}" for x in s.get("stages", []) if not x.get("ok")]
           if s.get("x_post") in ("failed", "no credentials"):
               items.append(f"X post: {s['x_post']}")
+          if s.get("bluesky_post") in ("failed", "no credentials"):
+              items.append(f"Bluesky post: {s['bluesky_post']}")
+          if s.get("zenodo_deposit") == "failed":
+              items.append("Zenodo deposit: failed (tried again next run)")
           for i in items:
               print("ATTENTION:", i)
           sys.exit(1 if items else 0)

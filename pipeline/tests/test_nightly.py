@@ -223,6 +223,31 @@ def test_status_is_written_even_when_nothing_ran(tmp_path):
     assert not (tmp_path / "missing.sqlite").exists()
 
 
+def test_status_carries_the_bluesky_post_and_zenodo_deposit_beside_the_x_post(tmp_path):
+    db = tmp_path / "lmia.sqlite"
+    make_db(db)
+    status = nightly.run_status(db, "2000-01-01T00:00:00Z", {"problems": []}, "posted", {"deploy": "success"},
+                                bluesky="failed", zenodo="deposited")
+    assert (status["x_post"], status["bluesky_post"], status["zenodo_deposit"]) == ("posted", "failed", "deposited")
+    # A refused post or a failed deposit is an alert of its own, never a failed refresh.
+    assert status["ok"] is True
+    missing = nightly.run_status(db, None, None, None, {})
+    assert (missing["bluesky_post"], missing["zenodo_deposit"]) == ("not run", "not run")
+    social = tmp_path / "social"
+    social.mkdir()
+    (social / "bluesky_outcome.txt").write_text("no credentials\n", encoding="utf-8")
+    (tmp_path / "zenodo.txt").write_text("failed\n", encoding="utf-8")
+    out = tmp_path / "status.json"
+    assert nightly.main(["status", "--db", str(db), "--outcome", str(social / "last_outcome.txt"),
+                         "--bluesky-outcome", str(social / "bluesky_outcome.txt"),
+                         "--zenodo-outcome", str(tmp_path / "zenodo.txt"), "--out", str(out)]) == 0
+    written = json.loads(out.read_text())
+    assert (written["x_post"], written["bluesky_post"], written["zenodo_deposit"]) == ("not run", "no credentials", "failed")
+    # Without the new arguments (an older workflow), the fields still appear.
+    assert nightly.main(["status", "--db", str(db), "--out", str(out)]) == 0
+    assert json.loads(out.read_text())["bluesky_post"] == "not run"
+
+
 def test_a_clean_night_reports_ok(tmp_path):
     db = tmp_path / "lmia.sqlite"
     make_db(db)

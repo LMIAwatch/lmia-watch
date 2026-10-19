@@ -1,4 +1,4 @@
-"""Command line: `python -m lmia_pipeline run`, `mark-synced` and `post-digest`."""
+"""Command line: `python -m lmia_pipeline run`, `mark-synced`, `post-digest`, `post-bluesky` and `deposit-zenodo`."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 from typing import Any, Callable
 
-from . import config, export, export_static, indicators, migrate, social, status
+from . import bluesky, config, export, export_static, indicators, migrate, social, status, zenodo
 from .db import connect, hours_since, log_run
 from .http import PoliteClient
 from .sources import esdc, geography, ircc, jobbank, lfs, registry_bc, registry_federal, registry_quebec, wages
@@ -78,7 +78,23 @@ def build_parser() -> argparse.ArgumentParser:
     pd.add_argument("--dry-run", action="store_true", help="print the post and send nothing")
     pd.add_argument("--link", action="store_true", help="include the site link (X bills a post with a link at thirteen times the rate)")
     pd.add_argument("--no-image", action="store_true", help="post the text without the card image")
+
+    pb = sub.add_parser("post-bluesky", help="post the daily digest of new postings to Bluesky")
+    pb.add_argument("--db", default=None, help="SQLite path (default data/lmia.sqlite)")
+    pb.add_argument("--dry-run", action="store_true", help="print the post and send nothing")
+    pb.add_argument("--no-image", action="store_true", help="post the text without the card image")
+
+    dz = sub.add_parser("deposit-zenodo", help="deposit the OGL files on Zenodo when a new ESDC quarter is loaded")
+    dz.add_argument("--db", default=None, help="SQLite path (default data/lmia.sqlite)")
+    dz.add_argument("--csv-dir", default=None, help="the CSV export (default data/out/csv)")
+    dz.add_argument("--dry-run", action="store_true", help="check the files and print what would be deposited")
     return parser
+
+
+def _outcome_file(folder: str, name: str, outcome: str) -> None:
+    out = config.OUT_DIR / folder
+    out.mkdir(parents=True, exist_ok=True)
+    (out / name).write_text(outcome + "\n", encoding="utf-8")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -121,6 +137,23 @@ def _command(conn: sqlite3.Connection, args: argparse.Namespace) -> int:
         out.mkdir(parents=True, exist_ok=True)
         (out / "last_outcome.txt").write_text(outcome + "\n", encoding="utf-8")
         return 1 if outcome in ("failed", "no credentials") else 0
+
+    # Same shape as post-digest. "failed" is written first and replaced by the
+    # real outcome at the end, so a step the workflow kills part way (its time
+    # limit) still reads as failed in the run status.
+    if args.command == "post-bluesky":
+        _outcome_file("social", "bluesky_outcome.txt", "failed")
+        outcome = bluesky.run(conn, dry_run=args.dry_run, image=not args.no_image)
+        log.info("post-bluesky: %s", outcome)
+        _outcome_file("social", "bluesky_outcome.txt", outcome)
+        return 1 if outcome in ("failed", "no credentials") else 0
+
+    if args.command == "deposit-zenodo":
+        _outcome_file("zenodo", "last_outcome.txt", "failed")
+        outcome = zenodo.run(conn, Path(args.csv_dir) if args.csv_dir else None, dry_run=args.dry_run)
+        log.info("deposit-zenodo: %s", outcome)
+        _outcome_file("zenodo", "last_outcome.txt", outcome)
+        return 1 if outcome == "failed" else 0
 
     selected = [s for s in STAGES if getattr(args, s)]
     stages = selected or STAGES

@@ -1,4 +1,5 @@
 import type { Context } from "hono";
+import { HowToCite } from "../cite";
 import { loadStats } from "../data";
 import type { AppEnv } from "../env";
 import { t, tj, type Key, type Lang } from "../i18n";
@@ -131,6 +132,8 @@ export async function dataPage(c: Context<AppEnv>): Promise<Response> {
             </table>
           </div>
 
+          <HowToCite lang={lang} citation={stats.citation} />
+
           <h2 id="api">{t(lang, "data.toc_api")}</h2>
           <p>{t(lang, "data.api_text")}</p>
           <p class="muted small">{t(lang, "data.api_limits")}</p>
@@ -236,6 +239,7 @@ export async function dataPage(c: Context<AppEnv>): Promise<Response> {
           <p>{t(lang, "data.about_records")}</p>
           <p>{t(lang, "data.about_enforcement")}</p>
           <p>{tj(lang, "data.about_contact", { form: <a href="/corrections">{t(lang, "data.about_form")}</a> })}</p>
+          <p>{t(lang, "data.views_note")}</p>
         </div>
       </div>
     </Layout>,

@@ -1143,6 +1143,28 @@ const STRINGS = {
   "employer.map_credit": { en: "Map: OpenStreetMap contributors", fr: "Carte : contributeurs OpenStreetMap" },
   "limits.too_many_api": { en: "Too many requests. The API allows 60 requests a minute per address; bulk users should use the downloads.", fr: "Trop de requêtes. L'API permet 60 requêtes par minute et par adresse; pour un usage en masse, utilisez les téléchargements." },
   "limits.too_many": { en: "Too many requests from this address. Try again in a minute.", fr: "Trop de requêtes depuis cette adresse. Réessayez dans une minute." },
+  // --- measurement, citation and bluesky ---
+  "data.views_note": {
+    en: "The site counts the pages it serves in aggregate, on its own server: for each response it keeps the kind of page, the language, the country reported by Cloudflare's network, the name of the referring website and the response status. It sets no cookie for this, runs no tracking script in the browser, and keeps no IP address or other personal data.",
+    fr: "Le site compte de façon agrégée les pages qu'il sert, sur son propre serveur : pour chaque réponse, il conserve le type de page, la langue, le pays indiqué par le réseau de Cloudflare, le nom du site d'où vient le visiteur et le statut de la réponse. Il ne dépose aucun témoin à cette fin, n'exécute aucun script de suivi dans le navigateur et ne conserve aucune adresse IP ni autre donnée personnelle.",
+  },
+  "cite.title": { en: "How to Cite", fr: "Comment citer" },
+  "cite.text": {
+    en: "Each new ESDC quarter is deposited on Zenodo, with a DOI, as a version of the files derived from ESDC's lists alone (approved_quarterly.csv, refused_quarterly.csv and esdc_resources.csv). Cite the version you used:",
+    fr: "Chaque nouveau trimestre d'EDSC est déposé sur Zenodo, avec un DOI, comme version des fichiers tirés des seules listes d'EDSC (approved_quarterly.csv, refused_quarterly.csv et esdc_resources.csv). Citez la version utilisée :",
+  },
+  "cite.reference": {
+    en: "{author} ({year}). {title} (Version {version}) [Data set]. Zenodo. {doi}",
+    fr: "{author} ({year}). {title} (version {version}) [Jeu de données]. Zenodo. {doi}",
+  },
+  "cite.concept": {
+    en: "To cite every version at once, or to point at whichever version is newest, use the concept DOI {doi}.",
+    fr: "Pour citer toutes les versions à la fois, ou pour renvoyer à la plus récente, utilisez le DOI de concept {doi}.",
+  },
+  "support.bluesky_free": {
+    en: "The same daily post on Bluesky is free to send, so it carries a link to the site.",
+    fr: "La même publication quotidienne sur Bluesky est gratuite, et elle comporte donc un lien vers le site.",
+  },
 } as const satisfies Record<string, Entry>;
 
 export type Key = keyof typeof STRINGS;

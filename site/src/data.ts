@@ -51,6 +51,16 @@ export interface Stats {
   top_approvals: { employer_id: string; employer: string; city: string | null; prov: string | null; stream: string | null; positions: number }[];
   resources: { dataset: string; period: string; published: string | null; rows_loaded: number; loaded_at: string }[];
   runs: { run_at: string; source: string; detail: string | null; rows_new: number | null; ok: number }[];
+  // The Zenodo record of the OGL files; absent or null until one is published.
+  citation?: Citation | null;
+}
+
+export interface Citation {
+  title: string;
+  concept_doi: string;
+  doi: string | null;
+  version: string | null;
+  published: string | null;
 }
 
 export interface Profile {

@@ -22,11 +22,21 @@ python -m lmia_pipeline run --export                             # csv, mirror a
 python -m lmia_pipeline run --export --d1 --full                 # paid-plan path: D1 batches too
 python -m lmia_pipeline mark-synced                              # after D1 batches were applied
 python -m lmia_pipeline post-digest --dry-run                    # print the daily X post, send nothing
+python -m lmia_pipeline post-bluesky --dry-run                   # print the daily Bluesky post, send nothing
+python -m lmia_pipeline deposit-zenodo --dry-run                 # list what a Zenodo deposit would hold
 ```
 `post-digest` posts one message a day to X from the postings first seen on the
 latest Job Bank pass, when `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN` and
 `X_ACCESS_TOKEN_SECRET` are set. It records the posted date in `meta`, so a
 re-run posts nothing, and it always exits 0. Setup: `../docs/x-account.md`.
+`post-bluesky` posts the same digest to Bluesky, with the link, when
+`BSKY_HANDLE` and `BSKY_APP_PASSWORD` are set; its own date in `meta` keeps
+it to one post per pass. Setup: `../docs/bluesky-account.md`.
+`deposit-zenodo` deposits the OGL CSVs as a new version of the Zenodo record
+when a new ESDC quarter is loaded, when `ZENODO_TOKEN` is set
+(`ZENODO_SANDBOX=true` for the sandbox). Setup: `../docs/zenodo.md`.
+Both write their outcome under `data/out/` and exit 1 on a failure, for the
+workflow's run status; neither raises.
 Stage order: esdc, ircc, jobbank, registry (BC, federal, Quebec), wages, lfs,
 geography, indicators and status, export.
 Before any stage, `run` compares `meta.normalize_version` with
@@ -55,6 +65,9 @@ marking, because a capped run has not seen the whole feed.
 | `export_static.py` | the JSON files the site serves |
 | `social.py` | the daily X digest: compose, save to `data/out/social/`, post (separate `post-digest` command) |
 | `social_card.py` | the card image attached to the digest, drawn with Pillow from the day's figures |
+| `bluesky.py` | the same digest and card on Bluesky over the AT Protocol, with a link facet (separate `post-bluesky` command) |
+| `zenodo.py` | the citable release: a new Zenodo version of the OGL CSVs per ESDC quarter, DOIs into `meta` (separate `deposit-zenodo` command) |
+| `nightly.py` | the workflow's restore, verify and status commands |
 
 ## Outputs
 ```

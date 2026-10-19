@@ -49,6 +49,7 @@ from xml.sax.saxutils import escape
 from . import config
 from .db import log_run
 from .normalize import period_end_date, period_sort_key
+from .zenodo import citation_from_meta
 
 SEARCH_FROM_PERIOD = "2023Q4"
 FIRST_ROWS = 500
@@ -312,6 +313,8 @@ def write_stats(conn: sqlite3.Connection, out: Path, latest: str, ind: dict[str,
         "top_approvals": top,
         "resources": resources,
         "runs": runs,
+        # The Zenodo record behind "How to cite"; null until one is published.
+        "citation": citation_from_meta(meta),
     }
     _dump(out / "stats.json", stats)
     return stats

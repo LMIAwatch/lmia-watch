@@ -1,4 +1,5 @@
 import type { Context } from "hono";
+import { HowToCite } from "../cite";
 import { loadStats } from "../data";
 import type { AppEnv } from "../env";
 import { indicatorLabel, t, tj, type Key } from "../i18n";
@@ -197,6 +198,7 @@ export async function methodologyPage(c: Context<AppEnv>): Promise<Response> {
               data: <a href="/data#changelog">{t(lang, "methodology.data_page")}</a>,
             })}
           </p>
+          <HowToCite lang={lang} citation={stats?.citation} />
         </div>
       </div>
     </Layout>,

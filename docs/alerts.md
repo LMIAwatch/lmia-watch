@@ -10,13 +10,14 @@ Every day at 06:00 UTC (after the nightly run's window) a cron trigger runs
 
 - `stats.json` (the data date on every page),
 - the upload time of `lmia.sqlite.gz` in R2 (the backup),
-- `status.json` in R2 (when the run finished, which stages succeeded, the
-  X post's outcome).
+- `status.json` in R2 (when the run finished, which stages succeeded, and
+  the outcomes of the X post, the Bluesky post and the Zenodo deposit).
 
 It emails when the data is more than two and a half days old, the backup or
 the status is missing or older than 36 hours, a stage or a workflow step
 (restore, deploy, save) failed, the checks held back the night's data, the
-status file cannot be read, or X refused the post. One email a day at most, repeated while an item remains. Nothing
+status file cannot be read, X or Bluesky refused the post, or the Zenodo
+deposit failed. One email a day at most, repeated while an item remains. Nothing
 is sent on a healthy day.
 
 ### One-time setup (dashboard, since the project token cannot do it)
@@ -39,8 +40,9 @@ quietly.
 
 ## 2. GitHub's failed-workflow email
 
-The nightly workflow's last step fails the run when a stage failed or the X
-post was refused, after everything else has been saved and recorded. GitHub
+The nightly workflow's last step fails the run when a stage failed, the X or
+Bluesky post was refused, or the Zenodo deposit failed, after everything else
+has been saved and recorded. GitHub
 then emails the account that owns the repository, provided its notification
 settings keep "Actions: failed workflows" on (the default).
 
@@ -53,3 +55,5 @@ settings keep "Actions: failed workflows" on (the default).
 | Stage `jobbank` failed | Job Bank changed its pages or blocked the crawler | Check the run log; the page structure may need a parser update |
 | Stage `esdc` failed | The open-data portal changed a file layout | Same |
 | X post refused | Credits exhausted, keys revoked, or X down | X developer console: credits and app keys |
+| Bluesky post refused | App password revoked, the handle changed without the `BSKY_HANDLE` secret, or Bluesky down | `docs/bluesky-account.md`: make a new app password, update the secrets |
+| Zenodo deposit failed | Token revoked or expired, Zenodo down, or a field refused | The run log quotes Zenodo's answer; the next night tries again (`docs/zenodo.md`) |

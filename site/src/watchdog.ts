@@ -3,7 +3,8 @@ import { loadStats } from "./data";
 
 // A daily check, run by the cron trigger, that emails the operator when the
 // site needs a hand: data that stopped refreshing, a backup that stopped
-// arriving, a refresh whose stages failed, or a daily post that X refused.
+// arriving, a refresh whose stages failed, a daily post that X or Bluesky
+// refused, or a Zenodo deposit that failed.
 // It reads only what the nightly run leaves behind (the stats file, the
 // backup's timestamp, status.json in R2), so a run that never happened is
 // caught as well as one that failed. Sending goes through Cloudflare's email
@@ -18,6 +19,8 @@ export type RunStatus = {
   run_at?: string;
   ok?: boolean;
   x_post?: string;
+  bluesky_post?: string;
+  zenodo_deposit?: string;
   stages?: { source: string; ok: boolean; detail?: string }[];
 };
 
@@ -44,6 +47,8 @@ export function readStatus(raw: unknown): { status: RunStatus | null; problem: s
   else unreadable.push("run_at");
   if (typeof r.ok === "boolean") status.ok = r.ok;
   if (typeof r.x_post === "string") status.x_post = r.x_post;
+  if (typeof r.bluesky_post === "string") status.bluesky_post = r.bluesky_post;
+  if (typeof r.zenodo_deposit === "string") status.zenodo_deposit = r.zenodo_deposit;
   if (Array.isArray(r.stages)) {
     status.stages = r.stages.map((s) => {
       if (!s || typeof s !== "object") return { source: "unknown", ok: false, detail: "unreadable stage entry" };
@@ -92,6 +97,12 @@ export function collectAlerts(i: Inputs): string[] {
     }
     if (i.status.x_post === "failed" || i.status.x_post === "no credentials") {
       out.push(`The daily X post did not go out (${i.status.x_post}). Check the credits in the X developer console and the run log.`);
+    }
+    if (i.status.bluesky_post === "failed" || i.status.bluesky_post === "no credentials") {
+      out.push(`The daily Bluesky post did not go out (${i.status.bluesky_post}). Check the app password in the BSKY_APP_PASSWORD secret and the run log.`);
+    }
+    if (i.status.zenodo_deposit === "failed") {
+      out.push("The Zenodo deposit of the new ESDC quarter failed. The next run tries again; check the ZENODO_TOKEN secret and the run log.");
     }
   }
   return out;
