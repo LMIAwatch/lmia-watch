@@ -6,6 +6,20 @@ import { t, tj, type Key, type Lang } from "../i18n";
 import { Layout, fmtInt, noDataPage, page, periodLabel } from "../layout";
 import { datasetJsonLd, pageSeo } from "../seo";
 
+// The changelog, newest first whatever order the entries are written in.
+// Add an entry here; the table sorts by date.
+export type ChangeRow = { date: string; change: Key; recomputed: Key; vars?: Record<string, string> };
+export const CHANGELOG: readonly ChangeRow[] = [
+  { date: "2026-10-12", change: "data.change_drafted", recomputed: "data.recomputed_all", vars: { rules: "0.1" } },
+  { date: "2026-10-17", change: "data.change_wages", recomputed: "data.recomputed_wages", vars: { rules: "0.2" } },
+  { date: "2026-10-18", change: "data.change_matching", recomputed: "data.recomputed_profiles" },
+];
+export function changelog(latestPeriod: string): ChangeRow[] {
+  return [...CHANGELOG]
+    .map((row) => (row.change === "data.change_drafted" ? { ...row, vars: { ...row.vars, period: latestPeriod } } : row))
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+}
+
 export const DOWNLOADS: { file: string; contents: Key }[] = [
   { file: "pending_observations.csv", contents: "data.file.pending_observations" },
   { file: "approved_quarterly.csv", contents: "data.file.approved_quarterly" },
@@ -180,21 +194,13 @@ export async function dataPage(c: Context<AppEnv>): Promise<Response> {
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td class="mono nw">2026-10-12</td>
-                  <td>{t(lang, "data.change_drafted", { rules: "0.1", period: latestPeriod })}</td>
-                  <td>{t(lang, "data.recomputed_all")}</td>
-                </tr>
-                <tr>
-                  <td class="mono nw">2026-10-17</td>
-                  <td>{t(lang, "data.change_wages", { rules: "0.2" })}</td>
-                  <td>{t(lang, "data.recomputed_wages")}</td>
-                </tr>
-                <tr>
-                  <td class="mono nw">2026-10-18</td>
-                  <td>{t(lang, "data.change_matching")}</td>
-                  <td>{t(lang, "data.recomputed_profiles")}</td>
-                </tr>
+                {changelog(latestPeriod).map((row) => (
+                  <tr>
+                    <td class="mono nw">{row.date}</td>
+                    <td>{t(lang, row.change, row.vars)}</td>
+                    <td>{t(lang, row.recomputed)}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

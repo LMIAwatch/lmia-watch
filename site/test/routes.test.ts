@@ -133,6 +133,8 @@ describe("pages", () => {
     expect(data).toContain("Labour Force Survey table 14-10-0459-01");
     expect(data).toContain("Statistics Canada Open Licence");
     expect(data).toContain('<td class="mono nw">2026-10-17</td>');
+    // Newest change first.
+    expect(data.indexOf('<td class="mono nw">2026-10-18</td>')).toBeLessThan(data.indexOf('<td class="mono nw">2026-10-12</td>'));
     expect(data).toContain("Indicator rules v0.2.");
     expect(data).not.toContain("planned");
     expect(data.split('class="table-wrap bordered scroll-y"').length - 1).toBe(2);
