@@ -58,7 +58,10 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 420
+    # GitHub ends a hosted job at six hours whatever this says, and a job
+    # ended that way skips the deploy, the backup and the status file. The
+    # Job Bank stage caps itself at four hours so the rest always fits.
+    timeout-minutes: 350
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
