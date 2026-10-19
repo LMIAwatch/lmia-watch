@@ -156,6 +156,9 @@ export const Layout: FC<
   const nav = [
     ["/search", "nav.search"],
     ["/map", "nav.map"],
+    ["/occupations", "nav.occupations"],
+    ["/places", "nav.places"],
+    ["/releases", "nav.releases"],
     ["/methodology", "nav.methodology"],
     ["/data", "nav.data"],
     ["/support", "nav.support"],
@@ -218,6 +221,8 @@ export const Layout: FC<
           <div class="container footer-row">
             <span>{t(lang, "footer.sources")}</span>
             <a href="/data#downloads">{t(lang, "footer.download")}</a>
+            <a href="/watchlist">{t(lang, "footer.watchlist")}</a>
+            <a href="/feeds">{t(lang, "footer.feeds")}</a>
             <a href="/corrections">{t(lang, "footer.corrections")}</a>
             <a href="/support">{t(lang, "footer.support")}</a>
             <span class="footer-copyright">{t(lang, "footer.copyright")}</span>
