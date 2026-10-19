@@ -48,6 +48,7 @@ from xml.sax.saxutils import escape
 
 from . import config
 from .db import log_run
+from .feeds import write_feeds
 from .normalize import period_end_date, period_sort_key
 from .zenodo import citation_from_meta
 
@@ -399,6 +400,9 @@ def sitemap_entries(conn: sqlite3.Connection, data_as_of: str | None) -> list[tu
     """
     dated = _lastmod(data_as_of)
     entries: list[tuple[str, str | None]] = [(p, dated if p in SITEMAP_DATED_PAGES else None) for p in SITEMAP_PAGES]
+    # Feeds and the browser watchlist. The feed list follows the nightly data;
+    # the watchlist page changes only with the code.
+    entries += [("/feeds", dated), ("/watchlist", None)]
     entries += [(f"/employers/{r['id']}", _lastmod(r["updated_at"]))
                 for r in conn.execute("SELECT id, updated_at FROM employers ORDER BY id")]
     return entries
@@ -482,6 +486,7 @@ def _write_static(conn: sqlite3.Connection, out: Path) -> dict[str, int]:
                                               "total": len(rows), "rows": rows[:AREA_ROW_CAP]})
         areas += 1
     counts["areas"] = areas
+    counts.update(write_feeds(conn, out))
     counts["profile_shards"] = write_profiles(conn, out)
     counts.update(write_sitemaps(conn, out, config.SITE_URL, stats["data_as_of"]))
     counts["employers"] = stats["counts"]["employers"]

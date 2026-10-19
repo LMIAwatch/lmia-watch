@@ -13,12 +13,14 @@ import { langFrom, t, tj } from "./i18n";
 import { Layout, page } from "./layout";
 import { DOWNLOADS, dataPage } from "./pages/data";
 import { employerPage } from "./pages/employer";
+import { feedsPage } from "./pages/feeds";
 import { correctionsForm, correctionsSubmit, respondForm, respondSubmit } from "./pages/forms";
 import { homePage } from "./pages/home";
 import { mapPage } from "./pages/map";
 import { methodologyPage } from "./pages/methodology";
 import { searchPage } from "./pages/search";
 import { supportPage } from "./pages/support";
+import { watchlistPage } from "./pages/watchlist";
 import { robotsTxt, sitemapFile } from "./seo";
 
 const app = new Hono<AppEnv>();
@@ -71,6 +73,10 @@ app.get("/map", mapPage);
 app.get("/methodology", methodologyPage);
 app.get("/data", dataPage);
 app.get("/support", supportPage);
+// Feeds are static files under /data/feeds/; this page lists them. The
+// watchlist lives in the visitor's browser; this page is its shell.
+app.get("/feeds", feedsPage);
+app.get("/watchlist", watchlistPage);
 app.get("/employers/:id", employerPage);
 app.get("/employers/:id/respond", (c) => respondForm(c));
 app.post("/employers/:id/respond", respondSubmit);

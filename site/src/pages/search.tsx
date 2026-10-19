@@ -7,6 +7,7 @@ import {
 } from "../i18n";
 import { Badge, Chip, ClientData, Layout, fmtInt, fmtWage, noDataPage, page, periodLabel } from "../layout";
 import { pageSeo } from "../seo";
+import { FeedLinks } from "./feeds";
 
 // A plain visit (no filters, newest first, an early page) is rendered here from
 // search/first.json, so it needs no JavaScript and no dataset download. Every
@@ -127,7 +128,8 @@ export async function searchPage(c: Context<AppEnv>): Promise<Response> {
 
   return page(
     c,
-    <Layout lang={lang} title={t(lang, "nav.search")} dataAsOf={stats.data_as_of} active="/search" seo={pageSeo("search", lang)}>
+    <Layout lang={lang} title={t(lang, "nav.search")} dataAsOf={stats.data_as_of} active="/search" seo={pageSeo("search", lang)}
+      head={<FeedLinks lang={lang} />}>
       <form action="/search" method="get" class="search-page" id="search-form">
         <div class="search-form top-gap">
           <label for="q" class="visually-hidden">{t(lang, "search.button")}</label>

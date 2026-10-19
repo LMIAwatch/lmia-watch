@@ -4,6 +4,7 @@ import type { AppEnv } from "../env";
 import { provinceName, streamLabel, t, tj } from "../i18n";
 import { Badge, Layout, fmtInt, noDataPage, page, periodLabel } from "../layout";
 import { homeJsonLd, pageSeo } from "../seo";
+import { FeedLinks } from "./feeds";
 
 export async function homePage(c: Context<AppEnv>): Promise<Response> {
   const lang = c.get("lang");
@@ -75,7 +76,8 @@ export async function homePage(c: Context<AppEnv>): Promise<Response> {
 
   return page(
     c,
-    <Layout lang={lang} title={t(lang, "common.home")} dataAsOf={stats.data_as_of} active="/" seo={pageSeo("home", lang, { jsonLd: [homeJsonLd(lang)] })}>
+    <Layout lang={lang} title={t(lang, "common.home")} dataAsOf={stats.data_as_of} active="/" seo={pageSeo("home", lang, { jsonLd: [homeJsonLd(lang)] })}
+      head={<FeedLinks lang={lang} />}>
       <section class="hero">
         <h1>{t(lang, "home.h1")}</h1>
         <p class="lead">{t(lang, "home.lead")}</p>

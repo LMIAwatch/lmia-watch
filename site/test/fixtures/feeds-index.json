@@ -1,0 +1,22 @@
+{
+  "as_of": "2026-10-12",
+  "fresh_days": 90,
+  "max_entries": 50,
+  "quarter_fresh_days": 400,
+  "feeds": [
+    { "entries": 4, "event": "pending", "key": "", "name": null, "path": "feeds/canada/pending.xml", "scope": "canada", "updated": "2026-10-12T03:00:00Z" },
+    { "entries": 1, "event": "approved", "key": "", "name": null, "path": "feeds/canada/approved.xml", "scope": "canada", "updated": "2026-10-11T03:00:00Z" },
+    { "entries": 0, "event": "findings", "key": "", "name": null, "path": "feeds/canada/findings.xml", "scope": "canada", "updated": null },
+    { "entries": 3, "event": "quarters", "key": "", "name": null, "path": "feeds/canada/quarters.xml", "scope": "canada", "updated": "2026-07-22T00:00:00Z" },
+    { "entries": 2, "event": "pending", "key": "BC", "name": null, "path": "feeds/prov/BC/pending.xml", "scope": "prov", "updated": "2026-10-12T03:00:00Z" },
+    { "entries": 3, "event": "quarters", "key": "BC", "name": null, "path": "feeds/prov/BC/quarters.xml", "scope": "prov", "updated": "2026-07-22T00:00:00Z" },
+    { "entries": 1, "event": "quarters", "key": "XX", "name": null, "path": "feeds/prov/XX/quarters.xml", "scope": "prov", "updated": "2026-07-22T00:00:00Z" },
+    { "entries": 1, "event": "findings", "key": "NL", "name": null, "path": "feeds/prov/NL/findings.xml", "scope": "prov", "updated": "2026-10-10T03:00:00Z" },
+    { "entries": 3, "event": "quarters", "key": "primary-agriculture", "name": "Primary Agriculture", "path": "feeds/stream/primary-agriculture/quarters.xml", "scope": "stream", "updated": "2026-07-22T00:00:00Z" },
+    { "entries": 2, "event": "pending", "key": "73", "name": null, "path": "feeds/noc/73/pending.xml", "scope": "noc", "updated": "2026-10-12T03:00:00Z" },
+    { "entries": 3, "event": "quarters", "key": "85", "name": null, "path": "feeds/noc/85/quarters.xml", "scope": "noc", "updated": "2026-07-22T00:00:00Z" },
+    { "entries": 2, "event": "pending", "key": "933", "name": "Vancouver", "path": "feeds/cma/933/pending.xml", "scope": "cma", "updated": "2026-10-12T03:00:00Z" },
+    { "entries": 1, "event": "quarters", "key": "915", "name": "Kelowna", "path": "feeds/cma/915/quarters.xml", "scope": "cma", "updated": "2026-07-22T00:00:00Z" },
+    { "entries": 1, "event": "pending", "key": "bad", "name": null, "path": "../secrets.xml", "scope": "cma", "updated": "2026-10-12T03:00:00Z" }
+  ]
+}

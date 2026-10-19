@@ -4,6 +4,7 @@ import type { AppEnv } from "../env";
 import { basisText, indicatorLabel, indicatorStateLabel, streamLabel, t, tj, tn, type Key, type Lang } from "../i18n";
 import { Badge, Layout, fmtInt, fmtWage, noDataPage, page, periodLabel } from "../layout";
 import { sourceLabel } from "./search";
+import { WATCH_MAX } from "./watchlist";
 import { MiniMap } from "../minimap";
 import { profileSeo } from "../seo";
 
@@ -208,6 +209,11 @@ export async function employerPage(c: Context<AppEnv>): Promise<Response> {
           </p>
         </div>
         <div class="actions">
+          {/* Shown by watchlist.js when this browser can store the list; the list never leaves the browser. */}
+          <button type="button" class="btn" id="watch-toggle" data-employer={employer.id} data-max={String(WATCH_MAX)}
+            data-label-off={t(lang, "watch.watch")} data-label-on={t(lang, "watch.watching")}
+            data-label-full={t(lang, "watch.full", { max: WATCH_MAX })} title={t(lang, "watch.button_title")}
+            aria-pressed="false" style="display:none">{t(lang, "watch.watch")}</button>
           <a href={`/employers/${employer.id}/respond`} class="btn">{t(lang, "employer.respond")}</a>
           <a href={`/corrections?employer=${employer.id}`} class="btn">{t(lang, "employer.correct")}</a>
           <a href={REPORT_URL} class="btn btn-active" rel="noopener">{t(lang, "employer.report")}</a>
@@ -444,6 +450,7 @@ export async function employerPage(c: Context<AppEnv>): Promise<Response> {
         <p>{tj(lang, "employer.info_report", { form: <a href={REPORT_URL} rel="noopener">{t(lang, "employer.info_form")}</a> })}</p>
         <p>{t(lang, "employer.info_rights")}</p>
       </section>
+      <script src="/watchlist.js"></script>
     </Layout>,
   );
 }

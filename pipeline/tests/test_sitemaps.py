@@ -26,11 +26,11 @@ def locs(root, tag):
 
 
 def test_parts_respect_the_limit_and_the_index_lists_them(conn, tmp_path):
-    ids = seed(conn, 5)
-    conn.execute("UPDATE employers SET updated_at = '2026-10-15T03:00:00Z' WHERE id = ?", (ids[4],))
+    ids = seed(conn, 3)
+    conn.execute("UPDATE employers SET updated_at = '2026-10-15T03:00:00Z' WHERE id = ?", (ids[2],))
     counts = export_static.write_sitemaps(conn, tmp_path, BASE + "/", "2026-10-12", max_urls=4)
 
-    # 7 fixed pages and 5 profiles, four to a file.
+    # 7 fixed pages, the feeds and watchlist pages and 3 profiles, four to a file.
     assert counts == {"sitemap_files": 3, "sitemap_urls": 12}
     parts = [locs(parse(tmp_path / "sitemaps" / f"sitemap-{n}.xml"), "url") for n in (1, 2, 3)]
     assert [len(p) for p in parts] == [4, 4, 4]
@@ -39,7 +39,8 @@ def test_parts_respect_the_limit_and_the_index_lists_them(conn, tmp_path):
     flat = [entry for part in parts for entry in part]
     urls = [u for u, _ in flat]
     assert urls[:7] == [BASE + p for p in export_static.SITEMAP_PAGES]
-    assert urls[7:] == [f"{BASE}/employers/{i}" for i in ids]
+    assert urls[7:9] == [BASE + "/feeds", BASE + "/watchlist"]
+    assert urls[9:] == [f"{BASE}/employers/{i}" for i in ids]
     assert len(set(urls)) == len(urls)
     assert all("?" not in u for u in urls)
 
@@ -48,7 +49,8 @@ def test_parts_respect_the_limit_and_the_index_lists_them(conn, tmp_path):
     # Pages that change only with the code carry no date at all.
     assert lastmod[BASE + "/methodology"] is None and lastmod[BASE + "/corrections"] is None
     assert lastmod[f"{BASE}/employers/{ids[0]}"] == "2026-10-12"
-    assert lastmod[f"{BASE}/employers/{ids[4]}"] == "2026-10-15"
+    assert lastmod[f"{BASE}/employers/{ids[2]}"] == "2026-10-15"
+    assert lastmod[BASE + "/feeds"] == "2026-10-12" and lastmod[BASE + "/watchlist"] is None
 
     index = parse(tmp_path / "sitemaps" / "index.xml")
     assert index.tag == f"{{{export_static.SITEMAP_NS}}}sitemapindex"
@@ -80,11 +82,11 @@ def test_static_export_writes_the_sitemaps(conn, tmp_path, monkeypatch):
     monkeypatch.setattr(config, "SITE_URL", BASE)
     ids = seed(conn, 3)
     counts = export_static.export_static(conn, tmp_path / "static")
-    assert counts["sitemap_files"] == 1 and counts["sitemap_urls"] == 10
+    assert counts["sitemap_files"] == 1 and counts["sitemap_urls"] == 12
     part = parse(tmp_path / "static" / "sitemaps" / "sitemap-1.xml")
     assert part.tag == f"{{{export_static.SITEMAP_NS}}}urlset"
     urls = [u for u, _ in locs(part, "url")]
-    assert urls == [BASE + p for p in export_static.SITEMAP_PAGES] + [f"{BASE}/employers/{i}" for i in ids]
+    assert urls == [BASE + p for p in export_static.SITEMAP_PAGES + ["/feeds", "/watchlist"]] + [f"{BASE}/employers/{i}" for i in ids]
     text = (tmp_path / "static" / "sitemaps" / "index.xml").read_text(encoding="utf-8")
     assert text.startswith('<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex ')
     assert f"<loc>{BASE}/sitemap-1.xml</loc>" in text
