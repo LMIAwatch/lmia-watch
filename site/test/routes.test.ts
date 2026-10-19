@@ -90,6 +90,12 @@ describe("pages", () => {
     const refused = await (await get("/employers/emp-a000000008")).text();
     expect(refused).toContain("ESDC negative 2026Q1");
     expect(refused).toContain("Refused");
+    // The timeline reads newest first; the awaiting-decision line, when present, sits above the dated events.
+    const timeline = html.slice(html.indexOf('<ol class="timeline">'), html.indexOf("</ol>", html.indexOf('<ol class="timeline">')));
+    const dates = [...timeline.matchAll(/<li class="tl-(?!future)[a-z]+"><span class="mono">(\d{4}-\d{2}-\d{2})<\/span>/g)].map((m) => m[1]);
+    expect(dates.length).toBeGreaterThan(1);
+    expect([...dates].sort().reverse()).toEqual(dates);
+    if (timeline.includes('class="tl-future"')) expect(timeline.indexOf('class="tl-future"')).toBeLessThan(timeline.search(/<li class="tl-(?!future)/));
   });
 
   it("unknown or malformed employer ids are 404s in the layout", async () => {

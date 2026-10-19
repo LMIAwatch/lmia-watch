@@ -169,7 +169,8 @@ export async function employerPage(c: Context<AppEnv>): Promise<Response> {
       });
     }
   }
-  events.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  // Newest first, so a long record opens on what happened last.
+  events.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
 
   const statusNote =
     employer.current_status === "pending" && pendingPosting
@@ -357,12 +358,12 @@ export async function employerPage(c: Context<AppEnv>): Promise<Response> {
       <section>
         <h2>{t(lang, "employer.timeline")}</h2>
         <ol class="timeline">
-          {events.map((e) => (
-            <li class={`tl-${e.kind}`}><span class="mono">{e.date}</span> {e.text}</li>
-          ))}
           {employer.current_status === "pending" ? (
             <li class="tl-future"><span class="mono">{t(lang, "employer.pending_label")}</span> {t(lang, "employer.ev_decision")}</li>
           ) : null}
+          {events.map((e) => (
+            <li class={`tl-${e.kind}`}><span class="mono">{e.date}</span> {e.text}</li>
+          ))}
           {events.length === 0 ? <li class="muted">{t(lang, "employer.no_dated")}</li> : null}
         </ol>
       </section>
