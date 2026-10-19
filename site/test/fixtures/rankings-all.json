@@ -1,0 +1,241 @@
+{
+  "employers": [
+    {
+      "city": "Wilsonville",
+      "id": "emp-631b67144f",
+      "name": "Procyk Farms (1994) Ltd",
+      "positions": 7184,
+      "prov": "ON",
+      "rows": 38
+    },
+    {
+      "city": "Kelowna",
+      "id": "emp-e70240102a",
+      "name": "Jealous Fruits Ltd.",
+      "positions": 5559,
+      "prov": "BC",
+      "rows": 48
+    },
+    {
+      "city": "St-Hyacinthe",
+      "id": "emp-a4ddb057d1",
+      "name": "Olymel s.e.c. / l.p",
+      "positions": 4809,
+      "prov": "QC",
+      "rows": 135
+    }
+  ],
+  "no_occupation_periods": [
+    "2014",
+    "2015"
+  ],
+  "occupations": [
+    {
+      "codes": 475,
+      "era": "2011",
+      "periods": [
+        "2016",
+        "2017Q1-Q2",
+        "2017Q3",
+        "2017Q4",
+        "2018Q1",
+        "2018Q2",
+        "2018Q3",
+        "2018Q4",
+        "2019Q1",
+        "2019Q2",
+        "2019Q3",
+        "2019Q4",
+        "2020Q1",
+        "2020Q2",
+        "2020Q3",
+        "2020Q4",
+        "2021Q1",
+        "2021Q2",
+        "2021Q3",
+        "2021Q4",
+        "2022Q1",
+        "2022Q2",
+        "2022Q3",
+        "2022Q4",
+        "2023Q1",
+        "2023Q2",
+        "2023Q3",
+        "2023Q4",
+        "2024Q1"
+      ],
+      "positions": 1031806,
+      "rows": [
+        {
+          "code": "8431",
+          "positions": 399158,
+          "rows": 41155,
+          "title": "General farm workers"
+        },
+        {
+          "code": "8432",
+          "positions": 115422,
+          "rows": 7122,
+          "title": "Nursery and greenhouse workers"
+        },
+        {
+          "code": "6322",
+          "positions": 47215,
+          "rows": 29211,
+          "title": "Cooks"
+        }
+      ]
+    },
+    {
+      "codes": 477,
+      "era": "2021",
+      "periods": [
+        "2024Q2",
+        "2024Q3",
+        "2024Q4",
+        "2025Q1",
+        "2025Q2",
+        "2025Q3",
+        "2025Q4",
+        "2026Q1"
+      ],
+      "positions": 357954,
+      "rows": [
+        {
+          "code": "85101",
+          "positions": 114408,
+          "rows": 8386,
+          "title": "Harvesting labourers"
+        },
+        {
+          "code": "85103",
+          "positions": 22073,
+          "rows": 1713,
+          "title": "Nursery and greenhouse labourers"
+        },
+        {
+          "code": "62020",
+          "positions": 15129,
+          "rows": 8585,
+          "title": "Food service supervisors"
+        }
+      ]
+    }
+  ],
+  "periods": [
+    "2014",
+    "2015",
+    "2016",
+    "2017Q1-Q2",
+    "2017Q3",
+    "2017Q4",
+    "2018Q1",
+    "2018Q2",
+    "2018Q3",
+    "2018Q4",
+    "2019Q1",
+    "2019Q2",
+    "2019Q3",
+    "2019Q4",
+    "2020Q1",
+    "2020Q2",
+    "2020Q3",
+    "2020Q4",
+    "2021Q1",
+    "2021Q2",
+    "2021Q3",
+    "2021Q4",
+    "2022Q1",
+    "2022Q2",
+    "2022Q3",
+    "2022Q4",
+    "2023Q1",
+    "2023Q2",
+    "2023Q3",
+    "2023Q4",
+    "2024Q1",
+    "2024Q2",
+    "2024Q3",
+    "2024Q4",
+    "2025Q1",
+    "2025Q2",
+    "2025Q3",
+    "2025Q4",
+    "2026Q1"
+  ],
+  "provinces": [
+    {
+      "employers": 41955,
+      "k": "ON",
+      "positions": 467434,
+      "rows": 113620
+    },
+    {
+      "employers": 30445,
+      "k": "QC",
+      "positions": 398614,
+      "rows": 107642
+    },
+    {
+      "employers": 32718,
+      "k": "BC",
+      "positions": 317154,
+      "rows": 104500
+    }
+  ],
+  "scope": "all",
+  "streams": {
+    "missing_share": 0.247,
+    "positions": 1065937,
+    "rows": [
+      {
+        "employers": 9572,
+        "k": "Primary Agriculture",
+        "positions": 484963,
+        "rows": 53467
+      },
+      {
+        "employers": 65440,
+        "k": "Low Wage",
+        "positions": 331679,
+        "rows": 146436
+      },
+      {
+        "employers": 57862,
+        "k": "High Wage",
+        "positions": 217628,
+        "rows": 118579
+      }
+    ],
+    "shown": true,
+    "years": [
+      2020,
+      2021,
+      2022,
+      2023,
+      2024,
+      2025,
+      2026
+    ]
+  },
+  "totals": {
+    "employers": 145191,
+    "positions": 1496943,
+    "rows": 433075
+  },
+  "years": [
+    2026,
+    2025,
+    2024,
+    2023,
+    2022,
+    2021,
+    2020,
+    2019,
+    2018,
+    2017,
+    2016,
+    2015,
+    2014
+  ]
+}

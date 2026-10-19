@@ -1,0 +1,110 @@
+{
+  "approvals": {
+    "prov": [
+      {
+        "employers": 1012,
+        "k": "ON",
+        "positions": 10921,
+        "rows": 1012
+      },
+      {
+        "employers": 495,
+        "k": "BC",
+        "positions": 3904,
+        "rows": 495
+      }
+    ],
+    "stream": {
+      "missing_share": 1.0,
+      "rows": [],
+      "shown": false
+    }
+  },
+  "changes": null,
+  "first": true,
+  "new": null,
+  "next": {
+    "period": "2015",
+    "slug": "2015"
+  },
+  "period": "2014",
+  "prev": null,
+  "published": "2016-10-21",
+  "quarters": 4,
+  "refusals": {
+    "prov": [
+      {
+        "employers": 502,
+        "k": "AB",
+        "positions": 884,
+        "rows": 502
+      },
+      {
+        "employers": 362,
+        "k": "ON",
+        "positions": 847,
+        "rows": 362
+      }
+    ],
+    "stream": {
+      "missing_share": 1.0,
+      "rows": [],
+      "shown": false
+    }
+  },
+  "slug": "2014",
+  "sources": [
+    {
+      "bytes": 325639,
+      "dataset": "positive",
+      "mirror": "positive_2014_positive_employers_en.csv",
+      "name": "2014-Employers who have requested a Labour Market Impact Assessment (LMIA) and were issued a positive LMIA between June 20 and December 31, 2014 inclusively, by business location",
+      "page": "https://open.canada.ca/data/en/dataset/90fed587-1364-4f33-a9ee-208181dc0b97/resource/bd5dab03-02dc-4542-8e01-c04dca9a0337",
+      "published": "2016-10-21",
+      "rows": 3978,
+      "sha256": "a53287b0b88a3c606019dfb44f7ebeac8601d56e72bd5413ecc0fc35c8649c06",
+      "url": "https://open.canada.ca/data/dataset/90fed587-1364-4f33-a9ee-208181dc0b97/resource/bd5dab03-02dc-4542-8e01-c04dca9a0337/download/positive_employers_en.csv"
+    },
+    {
+      "bytes": 107268,
+      "dataset": "negative",
+      "mirror": "negative_2014_negative_employers_en.csv",
+      "name": "2014-Employers who have requested a Labour Market Impact Assessment (LMIA) and were issued a negative LMIA between June 20 and December 31, 2014 inclusively, by business location",
+      "page": "https://open.canada.ca/data/en/dataset/f82f66f2-a22b-4511-bccf-e1d74db39ae5/resource/251619ca-6541-499f-87c0-6860bf8b04fe",
+      "published": "2016-10-21",
+      "rows": 1300,
+      "sha256": "8736d774c1bdad598ecba9f1c87ae482367525e9db6b8513cc324818bae9f538",
+      "url": "https://open.canada.ca/data/dataset/f82f66f2-a22b-4511-bccf-e1d74db39ae5/resource/251619ca-6541-499f-87c0-6860bf8b04fe/download/negative_employers_en.csv"
+    }
+  ],
+  "top": [
+    {
+      "city": "Chilliwack",
+      "id": "emp-4e18557db2",
+      "name": "DeVry Greenhouses",
+      "positions": 191,
+      "prov": "BC",
+      "rows": 1,
+      "stream": null
+    },
+    {
+      "city": "Newcastle",
+      "id": "emp-038606775f",
+      "name": "Algoma Orchards Ltd",
+      "positions": 178,
+      "prov": "ON",
+      "rows": 1,
+      "stream": null
+    }
+  ],
+  "totals": {
+    "employers": 3971,
+    "lmias": null,
+    "negative_employers": 1300,
+    "negative_lmias": null,
+    "negative_positions": 2754,
+    "negative_rows": 1300,
+    "positions": 24429,
+    "positive_rows": 3978
+  }
+}

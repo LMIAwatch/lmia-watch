@@ -46,7 +46,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from xml.sax.saxutils import escape
 
-from . import config
+from . import config, releases
 from .db import log_run
 from .feeds import write_feeds
 from .normalize import period_end_date, period_sort_key
@@ -393,7 +393,7 @@ def _lastmod(value: str | None) -> str | None:
 
 
 def sitemap_entries(conn: sqlite3.Connection, data_as_of: str | None) -> list[tuple[str, str | None]]:
-    """(path, lastmod) for the fixed pages, then every profile in id order.
+    """(path, lastmod) for the fixed pages, the release pages, then every profile in id order.
 
     A profile's lastmod is the employer row's updated_at, which status.recompute
     rewrites only when something on the profile changed.
@@ -403,6 +403,10 @@ def sitemap_entries(conn: sqlite3.Connection, data_as_of: str | None) -> list[tu
     # Feeds and the browser watchlist. The feed list follows the nightly data;
     # the watchlist page changes only with the code.
     entries += [("/feeds", dated), ("/watchlist", None)]
+    # --- releases and rankings: /releases, /rankings, each year's rankings and
+    # each release page, dated by the lists' publication; none until a list is
+    # loaded, so an empty page is never listed.
+    entries += releases.sitemap_entries(conn)
     entries += [(f"/employers/{r['id']}", _lastmod(r["updated_at"]))
                 for r in conn.execute("SELECT id, updated_at FROM employers ORDER BY id")]
     return entries
@@ -487,6 +491,7 @@ def _write_static(conn: sqlite3.Connection, out: Path) -> dict[str, int]:
         areas += 1
     counts["areas"] = areas
     counts.update(write_feeds(conn, out))
+    counts.update(releases.write_all(conn, out))
     counts["profile_shards"] = write_profiles(conn, out)
     counts.update(write_sitemaps(conn, out, config.SITE_URL, stats["data_as_of"]))
     counts["employers"] = stats["counts"]["employers"]

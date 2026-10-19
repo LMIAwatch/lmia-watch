@@ -1,0 +1,252 @@
+{
+  "approvals": {
+    "prov": [
+      {
+        "employers": 2705,
+        "k": "QC",
+        "positions": 11895,
+        "rows": 3054
+      },
+      {
+        "employers": 2380,
+        "k": "ON",
+        "positions": 8816,
+        "rows": 2633
+      },
+      {
+        "employers": 1322,
+        "k": "BC",
+        "positions": 5683,
+        "rows": 1474
+      }
+    ],
+    "stream": {
+      "missing_share": 0.0,
+      "rows": [
+        {
+          "employers": 2136,
+          "k": "Primary Agriculture",
+          "positions": 18402,
+          "rows": 2265
+        },
+        {
+          "employers": 1853,
+          "k": "Low Wage",
+          "positions": 8009,
+          "rows": 2081
+        },
+        {
+          "employers": 3737,
+          "k": "High Wage",
+          "positions": 6305,
+          "rows": 4088
+        }
+      ],
+      "shown": true
+    }
+  },
+  "changes": {
+    "down": [
+      {
+        "change": -515,
+        "city": "Kelowna",
+        "id": "emp-d3bd6b3329",
+        "name": "Northern Cherries Inc.",
+        "positions": 0,
+        "prev": 515,
+        "prov": "BC",
+        "rows": 0,
+        "stream": "Primary Agriculture"
+      },
+      {
+        "change": -487,
+        "city": "Wilsonville",
+        "id": "emp-631b67144f",
+        "name": "Procyk Farms (1994) Ltd",
+        "positions": 126,
+        "prev": 613,
+        "prov": "ON",
+        "rows": 1,
+        "stream": "Primary Agriculture"
+      }
+    ],
+    "up": [
+      {
+        "change": 626,
+        "city": "Kelowna",
+        "id": "emp-e70240102a",
+        "name": "Jealous Fruits Ltd.",
+        "positions": 760,
+        "prev": 134,
+        "prov": "BC",
+        "rows": 3,
+        "stream": "Primary Agriculture"
+      },
+      {
+        "change": 361,
+        "city": "Cap-Pelé",
+        "id": "emp-b59405e374",
+        "name": "Cape Bald Packers Ltd",
+        "positions": 361,
+        "prev": 0,
+        "prov": "NB",
+        "rows": 3,
+        "stream": "Low Wage"
+      }
+    ]
+  },
+  "first": false,
+  "new": {
+    "count": 1587,
+    "positions": 2472,
+    "top": [
+      {
+        "city": "Cap Pele",
+        "id": "emp-232e76ffb0",
+        "name": "Phillips Bridge Seafood ULC",
+        "positions": 178,
+        "prov": "NB",
+        "rows": 1,
+        "stream": "Low Wage"
+      },
+      {
+        "city": "Leamington",
+        "id": "emp-5ee99e9da4",
+        "name": "Newko Greenhouses Ltd",
+        "positions": 100,
+        "prov": "ON",
+        "rows": 1,
+        "stream": "Primary Agriculture"
+      }
+    ]
+  },
+  "next": null,
+  "period": "2026Q1",
+  "prev": {
+    "period": "2025Q4",
+    "quarters": 1,
+    "slug": "2025-q4",
+    "totals": {
+      "employers": 8752,
+      "lmias": 12219,
+      "negative_employers": 2250,
+      "negative_lmias": 2472,
+      "negative_positions": 3391,
+      "negative_rows": 2367,
+      "positions": 47466,
+      "positive_rows": 9732
+    }
+  },
+  "published": "2026-07-22",
+  "quarters": 1,
+  "refusals": {
+    "prov": [
+      {
+        "employers": 1292,
+        "k": "ON",
+        "positions": 1832,
+        "rows": 1376
+      },
+      {
+        "employers": 645,
+        "k": "BC",
+        "positions": 1345,
+        "rows": 681
+      },
+      {
+        "employers": 451,
+        "k": "AB",
+        "positions": 708,
+        "rows": 483
+      }
+    ],
+    "stream": {
+      "missing_share": 0.0,
+      "rows": [
+        {
+          "employers": 2226,
+          "k": "High Wage",
+          "positions": 3151,
+          "rows": 2344
+        },
+        {
+          "employers": 479,
+          "k": "Low Wage",
+          "positions": 712,
+          "rows": 498
+        },
+        {
+          "employers": 60,
+          "k": "Primary Agriculture",
+          "positions": 616,
+          "rows": 61
+        }
+      ],
+      "shown": true
+    }
+  },
+  "slug": "2026-q1",
+  "sources": [
+    {
+      "bytes": 529510,
+      "dataset": "positive",
+      "mirror": "positive_2026Q1_tfwp_2026q1_pos_en.xlsx",
+      "name": "2026Q1-Employers Who Were Issued a Positive Labour Market Impact Assessment (LMIA) by Program Stream, National Occupational Classification (NOC) 2021 and Business Location, January to March 2026",
+      "page": "https://open.canada.ca/data/en/dataset/90fed587-1364-4f33-a9ee-208181dc0b97/resource/4ee7a4e0-ffc3-47af-94e7-30929d1eeb67",
+      "published": "2026-07-22",
+      "rows": 8786,
+      "sha256": "2f48cb522180ff82e6768a68b679bed4d4c89efa28d1c5aca7bc1604c99a044e",
+      "url": "https://open.canada.ca/data/dataset/90fed587-1364-4f33-a9ee-208181dc0b97/resource/4ee7a4e0-ffc3-47af-94e7-30929d1eeb67/download/tfwp_2026q1_pos_en.xlsx"
+    },
+    {
+      "bytes": 201784,
+      "dataset": "negative",
+      "mirror": "negative_2026Q1_tfwp_2026q1_neg_en.xlsx",
+      "name": "2026Q1-Employers Who Were Issued a Negative Labour Market Impact Assessment (LMIA) by Program Stream, National Occupational Classification (NOC) 2021 and Business Location, January to March 2026",
+      "page": "https://open.canada.ca/data/en/dataset/f82f66f2-a22b-4511-bccf-e1d74db39ae5/resource/1e854188-18c4-4cbe-b4e0-88561955fe05",
+      "published": "2026-07-22",
+      "rows": 3007,
+      "sha256": "3add3bb73fae3367fa660b2fd8158af96d583482ffb0101f16fda26d5b3777bf",
+      "url": "https://open.canada.ca/data/dataset/f82f66f2-a22b-4511-bccf-e1d74db39ae5/resource/1e854188-18c4-4cbe-b4e0-88561955fe05/download/tfwp_2026q1_neg_en.xlsx"
+    }
+  ],
+  "top": [
+    {
+      "city": "Kelowna",
+      "id": "emp-e70240102a",
+      "name": "Jealous Fruits Ltd.",
+      "positions": 760,
+      "prov": "BC",
+      "rows": 3,
+      "stream": "Primary Agriculture"
+    },
+    {
+      "city": "Cap-Pelé",
+      "id": "emp-b59405e374",
+      "name": "Cape Bald Packers Ltd",
+      "positions": 361,
+      "prov": "NB",
+      "rows": 3,
+      "stream": "Low Wage"
+    },
+    {
+      "city": "Pointe Sapin",
+      "id": "emp-bf6cad88a7",
+      "name": "11656520 Canada Inc.",
+      "positions": 275,
+      "prov": "NB",
+      "rows": 5,
+      "stream": "Low Wage"
+    }
+  ],
+  "totals": {
+    "employers": 7880,
+    "lmias": 10818,
+    "negative_employers": 2837,
+    "negative_lmias": 3158,
+    "negative_positions": 4595,
+    "negative_rows": 3007,
+    "positions": 33202,
+    "positive_rows": 8786
+  }
+}

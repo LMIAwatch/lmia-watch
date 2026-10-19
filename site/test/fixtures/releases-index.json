@@ -1,0 +1,48 @@
+{
+  "releases": [
+    {
+      "employers": 7880,
+      "negative_positions": 4595,
+      "negative_rows": 3007,
+      "period": "2026Q1",
+      "positions": 33202,
+      "positive_rows": 8786,
+      "published": "2026-07-22",
+      "quarters": 1,
+      "slug": "2026-q1"
+    },
+    {
+      "employers": 8752,
+      "negative_positions": 3391,
+      "negative_rows": 2367,
+      "period": "2025Q4",
+      "positions": 47466,
+      "positive_rows": 9732,
+      "published": "2026-03-16",
+      "quarters": 1,
+      "slug": "2025-q4"
+    },
+    {
+      "employers": 9520,
+      "negative_positions": 3398,
+      "negative_rows": 1777,
+      "period": "2017Q1-Q2",
+      "positions": 41161,
+      "positive_rows": 9793,
+      "published": "2017-11-10",
+      "quarters": 2,
+      "slug": "2017-q1-q2"
+    },
+    {
+      "employers": 3971,
+      "negative_positions": 2754,
+      "negative_rows": 1300,
+      "period": "2014",
+      "positions": 24429,
+      "positive_rows": 3978,
+      "published": "2016-10-21",
+      "quarters": 4,
+      "slug": "2014"
+    }
+  ]
+}

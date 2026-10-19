@@ -18,6 +18,8 @@ import { correctionsForm, correctionsSubmit, respondForm, respondSubmit } from "
 import { homePage } from "./pages/home";
 import { mapPage } from "./pages/map";
 import { methodologyPage } from "./pages/methodology";
+import { rankingsPage } from "./pages/rankings";
+import { releasePage, releasesIndexPage } from "./pages/releases";
 import { searchPage } from "./pages/search";
 import { supportPage } from "./pages/support";
 import { watchlistPage } from "./pages/watchlist";
@@ -77,6 +79,11 @@ app.get("/support", supportPage);
 // watchlist lives in the visitor's browser; this page is its shell.
 app.get("/feeds", feedsPage);
 app.get("/watchlist", watchlistPage);
+// Quarterly release pages and rankings: each page reads one small JSON file.
+app.get("/releases", releasesIndexPage);
+app.get("/releases/:slug", releasePage);
+app.get("/rankings", rankingsPage);
+app.get("/rankings/:year", rankingsPage);
 app.get("/employers/:id", employerPage);
 app.get("/employers/:id/respond", (c) => respondForm(c));
 app.post("/employers/:id/respond", respondSubmit);

@@ -1,0 +1,131 @@
+{
+  "employers": [
+    {
+      "city": "Kelowna",
+      "id": "emp-e70240102a",
+      "name": "Jealous Fruits Ltd.",
+      "positions": 760,
+      "prov": "BC",
+      "rows": 3
+    },
+    {
+      "city": "Cap Pele",
+      "id": "emp-b59405e374",
+      "name": "Cape Bald Packers Ltd",
+      "positions": 361,
+      "prov": "NB",
+      "rows": 3
+    },
+    {
+      "city": "Pointe-Sapin",
+      "id": "emp-bf6cad88a7",
+      "name": "11656520 Canada Inc.",
+      "positions": 275,
+      "prov": "NB",
+      "rows": 5
+    }
+  ],
+  "no_occupation_periods": [],
+  "occupations": [
+    {
+      "codes": 352,
+      "era": "2021",
+      "periods": [
+        "2026Q1"
+      ],
+      "positions": 33202,
+      "rows": [
+        {
+          "code": "85101",
+          "positions": 14829,
+          "rows": 1093,
+          "title": "Harvesting labourers"
+        },
+        {
+          "code": "94142",
+          "positions": 2182,
+          "rows": 30,
+          "title": "Fish and seafood plant workers"
+        },
+        {
+          "code": "85100",
+          "positions": 1572,
+          "rows": 736,
+          "title": "Livestock labourers"
+        }
+      ]
+    }
+  ],
+  "periods": [
+    "2026Q1"
+  ],
+  "provinces": [
+    {
+      "employers": 2705,
+      "k": "QC",
+      "positions": 11895,
+      "rows": 3054
+    },
+    {
+      "employers": 2380,
+      "k": "ON",
+      "positions": 8816,
+      "rows": 2633
+    },
+    {
+      "employers": 1322,
+      "k": "BC",
+      "positions": 5683,
+      "rows": 1474
+    }
+  ],
+  "scope": "2026",
+  "streams": {
+    "missing_share": 0.0,
+    "positions": 33202,
+    "rows": [
+      {
+        "employers": 2136,
+        "k": "Primary Agriculture",
+        "positions": 18402,
+        "rows": 2265
+      },
+      {
+        "employers": 1853,
+        "k": "Low Wage",
+        "positions": 8009,
+        "rows": 2081
+      },
+      {
+        "employers": 3737,
+        "k": "High Wage",
+        "positions": 6305,
+        "rows": 4088
+      }
+    ],
+    "shown": true,
+    "years": [
+      2026
+    ]
+  },
+  "totals": {
+    "employers": 7880,
+    "positions": 33202,
+    "rows": 8786
+  },
+  "years": [
+    2026,
+    2025,
+    2024,
+    2023,
+    2022,
+    2021,
+    2020,
+    2019,
+    2018,
+    2017,
+    2016,
+    2015,
+    2014
+  ]
+}

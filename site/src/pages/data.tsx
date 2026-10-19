@@ -131,6 +131,9 @@ export async function dataPage(c: Context<AppEnv>): Promise<Response> {
               </tbody>
             </table>
           </div>
+          <p class="muted small top-gap">
+            {tj(lang, "rel.data_link", { link: <a href="/releases">{t(lang, "rel.index_title")}</a> })}
+          </p>
 
           <HowToCite lang={lang} citation={stats.citation} />
 

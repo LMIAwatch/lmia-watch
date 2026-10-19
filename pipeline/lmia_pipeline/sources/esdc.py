@@ -14,7 +14,9 @@ import hashlib
 import io
 import json
 import logging
+import re
 import sqlite3
+from collections.abc import Mapping
 
 import openpyxl
 
@@ -139,6 +141,83 @@ def normalize_row(fields: dict[str, int], row: list[object]) -> dict | None:
     }
 
 
+# Names of lines that sum up or annotate a list, compared with the whole name
+# after case folding and trimming of punctuation. The 2014 positive file ends
+# with "Other employers" and "Total"; the 2014 and 2015 files end with "Notes:".
+SUMMARY_NAME_RE = re.compile(
+    r"(?:grand |sub-?)?totals?|total général|(?:all )?other employers?|autres employeurs|notes?|remarques?"
+)
+
+
+def _summary_name(name: str) -> bool:
+    key = re.sub(r"\s+", " ", name).strip(" .:;*").casefold()
+    return SUMMARY_NAME_RE.fullmatch(key) is not None
+
+
+def is_summary_row(rec: Mapping) -> bool:
+    """True for a parsed row that describes the list rather than an employer.
+
+    Every employer row carries an occupation or a place, and a count. A row
+    with no occupation is a summary when it also has no address and either
+    no count (a footnote such as "1. This list excludes...") or a summary
+    name ("Total", "Other employers"); or when its name is a province, it
+    has no count and any address is the same province (the 2015 negative
+    file repeats a heading as "Alberta,Alberta,"). Loading such rows as
+    employers put 36,363 positions under "Total" and "Other employers" in
+    2014. Takes a normalize_row() dict or an esdc_records row.
+    """
+    if rec["noc_code"] or rec["noc_title"]:
+        return False
+    name = rec["employer_raw"] or ""
+    address = rec["address_raw"]
+    no_count = rec["positions"] is None and rec["lmias"] is None
+    heading = province_code(name)
+    if heading and no_count and (not address or province_code(address) == heading):
+        return True
+    if address:
+        return False
+    return no_count or _summary_name(name)
+
+
+def remove_summary_rows(conn: sqlite3.Connection) -> dict[str, int]:
+    """Delete summary and footnote rows an earlier parser loaded as employers.
+
+    Idempotent: the esdc stage runs it every night, and once the rows are gone
+    it finds nothing. Employers left with no list row, posting or finding are
+    deleted with their names, registry matches and indicators; the loaded-row
+    count of each touched resource is recounted. status.recompute, which runs
+    after the sources, recounts everything else.
+    """
+    candidates = conn.execute(
+        "SELECT id, employer_id, resource_id, employer_raw, address_raw, noc_code, noc_title, positions, lmias "
+        "FROM esdc_records WHERE noc_code IS NULL AND noc_title IS NULL "
+        "AND (address_raw IS NULL OR (positions IS NULL AND lmias IS NULL))"
+    ).fetchall()
+    doomed = [r for r in candidates if is_summary_row(r)]
+    if not doomed:
+        return {"rows": 0, "employers": 0}
+    conn.executemany("DELETE FROM esdc_records WHERE id = ?", [(r["id"],) for r in doomed])
+    for rid in sorted({r["resource_id"] for r in doomed}):
+        conn.execute(
+            "UPDATE esdc_resources SET rows_loaded = (SELECT COUNT(*) FROM esdc_records WHERE resource_id = ?) "
+            "WHERE resource_id = ?",
+            (rid, rid),
+        )
+    orphans = [
+        (eid,) for eid in sorted({r["employer_id"] for r in doomed})
+        if not conn.execute(
+            "SELECT 1 FROM esdc_records WHERE employer_id = ? UNION ALL SELECT 1 FROM jobbank_postings WHERE employer_id = ? "
+            "UNION ALL SELECT 1 FROM findings WHERE employer_id = ? LIMIT 1",
+            (eid, eid, eid),
+        ).fetchone()
+    ]
+    for table in ("employer_names", "registry_matches", "registry_checks", "indicators"):
+        conn.executemany(f"DELETE FROM {table} WHERE employer_id = ?", orphans)
+    conn.executemany("DELETE FROM employers WHERE id = ?", orphans)
+    conn.commit()
+    return {"rows": len(doomed), "employers": len(orphans)}
+
+
 def row_hash(list_name: str, resource_id: str, row: list[object]) -> str:
     payload = json.dumps(["" if v is None else str(v) for v in row], ensure_ascii=False)
     return hashlib.sha1(f"{list_name}|{resource_id}|{payload}".encode("utf-8")).hexdigest()
@@ -214,13 +293,14 @@ def load_resource(
         if is_header_row(row):
             continue
         non_empty = [v for v in row if v not in (None, "")]
-        if len(non_empty) == 1:
-            code = province_code(str(non_empty[0]))
-            if code:
-                section_province = code
-                continue
+        # A heading line names one province in every filled cell: usually
+        # once, but the 2015 negative file writes "Alberta,Alberta,".
+        codes = {province_code(str(v)) for v in non_empty}
+        if len(codes) == 1 and None not in codes:
+            section_province = codes.pop()
+            continue
         rec = normalize_row(fields, row)
-        if rec is None:
+        if rec is None or is_summary_row(rec):
             continue
         if rec["province"] is None:
             rec["province"] = section_province
@@ -270,6 +350,10 @@ def run(conn: sqlite3.Connection, client: PoliteClient, *, now: str | None = Non
     totals: dict[str, int] = {}
     failures: list[str] = []
     duplicates: list[str] = []
+    # Before any download, so a portal outage does not keep the rows an older
+    # parser loaded; a file already loaded is never parsed again unless ESDC
+    # revises it, and the parser now skips them.
+    removed = remove_summary_rows(conn)
     for list_name, dataset_id in config.ESDC_DATASETS.items():
         listing = config.CKAN_PACKAGE_SHOW.format(dataset=dataset_id)
         # A portal outage, or a maintenance page served with HTTP 200, costs
@@ -316,6 +400,8 @@ def run(conn: sqlite3.Connection, client: PoliteClient, *, now: str | None = Non
                 log.info("%s %s: %d rows", list_name, resource_period(res), n)
         totals[list_name] = loaded
     detail = f"positive={totals.get('positive', 0)} negative={totals.get('negative', 0)}"
+    if removed["rows"]:
+        detail += f" summary_rows_removed={removed['rows']} employers_removed={removed['employers']}"
     if duplicates:
         detail += " duplicates=" + "; ".join(duplicates)[:400]
     if failures:
