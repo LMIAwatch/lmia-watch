@@ -361,3 +361,38 @@ CREATE TABLE IF NOT EXISTS donations (
   created_at TEXT NOT NULL                       -- when the site stored it
 );
 CREATE INDEX IF NOT EXISTS idx_donations_received ON donations(received_at);
+
+-- ---------------------------------------------------------------------------
+-- Pipeline-local reference tables for the occupation and place pages
+-- (sources/vacancies.py). Never exported to D1 and never read by the site.
+-- ---------------------------------------------------------------------------
+
+-- Statistics Canada Job Vacancy and Wage Survey, table 14-10-0444-01 (job
+-- vacancies and average offered hourly wage by NOC 2021 unit group, quarterly,
+-- Statistics Canada Open Licence). The newest eight quarters in the table are
+-- kept. A figure the survey publishes for two small economic regions combined
+-- is stored under each member region's code, so a lookup by fsa_regions.er_uid
+-- finds it.
+CREATE TABLE IF NOT EXISTS statcan_vacancies (
+  noc_code TEXT NOT NULL,                        -- NOC 2021 five-digit unit group, or 'total' for all occupations
+  area_code TEXT NOT NULL,                       -- '00' Canada, two-digit province code ('46') or four-digit economic region ('4650'), as in jobbank_wages
+  ref_quarter TEXT NOT NULL,                     -- '2026Q2'
+  area_name TEXT NOT NULL,                       -- English name as published, without the province ('Winnipeg', 'South Central and North Central')
+  combined INTEGER NOT NULL DEFAULT 0,           -- 1 when the survey publishes this region only together with a neighbour
+  vacancies INTEGER,                             -- job vacancies; NULL when not published for the quarter
+  vacancies_quality TEXT,                        -- Statistics Canada quality letter, A (excellent) to E (use with caution)
+  offered_wage REAL,                             -- average offered hourly wage in dollars; NULL when not published
+  offered_wage_quality TEXT,                     -- quality letter of the wage, A to E
+  PRIMARY KEY (noc_code, area_code, ref_quarter)
+);
+
+-- NOC 2021 Version 1.0 classification structure (Statistics Canada Open
+-- Licence): occupation titles and definitions in English and French, read once.
+CREATE TABLE IF NOT EXISTS noc_titles (
+  noc_code TEXT PRIMARY KEY,                     -- one digit (broad category, '6') to five digits (unit group, '63200')
+  level INTEGER NOT NULL,                        -- 1 broad category, 2 major group, 3 sub-major group, 4 minor group, 5 unit group
+  title_en TEXT NOT NULL,                        -- class title as published ('Cooks')
+  title_fr TEXT NOT NULL,                        -- French class title ('Cuisiniers/cuisinières')
+  definition_en TEXT,                            -- class definition as published
+  definition_fr TEXT
+);

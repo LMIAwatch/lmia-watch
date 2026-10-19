@@ -17,7 +17,7 @@ from pathlib import Path
 
 import openpyxl
 
-from lmia_pipeline.sources import lfs
+from lmia_pipeline.sources import lfs, vacancies
 
 HERE = Path(__file__).resolve().parent
 RAW = HERE.parents[2] / "data" / "raw"
@@ -136,6 +136,47 @@ def trim_geography(dst: Path) -> None:
     dst.write_text(json.dumps(out, separators=(",", ":")), encoding="utf-8")
 
 
+# Winnipeg, its province and Canada, one combined region, and a region with no
+# Manitoba tie (Avalon Peninsula); cooks, wage-fixture occupations, a minor
+# group (dropped) and the all-occupations total, ten quarters (eight kept).
+VACANCY_GEOS = ("2021A000011124", "2021A000246", "2021S05004650", "2021S05001010", "")
+VACANCY_COMBINED = "South Central and North Central, Manitoba"
+VACANCY_NOCS = ("[63200]", "[44101]", "[22101]", "[4410]", "Total, all occupations")
+
+
+def trim_vacancies(src: Path, dst: Path) -> None:
+    with zipfile.ZipFile(src) as zf:
+        meta = zf.read("14100444_MetaData.csv")
+        with zf.open("14100444.csv") as fh:
+            text = io.TextIOWrapper(fh, encoding="utf-8-sig", newline="")
+            reader = csv.reader(text)
+            keep = [next(reader)]
+            for r in reader:
+                if r[0] < "2024-01" or r[2] not in VACANCY_GEOS or (r[2] == "" and r[1] != VACANCY_COMBINED):
+                    continue
+                if any(r[3].endswith(code) or r[3] == code for code in VACANCY_NOCS):
+                    keep.append(r)
+    out = io.StringIO()
+    csv.writer(out, quoting=csv.QUOTE_ALL, lineterminator="\n").writerows(keep)
+    with zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("14100444.csv", ("﻿" + out.getvalue()).encode("utf-8"))
+        # The cube's title row is enough: it carries the last reference month.
+        zf.writestr("14100444_MetaData.csv", meta.replace(b"\r\n", b"\n").split(b"\n\n")[0] + b"\n")
+
+
+NOC_KEEP = {"6", "63", "632", "6320", "63200", "4", "44", "441", "4410", "44101", "2", "22", "221", "2210", "22101"}
+
+
+def trim_noc(src: Path, dst: Path) -> None:
+    # Some definitions hold line breaks inside quotes; the repository keeps LF only.
+    lines = src.read_bytes().decode("utf-8-sig").replace("\r\n", "\n").splitlines(keepends=True)
+    rows = list(csv.reader(lines))
+    keep = [rows[0]] + [r for r in rows[1:] if len(r) > 2 and r[2] in NOC_KEEP]
+    out = io.StringIO()
+    csv.writer(out, lineterminator="\n").writerows(keep)
+    dst.write_bytes(("﻿" + out.getvalue()).encode("utf-8"))
+
+
 def main() -> None:
     trim_search(RAW / "jobbank" / "jb_bc_requested.html", HERE / "jobbank_requested.html")
     trim_search(RAW / "jobbank" / "jb_bc_approved.html", HERE / "jobbank_approved.html")
@@ -150,6 +191,10 @@ def main() -> None:
     trim_wages(cached(WAGES_2025_URL), HERE / "wages_trim.csv")
     trim_lfs(cached(lfs.URL), HERE / "lfs_14100459_trim.zip")
     trim_geography(HERE / "geography_mb.json")
+    # These two read the cache the vacancies stage fills.
+    trim_vacancies(cached(vacancies.URL), HERE / "vacancies_14100444_trim.zip")
+    trim_noc(cached(vacancies.NOC_URLS["en"]), HERE / "noc2021_en_trim.csv")
+    trim_noc(cached(vacancies.NOC_URLS["fr"]), HERE / "noc2021_fr_trim.csv")
     print("fixtures written to", HERE)
 
 

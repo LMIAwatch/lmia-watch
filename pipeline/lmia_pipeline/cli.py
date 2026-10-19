@@ -14,9 +14,10 @@ from . import bluesky, config, export, export_static, indicators, migrate, socia
 from .db import connect, hours_since, log_run
 from .http import PoliteClient
 from .sources import esdc, geography, ircc, jobbank, lfs, registry_bc, registry_federal, registry_quebec, wages
+from .sources import vacancies
 
 log = logging.getLogger("lmia_pipeline")
-STAGES = ["esdc", "ircc", "jobbank", "registry", "wages", "lfs", "geography", "indicators", "export"]
+STAGES = ["esdc", "ircc", "jobbank", "registry", "wages", "lfs", "vacancies", "geography", "indicators", "export"]
 
 # Job Bank is crawled once a day and no more. A re-run of a failed night, or a
 # run started by hand, must not send a second pass; the guard is in the
@@ -198,6 +199,8 @@ def _command(conn: sqlite3.Connection, args: argparse.Namespace) -> int:
         ok &= _stage(conn, "wages", lambda: wages.run(conn, client), "rows loaded")
     if "lfs" in stages:
         ok &= _stage(conn, "lfs", lambda: lfs.run(conn, client), "rows loaded")
+    if "vacancies" in stages:
+        ok &= _stage(conn, "vacancies", lambda: vacancies.run(conn, client), "rows loaded")
     if "geography" in stages:
         # The boundary service answers some requests with HTTP 500 and the
         # next attempt succeeds, so this client retries more before giving up.

@@ -46,7 +46,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from xml.sax.saxutils import escape
 
-from . import config, releases
+from . import config, places, releases
 from .db import log_run
 from .feeds import write_feeds
 from .normalize import period_end_date, period_sort_key
@@ -409,6 +409,9 @@ def sitemap_entries(conn: sqlite3.Connection, data_as_of: str | None) -> list[tu
     entries += releases.sitemap_entries(conn)
     entries += [(f"/employers/{r['id']}", _lastmod(r["updated_at"]))
                 for r in conn.execute("SELECT id, updated_at FROM employers ORDER BY id")]
+    # Occupation and place pages at or above the record threshold, each dated
+    # by its newest record, and their two index pages (places.py).
+    entries += [(path, _lastmod(mod)) for path, mod in places.sitemap_entries(conn)]
     return entries
 
 
@@ -492,6 +495,7 @@ def _write_static(conn: sqlite3.Connection, out: Path) -> dict[str, int]:
     counts["areas"] = areas
     counts.update(write_feeds(conn, out))
     counts.update(releases.write_all(conn, out))
+    counts.update(places.write_places(conn, out))
     counts["profile_shards"] = write_profiles(conn, out)
     counts.update(write_sitemaps(conn, out, config.SITE_URL, stats["data_as_of"]))
     counts["employers"] = stats["counts"]["employers"]

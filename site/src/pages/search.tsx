@@ -281,6 +281,12 @@ export async function searchPage(c: Context<AppEnv>): Promise<Response> {
                 downloads: <a href="/data#downloads">{t(lang, "common.downloads_link")}</a>,
               })}
             </p>
+            <p class="small">
+              {tj(lang, "places.browse", {
+                occupations: <a href="/occupations">{t(lang, "places.browse_occupations")}</a>,
+                places: <a href="/places">{t(lang, "places.browse_places")}</a>,
+              })}
+            </p>
           </div>
         </div>
       </form>

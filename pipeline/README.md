@@ -38,7 +38,7 @@ when a new ESDC quarter is loaded, when `ZENODO_TOKEN` is set
 Both write their outcome under `data/out/` and exit 1 on a failure, for the
 workflow's run status; neither raises.
 Stage order: esdc, ircc, jobbank, registry (BC, federal, Quebec), wages, lfs,
-geography, indicators and status, export.
+vacancies, geography, indicators and status, export.
 Before any stage, `run` compares `meta.normalize_version` with
 `normalize.NORMALIZE_VERSION` and, when the database is older, re-derives every
 employer id once (`migrate.py`).
@@ -58,11 +58,13 @@ marking, because a capped run has not seen the whole feed.
 | `sources/registry_quebec.py` | Registraire des entreprises du Québec bulk extract, loaded weekly, matched by normalized name |
 | `sources/wages.py` | Job Bank wages by occupation and area (the prevailing-wage reference), newest two yearly tables |
 | `sources/lfs.py` | Labour Force Survey unemployment rate by census metropolitan area |
+| `sources/vacancies.py` | Statistics Canada job vacancies and average offered wage by NOC 2021 unit group and economic region (table 14-10-0444-01), newest eight quarters; NOC 2021 titles and definitions in English and French |
 | `sources/geography.py` | 2021 Census boundaries; places every forward sortation area in an economic region and a census metropolitan area (`fsa_regions`) |
 | `indicators.py` | the rules (version in `RULES_VERSION`) |
 | `status.py` | employer rollups, the status lifecycle, meta counters |
 | `export.py` | CSV files, the raw-file mirror with checksums, optional D1 batches |
 | `export_static.py` | the JSON files the site serves |
+| `places.py` | the occupation and place pages: one JSON file per page, and their sitemap entries |
 | `social.py` | the daily X digest: compose, save to `data/out/social/`, post (separate `post-digest` command) |
 | `social_card.py` | the card image attached to the digest, drawn with Pillow from the day's figures |
 | `bluesky.py` | the same digest and card on Bluesky over the AT Protocol, with a link facet (separate `post-bluesky` command) |
@@ -77,7 +79,8 @@ data/out/mirror/        raw ESDC files plus SHA256SUMS
 data/out/static/        the JSON the site serves as static assets (see export_static.py):
                           stats.json, search/latest.json, search/pending.json,
                           search/<PROV>/postings.json, search/<PROV>/<YEAR>.json,
-                          clusters/*.json, areas/<FSA>.json, profiles/<abc>.json
+                          clusters/*.json, areas/<FSA>.json, profiles/<abc>.json,
+                          occupations/*.json, places/**/*.json (places.py)
 data/out/d1/            only with `run --export --d1`: batches for a paid D1 database,
                         plus manifest.json and the `mark-synced` command
 ```
@@ -126,6 +129,7 @@ loaded into pipeline-local tables; none of it is committed.
 |---|---|---|---|
 | `wage_tables`, `jobbank_wages` | Wages, ESDC (Job Bank), one CSV a year, about 18 MB (the 2025 file is revised 2025-11-19): low, median and high wage per NOC 2021 occupation for Canada, each province and territory and each economic region. Dataset: https://open.canada.ca/data/en/dataset/adad580f-76b0-4502-bd05-20c125de9116 | Open Government Licence, Canada | listing checked monthly; each yearly file downloaded once; the newest two kept |
 | `lfs_unemployment` | Statistics Canada table 14-10-0459-01, Labour force characteristics by census metropolitan area, three-month moving average (the unadjusted series is kept, which is what ESDC's refusal table shows). Table: https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1410045901, download: https://www150.statcan.gc.ca/n1/tbl/csv/14100459-eng.zip (about 4 MB) | Statistics Canada Open Licence | at most monthly, revalidated by ETag |
+| `statcan_vacancies`, `noc_titles` | Statistics Canada table 14-10-0444-01, Job vacancies and average offered hourly wage by occupation (unit group), quarterly, unadjusted for seasonality (Job Vacancy and Wage Survey). Table: https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1410044401, download: https://www150.statcan.gc.ca/n1/tbl/csv/14100444-eng.zip (about 100 MB zipped, 1.2 GB unzipped, read as a stream; the WDS API would need hundreds of requests for its 137,000 series). The newest eight quarters of the unit groups and the all-occupations total are kept; a region published only combined with a neighbour is stored under both codes. Titles: NOC 2021 Version 1.0 classification structure, https://www.statcan.gc.ca/en/subjects/standard/noc/2021/indexV1 (English and French CSVs) | Statistics Canada Open Licence | table at most monthly, an unchanged file not parsed again; titles once |
 | `fsa_regions` | Statistics Canada 2021 Census cartographic boundary files: economic regions, census metropolitan areas, forward sortation areas (https://www12.statcan.gc.ca/census-recensement/2021/geo/sip-pis/boundary-limites/index2021-eng.cfm). The zipped files there sit behind a browser challenge, so the same layers come from Statistics Canada's map service, https://geo.statcan.gc.ca/geo_wa/rest/services/2021/Cartographic_boundary_files/MapServer (layers 2, 6 and 14), as JSON, one request per province per layer, about 40 MB in all | Statistics Canada Open Licence | once; cached for good |
 
 `fsa_regions` gives each forward sortation area one point: the GeoNames

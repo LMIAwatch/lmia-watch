@@ -43,7 +43,7 @@ const API_ROWS: [string, Key][] = [
 const LIST_NAME: Record<string, Key> = { positive: "data.list.positive", negative: "data.list.negative" };
 
 // Where the reference tables behind the wage and unemployment indicators are published.
-const SOURCE_LINKS: Record<"wages" | "lfs" | "boundaries" | "statcan", Record<Lang, string>> = {
+const SOURCE_LINKS: Record<"wages" | "lfs" | "boundaries" | "statcan" | "vacancies" | "noc", Record<Lang, string>> = {
   wages: {
     en: "https://open.canada.ca/data/en/dataset/adad580f-76b0-4502-bd05-20c125de9116",
     fr: "https://open.canada.ca/data/fr/dataset/adad580f-76b0-4502-bd05-20c125de9116",
@@ -59,6 +59,14 @@ const SOURCE_LINKS: Record<"wages" | "lfs" | "boundaries" | "statcan", Record<La
   statcan: {
     en: "https://www.statcan.gc.ca/en/reference/licence",
     fr: "https://www.statcan.gc.ca/fr/reference/licence",
+  },
+  vacancies: {
+    en: "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1410044401",
+    fr: "https://www150.statcan.gc.ca/t1/tbl1/fr/tv.action?pid=1410044401",
+  },
+  noc: {
+    en: "https://www.statcan.gc.ca/en/subjects/standard/noc/2021/indexV1",
+    fr: "https://www.statcan.gc.ca/fr/sujets/norme/cnp/2021/indexV1",
   },
 };
 
@@ -94,6 +102,12 @@ export async function dataPage(c: Context<AppEnv>): Promise<Response> {
         <div class="doc">
           <h1>{t(lang, "nav.data")}</h1>
           <p class="lead">{t(lang, "data.lead")}</p>
+          <p>
+            {tj(lang, "places.browse", {
+              occupations: <a href="/occupations">{t(lang, "places.browse_occupations")}</a>,
+              places: <a href="/places">{t(lang, "places.browse_places")}</a>,
+            })}
+          </p>
 
           <h2 id="downloads">{t(lang, "data.toc_downloads")}</h2>
           <div class="table-wrap bordered">
@@ -171,12 +185,19 @@ export async function dataPage(c: Context<AppEnv>): Promise<Response> {
           </div>
 
           <h2 id="licence">{t(lang, "data.licence")}</h2>
-          <p>{t(lang, "data.licence_text")}</p>
+          <p>{t(lang, "data.licence_text")} {t(lang, "places.data_licence")}</p>
           <p>
             {tj(lang, "data.sources_text", {
               wages: <a href={SOURCE_LINKS.wages[lang]}>{t(lang, "data.src.wages")}</a>,
               lfs: <a href={SOURCE_LINKS.lfs[lang]}>{t(lang, "data.src.lfs")}</a>,
               boundaries: <a href={SOURCE_LINKS.boundaries[lang]}>{t(lang, "data.src.boundaries")}</a>,
+              statcan: <a href={SOURCE_LINKS.statcan[lang]}>{t(lang, "data.src.statcan_licence")}</a>,
+            })}
+          </p>
+          <p>
+            {tj(lang, "places.data_sources", {
+              vacancies: <a href={SOURCE_LINKS.vacancies[lang]}>{t(lang, "places.src_vacancies")}</a>,
+              noc: <a href={SOURCE_LINKS.noc[lang]}>{t(lang, "places.src_noc")}</a>,
               statcan: <a href={SOURCE_LINKS.statcan[lang]}>{t(lang, "data.src.statcan_licence")}</a>,
             })}
           </p>
