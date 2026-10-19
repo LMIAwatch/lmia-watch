@@ -743,8 +743,8 @@ const STRINGS = {
     fr: "Couverture des registres : chaque employeur est comparé à l'extrait des sociétés fédérales; les employeurs de la Colombie-Britannique sont aussi cherchés dans le BC Registry au moyen d'OrgBook, et ceux du Québec dans le registre des entreprises du Québec. L'Ontario, l'Alberta, la Saskatchewan, le Manitoba, le Nouveau-Brunswick, la Nouvelle-Écosse, l'Île-du-Prince-Édouard et Terre-Neuve-et-Labrador ne publient ni fichier complet gratuit ni interface ouverte pour leur registre des sociétés : on y cherche un nom à la fois, plusieurs facturent chaque recherche ou exigent un compte, et certaines conditions interdisent la recherche automatisée. Une société constituée dans l'une de ces provinces n'affiche des renseignements de registre que si elle est aussi une société fédérale.",
   },
   "methodology.exclusions_households": {
-    en: "Private households and individuals are not published. Caregiver and home-support postings where the employer is a person are dropped before anything is stored. ESDC already removes employers with personal names from its lists, so coverage of caregiver hiring is incomplete by design.",
-    fr: "Les ménages privés et les particuliers ne sont pas publiés. Les offres d'aide familiale et de soutien à domicile dont l'employeur est une personne sont écartées avant tout enregistrement. EDSC retire déjà de ses listes les employeurs portant un nom de personne : la couverture de l'embauche d'aides familiaux est donc incomplète par conception.",
+    en: "Private households and individuals are not published. A private home is not a business, and the person who hires help for it is not a public employer. Caregiver and home-support postings where the employer is a person are dropped before anything is stored. ESDC's lists say they leave out personal names, yet some households appear in them: a list row is left out when the occupation is home child care provider or home support worker (NOC 4411, 4412, 44100 or 44101) and the employer is named as a person, with no business name or legal form. Such rows are not loaded, counted or shown, and the mirrored ESDC files stay as published. Businesses named after their owner stay. The 2014 and 2015 lists name no occupation, so the rule cannot reach them. Coverage of caregiver hiring is incomplete by design.",
+    fr: "Les ménages privés et les particuliers ne sont pas publiés. Un foyer privé n'est pas une entreprise, et la personne qui y embauche de l'aide n'est pas un employeur public. Les offres d'aide familiale et de soutien à domicile dont l'employeur est une personne sont écartées avant tout enregistrement. Les listes d'EDSC indiquent qu'elles excluent les noms de personnes, mais certains ménages y figurent : une inscription est écartée lorsque la profession est gardien d'enfants en milieu familial ou aide de maintien à domicile (CNP 4411, 4412, 44100 ou 44101) et que l'employeur est désigné par un nom de personne, sans nom d'entreprise ni forme juridique. Ces inscriptions ne sont ni chargées, ni comptées, ni affichées, et les fichiers d'EDSC reproduits restent tels qu'ils ont été publiés. Les entreprises qui portent le nom de leur propriétaire restent. Les listes de 2014 et de 2015 ne précisent aucune profession : la règle ne peut donc pas s'y appliquer. La couverture de l'embauche d'aides familiaux est incomplète par conception.",
   },
   "methodology.exclusions_workers": {
     en: "No worker is ever named. Applicant counts, resumes and contact details on a posting are not collected.",
@@ -1847,6 +1847,16 @@ const STRINGS = {
   },
   "occ.provinces": { en: "Records by Province", fr: "Dossiers par province" },
   "occ.search": { en: "See every record for NOC {noc} in search", fr: "Voir tous les dossiers de la CNP {noc} dans la recherche" },
+
+  // --- household exclusion ---
+  "data.change_households": {
+    en: "Private households left out of the ESDC lists: a row whose occupation is home child care provider or home support worker (NOC 4411, 4412, 44100 or 44101) and whose employer is named as a person, with no business name or legal form, is no longer loaded or counted. 24 rows (28 positions) and 22 employer profiles removed: 22 rows and 23 positions from the positive lists, 2 rows and 5 positions from the negative lists. The mirrored ESDC files are unchanged.",
+    fr: "Ménages privés écartés des listes d'EDSC : une inscription dont la profession est gardien d'enfants en milieu familial ou aide de maintien à domicile (CNP 4411, 4412, 44100 ou 44101) et dont l'employeur est désigné par un nom de personne, sans nom d'entreprise ni forme juridique, n'est plus chargée ni comptée. 24 inscriptions (28 postes) et 22 profils d'employeurs retirés : 22 inscriptions et 23 postes des listes positives, 2 inscriptions et 5 postes des listes négatives. Les fichiers d'EDSC reproduits sont inchangés.",
+  },
+  "data.recomputed_households": {
+    en: "Counts, rankings, quarterly releases, employer profiles, downloads",
+    fr: "Chiffres, classements, publications trimestrielles, profils d'employeurs, téléchargements",
+  },
 } as const satisfies Record<string, Entry>;
 
 export type Key = keyof typeof STRINGS;

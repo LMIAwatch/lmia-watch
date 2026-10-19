@@ -13,6 +13,7 @@ export const CHANGELOG: readonly ChangeRow[] = [
   { date: "2026-10-12", change: "data.change_drafted", recomputed: "data.recomputed_all", vars: { rules: "0.1" } },
   { date: "2026-10-17", change: "data.change_wages", recomputed: "data.recomputed_wages", vars: { rules: "0.2" } },
   { date: "2026-10-18", change: "data.change_matching", recomputed: "data.recomputed_profiles" },
+  { date: "2026-10-18", change: "data.change_households", recomputed: "data.recomputed_households" },
 ];
 export function changelog(latestPeriod: string): ChangeRow[] {
   return [...CHANGELOG]

@@ -342,6 +342,7 @@ describe("rendered French pages", () => {
     expect(data).toContain("Licence ouverte de Statistique Canada");
     expect(data).toContain("https://www150.statcan.gc.ca/t1/tbl1/fr/tv.action?pid=1410045901");
     expect(data).toContain('<td class="mono nw">2026-10-17</td>');
+    expect(data).toContain("Ménages privés écartés des listes d’EDSC");
     expect(data).not.toContain("prévu");
 
     const support = nbsp(await (await get("/support?lang=fr")).text());

@@ -22,6 +22,7 @@ import openpyxl
 
 from .. import config
 from ..db import log_run, now_iso, upsert_employer
+from ..household import is_household_row, remove_household_rows
 from ..http import FetchError, PoliteClient
 from ..normalize import iso_date, parse_address, parse_noc, period_from_text, province_code, to_int
 
@@ -300,7 +301,7 @@ def load_resource(
             section_province = codes.pop()
             continue
         rec = normalize_row(fields, row)
-        if rec is None or is_summary_row(rec):
+        if rec is None or is_summary_row(rec) or is_household_row(rec):
             continue
         if rec["province"] is None:
             rec["province"] = section_province
@@ -354,6 +355,7 @@ def run(conn: sqlite3.Connection, client: PoliteClient, *, now: str | None = Non
     # parser loaded; a file already loaded is never parsed again unless ESDC
     # revises it, and the parser now skips them.
     removed = remove_summary_rows(conn)
+    households = remove_household_rows(conn)
     for list_name, dataset_id in config.ESDC_DATASETS.items():
         listing = config.CKAN_PACKAGE_SHOW.format(dataset=dataset_id)
         # A portal outage, or a maintenance page served with HTTP 200, costs
@@ -402,6 +404,8 @@ def run(conn: sqlite3.Connection, client: PoliteClient, *, now: str | None = Non
     detail = f"positive={totals.get('positive', 0)} negative={totals.get('negative', 0)}"
     if removed["rows"]:
         detail += f" summary_rows_removed={removed['rows']} employers_removed={removed['employers']}"
+    if households["rows"]:
+        detail += f" household_rows_removed={households['rows']} household_employers_removed={households['employers']}"
     if duplicates:
         detail += " duplicates=" + "; ".join(duplicates)[:400]
     if failures:

@@ -119,6 +119,7 @@ describe("pages", () => {
     expect(meth).toContain("<h2 id=\"status\">Status Lifecycle</h2>");
     expect(meth).toContain("Known false positives");
     expect(meth).toContain("Private households and individuals are not published");
+    expect(meth).toContain("(NOC 4411, 4412, 44100 or 44101) and the employer is named as a person");
     // The wage and unemployment rules as published, with their sources.
     expect(meth).toContain("Job Bank wages by occupation and economic region (ESDC, open.canada.ca)");
     expect(meth).toContain("Statistics Canada Labour Force Survey, table 14-10-0459-01");
@@ -142,6 +143,7 @@ describe("pages", () => {
     // Newest change first.
     expect(data.indexOf('<td class="mono nw">2026-10-18</td>')).toBeLessThan(data.indexOf('<td class="mono nw">2026-10-12</td>'));
     expect(data).toContain("Indicator rules v0.2.");
+    expect(data).toContain("Private households left out of the ESDC lists");
     expect(data).not.toContain("planned");
     expect(data.split('class="table-wrap bordered scroll-y"').length - 1).toBe(2);
   });

@@ -49,6 +49,7 @@ marking, because a capped run has not seen the whole feed.
 | Module | Does |
 |---|---|
 | `sources/esdc.py` | discovers every quarterly file through CKAN, downloads and parses it (CSV to 2020 Q3, XLSX after), records provenance in `esdc_resources` |
+| `household.py` | keeps private households (a person's name with a home child care or home support occupation) out of the ESDC rows, at load and in a nightly cleanup of rows already loaded |
 | `sources/jobbank.py` | pages both LMIA facets, upserts postings, logs each observation, fetches new posting pages within a budget, drops private-household postings before storage |
 | `normalize.py` | name identity (`split_trade_name`, `norm_name`), addresses, dates, codes |
 | `migrate.py` | re-derives employer ids, merges duplicates and rewrites every referencing table after a normalization change |

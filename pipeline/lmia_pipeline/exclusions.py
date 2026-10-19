@@ -2,10 +2,11 @@
 
 Private households hire caregivers and home support workers under the
 employer's own name. Those postings are public on Job Bank, but publishing a
-person's name and home area as an "employer" is not what this project is for,
-and ESDC already strips personal-name employers from its own lists. The rule
-errs toward dropping: a borderline business lost from the pending list costs
-little, a named individual costs a lot.
+person's name and home area as an "employer" is not what this project is for.
+ESDC's lists say they leave personal names out, yet some households get
+through; household.py keeps those out on the same reasoning, sharing the
+tokens below. The rule errs toward dropping: a borderline business lost from
+the pending list costs little, a named individual costs a lot.
 """
 
 from __future__ import annotations
@@ -66,6 +67,15 @@ BUSINESS_TOKENS = {
 }
 
 
+# A word of a name: letters, with an apostrophe, dot or hyphen inside it
+# ("O'Neil", "J.R.", "Marie-Claude"). Shared with household.py.
+NAME_WORD_RE = re.compile(r"[^\W\d_]+(?:['’.-][^\W\d_]+)*")
+
+
+def name_words(text: str) -> list[str]:
+    return NAME_WORD_RE.findall(text)
+
+
 def looks_like_person(name: str | None) -> bool:
     """Two or three plain words with no business marker reads as a person."""
     if not name:
@@ -73,7 +83,7 @@ def looks_like_person(name: str | None) -> bool:
     text = name.strip()
     if re.search(r"[\d&+/@#]", text):
         return False
-    tokens = re.findall(r"[^\W\d_]+(?:['’.-][^\W\d_]+)*", text)
+    tokens = name_words(text)
     if len(tokens) not in (2, 3):
         return False
     lowered = [t.lower().strip(".") for t in tokens]
