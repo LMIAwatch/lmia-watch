@@ -22,8 +22,10 @@ describe("pages", () => {
     expect(html).toContain('<link rel="icon" href="/favicon.svg" type="image/svg+xml"');
     expect(html).toContain('class="brand-mark"');
     expect(html).toContain('<script src="/theme.js"></script>');
-    expect(html).toContain('<a href="https://x.com/LMIAwatch" class="footer-x" rel="noopener" aria-label="LMIA Watch on X"');
-    expect(html).toContain('<a href="https://bsky.app/profile/lmiawatch.ca" class="footer-x" rel="noopener" aria-label="LMIA Watch on Bluesky"');
+    // Off-site links open in a new tab; the script marks the rest at load.
+    expect(html).toContain('<a href="https://x.com/LMIAwatch" class="footer-x" target="_blank" rel="noopener" aria-label="LMIA Watch on X"');
+    expect(html).toContain('<a href="https://bsky.app/profile/lmiawatch.ca" class="footer-x" target="_blank" rel="noopener" aria-label="LMIA Watch on Bluesky"');
+    expect(html).toContain('<script src="/links.js" defer=""></script>');
     expect(html).toContain('<button type="button" class="theme-toggle"><span class="when-light">Dark</span><span class="when-dark">Light</span></button>');
   });
 

@@ -172,6 +172,7 @@ export const Layout: FC<
         <title>{title}</title>
         <link rel="stylesheet" href="/styles.css?v=9" />
         <script src="/theme.js"></script>
+        <script src="/links.js" defer></script>
         <link rel="preload" href="/fonts/public-sans-latin-var.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
         <link rel="icon" href="/favicon.ico" sizes="48x48" />
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
@@ -226,10 +227,10 @@ export const Layout: FC<
             <a href="/corrections">{t(lang, "footer.corrections")}</a>
             <a href="/support">{t(lang, "footer.support")}</a>
             <span class="footer-copyright">{t(lang, "footer.copyright")}</span>
-            <a href={X_ACCOUNT_URL} class="footer-x" rel="noopener" aria-label={t(lang, "footer.x")} title={t(lang, "footer.x")}>
+            <a href={X_ACCOUNT_URL} class="footer-x" target="_blank" rel="noopener" aria-label={t(lang, "footer.x")} title={t(lang, "footer.x")}>
               <XMark />
             </a>
-            <a href={BLUESKY_ACCOUNT_URL} class="footer-x" rel="noopener" aria-label={t(lang, "footer.bluesky")} title={t(lang, "footer.bluesky")}>
+            <a href={BLUESKY_ACCOUNT_URL} class="footer-x" target="_blank" rel="noopener" aria-label={t(lang, "footer.bluesky")} title={t(lang, "footer.bluesky")}>
               <BlueskyMark />
             </a>
           </div>

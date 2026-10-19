@@ -203,7 +203,7 @@ describe("every release and ranking page", () => {
     for (const path of PAGES) {
       const page = await html(path);
       for (const tag of page.match(/<script[^>]*>/g) ?? []) {
-        expect(tag === '<script src="/theme.js">' || tag === '<script type="application/ld+json">', `${path}: ${tag}`).toBe(true);
+        expect(tag === '<script src="/theme.js">' || tag === '<script src="/links.js" defer="">' || tag === '<script type="application/ld+json">', `${path}: ${tag}`).toBe(true);
       }
     }
   });
