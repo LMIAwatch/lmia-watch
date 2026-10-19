@@ -1857,6 +1857,16 @@ const STRINGS = {
     en: "Counts, rankings, quarterly releases, employer profiles, downloads",
     fr: "Chiffres, classements, publications trimestrielles, profils d'employeurs, téléchargements",
   },
+
+  // --- esdc reload ---
+  "data.change_esdc_rows": {
+    en: "ESDC lists from 2016 to 2019 Q2 name an employer, its address and province only on the first of its rows, and the stream only at the top of each block. The rows below are now loaded ({rows} rows, {positions} positions), and {streams} rows already loaded gained their stream and {provinces} their province. {headers} rows from 2016 to 2026 that the loader had taken for column headings are loaded too ({header_positions} positions). Some employer IDs changed.",
+    fr: "Les listes d'EDSC de 2016 au T2 2019 n'indiquent un employeur, son adresse et sa province qu'à la première de ses inscriptions, et le volet qu'en tête de chaque bloc. Les inscriptions suivantes sont maintenant chargées ({rows} inscriptions, {positions} postes), et {streams} inscriptions déjà chargées ont reçu leur volet et {provinces} leur province. {headers} inscriptions de 2016 à 2026 que le chargement prenait pour des en-têtes de colonnes sont aussi chargées ({header_positions} postes). Certains identifiants d'employeur ont changé.",
+  },
+  "data.recomputed_esdc_rows": {
+    en: "ESDC records 2016 to 2026, employer profiles, rankings",
+    fr: "Inscriptions d'EDSC de 2016 à 2026, profils d'employeurs, classements",
+  },
 } as const satisfies Record<string, Entry>;
 
 export type Key = keyof typeof STRINGS;

@@ -8,17 +8,27 @@ import { datasetJsonLd, pageSeo } from "../seo";
 
 // The changelog, newest first whatever order the entries are written in.
 // Add an entry here; the table sorts by date.
-export type ChangeRow = { date: string; change: Key; recomputed: Key; vars?: Record<string, string> };
+export type ChangeRow = { date: string; change: Key; recomputed: Key; vars?: Record<string, string | number> };
 export const CHANGELOG: readonly ChangeRow[] = [
   { date: "2026-10-12", change: "data.change_drafted", recomputed: "data.recomputed_all", vars: { rules: "0.1" } },
   { date: "2026-10-17", change: "data.change_wages", recomputed: "data.recomputed_wages", vars: { rules: "0.2" } },
   { date: "2026-10-18", change: "data.change_matching", recomputed: "data.recomputed_profiles" },
   { date: "2026-10-18", change: "data.change_households", recomputed: "data.recomputed_households" },
+  {
+    date: "2026-10-19", change: "data.change_esdc_rows", recomputed: "data.recomputed_esdc_rows",
+    vars: { rows: 8359, positions: 49043, streams: 55006, provinces: 2349, headers: 473, header_positions: 1606 },
+  },
 ];
-export function changelog(latestPeriod: string): ChangeRow[] {
+// Numbers in an entry are formatted for the page's language; the drafted entry names the latest period.
+export function changelog(latestPeriod: string, lang: Lang): { date: string; change: Key; recomputed: Key; vars: Record<string, string> }[] {
   return [...CHANGELOG]
-    .map((row) => (row.change === "data.change_drafted" ? { ...row, vars: { ...row.vars, period: latestPeriod } } : row))
-    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+    .map((row) => {
+      const vars: Record<string, string> = {};
+      for (const [k, v] of Object.entries(row.vars ?? {})) vars[k] = typeof v === "number" ? fmtInt(v, lang) : v;
+      if (row.change === "data.change_drafted") vars.period = latestPeriod;
+      return { date: row.date, change: row.change, recomputed: row.recomputed, vars };
+    });
 }
 
 export const DOWNLOADS: { file: string; contents: Key }[] = [
@@ -216,7 +226,7 @@ export async function dataPage(c: Context<AppEnv>): Promise<Response> {
                 </tr>
               </thead>
               <tbody>
-                {changelog(latestPeriod).map((row) => (
+                {changelog(latestPeriod, lang).map((row) => (
                   <tr>
                     <td class="mono nw">{row.date}</td>
                     <td>{t(lang, row.change, row.vars)}</td>

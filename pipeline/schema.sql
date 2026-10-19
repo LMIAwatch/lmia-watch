@@ -137,7 +137,8 @@ CREATE TABLE IF NOT EXISTS esdc_resources (
   sha256 TEXT NOT NULL,
   bytes INTEGER NOT NULL,
   rows_loaded INTEGER NOT NULL,
-  loaded_at TEXT NOT NULL
+  loaded_at TEXT NOT NULL,
+  parser_version INTEGER NOT NULL DEFAULT 0      -- esdc.PARSER_VERSION the rows were read with; 0 = before versions were recorded
 );
 
 -- IRCC "Employers who have been found non-compliant", as published.

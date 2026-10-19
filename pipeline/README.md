@@ -42,13 +42,18 @@ vacancies, geography, indicators and status, export.
 Before any stage, `run` compares `meta.normalize_version` with
 `normalize.NORMALIZE_VERSION` and, when the database is older, re-derives every
 employer id once (`migrate.py`).
+The esdc stage likewise compares each loaded file's
+`esdc_resources.parser_version` with `esdc.PARSER_VERSION` and parses an older
+one again once, from the download cache (`esdc.reload_outdated`). Rows are
+matched by row hash, so a row read correctly before keeps its id; bump the
+version after any parser change that alters what a loaded file yields.
 `--limit` caps Job Bank list pages per facet and also disables the "gone"
 marking, because a capped run has not seen the whole feed.
 
 ## Stages
 | Module | Does |
 |---|---|
-| `sources/esdc.py` | discovers every quarterly file through CKAN, downloads and parses it (CSV to 2020 Q3, XLSX after), records provenance in `esdc_resources` |
+| `sources/esdc.py` | discovers every quarterly file through CKAN, downloads and parses it (CSV to 2020 Q3, XLSX after), records provenance and the parser version in `esdc_resources`; in the 2016 to 2019 Q2 files gives each continuation row (blank employer, an occupation and a count) to the employer row above it and carries the stream and province down their blocks |
 | `household.py` | keeps private households (a person's name with a home child care or home support occupation) out of the ESDC rows, at load and in a nightly cleanup of rows already loaded |
 | `sources/jobbank.py` | pages both LMIA facets, upserts postings, logs each observation, fetches new posting pages within a budget, drops private-household postings before storage |
 | `normalize.py` | name identity (`split_trade_name`, `norm_name`), addresses, dates, codes |

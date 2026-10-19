@@ -4,7 +4,8 @@ Resources are discovered through the CKAN API so a new quarter loads itself.
 File shapes changed over the years: CSV with varying headers up to 2020 Q3,
 XLSX with a title row and footnotes from 2020 Q4 on. Headers are matched by
 keyword rather than exact text, and the file type comes from the URL because
-the CKAN format field is wrong on some rows.
+the CKAN format field is wrong on some rows. The 2016 to 2019 Q2 files print a
+group's shared cells once (see read_records).
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ import json
 import logging
 import re
 import sqlite3
-from collections.abc import Mapping
+from collections.abc import Iterable, Iterator, Mapping
 
 import openpyxl
 
@@ -27,6 +28,14 @@ from ..http import FetchError, PoliteClient
 from ..normalize import iso_date, parse_address, parse_noc, period_from_text, province_code, to_int
 
 log = logging.getLogger(__name__)
+
+# Recorded per resource in esdc_resources.parser_version. Bump it when a parser
+# change alters what is read from a file already loaded: the esdc stage then
+# parses every resource recorded under an older version again, once
+# (reload_outdated). 0: loaded before versions were recorded. 1: continuation
+# rows, the stream and province carried down their blocks, and data rows no
+# longer taken for headers.
+PARSER_VERSION = 1
 
 # Order matters: a header such as "Approved LMIA Positions" must land on
 # positions, so positions is tested before lmias.
@@ -61,7 +70,13 @@ def map_headers(headers: list[object]) -> dict[str, int]:
 
 def is_header_row(row: list[object]) -> bool:
     fields = map_headers(row)
-    return "employer" in fields and ("occupation" in fields or "positions" in fields)
+    if "employer" not in fields or ("occupation" not in fields and "positions" not in fields):
+        return False
+    # A data row can match the keywords as well: "Employers carrying on
+    # business in Canada with Head Office outside of Canada" beside "Other
+    # trades and related occupations" took 473 rows for headers. A header
+    # never holds a count.
+    return not any(to_int(v) is not None for v in row if v not in (None, ""))
 
 
 def _rows_from_iter(rows: list[list[object]]) -> tuple[list[object], list[list[object]]]:
@@ -204,8 +219,19 @@ def remove_summary_rows(conn: sqlite3.Connection) -> dict[str, int]:
             "WHERE resource_id = ?",
             (rid, rid),
         )
+    dropped = drop_orphans(conn, {r["employer_id"] for r in doomed})
+    conn.commit()
+    return {"rows": len(doomed), "employers": dropped}
+
+
+def drop_orphans(conn: sqlite3.Connection, employer_ids: Iterable[str]) -> int:
+    """Delete the employers among these left with no list row, posting or finding.
+
+    Their names, registry matches, registry checks and indicators go with
+    them. Does not commit. Returns the number deleted.
+    """
     orphans = [
-        (eid,) for eid in sorted({r["employer_id"] for r in doomed})
+        (eid,) for eid in sorted(set(employer_ids))
         if not conn.execute(
             "SELECT 1 FROM esdc_records WHERE employer_id = ? UNION ALL SELECT 1 FROM jobbank_postings WHERE employer_id = ? "
             "UNION ALL SELECT 1 FROM findings WHERE employer_id = ? LIMIT 1",
@@ -215,13 +241,131 @@ def remove_summary_rows(conn: sqlite3.Connection) -> dict[str, int]:
     for table in ("employer_names", "registry_matches", "registry_checks", "indicators"):
         conn.executemany(f"DELETE FROM {table} WHERE employer_id = ?", orphans)
     conn.executemany("DELETE FROM employers WHERE id = ?", orphans)
-    conn.commit()
-    return {"rows": len(doomed), "employers": len(orphans)}
+    return len(orphans)
 
 
 def row_hash(list_name: str, resource_id: str, row: list[object]) -> str:
     payload = json.dumps(["" if v is None else str(v) for v in row], ensure_ascii=False)
     return hashlib.sha1(f"{list_name}|{resource_id}|{payload}".encode("utf-8")).hexdigest()
+
+
+def _cell(fields: dict[str, int], row: list[object], key: str) -> str | None:
+    idx = fields.get(key)
+    if idx is None or idx >= len(row) or row[idx] is None:
+        return None
+    return str(row[idx]).strip() or None
+
+
+def _filled(fields: dict[str, int], row: list[object], cells: dict[str, str | None]) -> list[object]:
+    """A copy of row with the given cells written in, padded when the row is short."""
+    out = list(row)
+    for key, value in cells.items():
+        idx = fields.get(key)
+        if idx is None or value is None:
+            continue
+        if idx >= len(out):
+            out.extend([None] * (idx + 1 - len(out)))
+        out[idx] = value
+    return out
+
+
+def read_records(
+    list_name: str, resource_id: str, headers: list[object], rows: list[list[object]]
+) -> Iterator[tuple[dict, str]]:
+    """Each employer row of one file, normalized, with its row hash, in file order.
+
+    The 2016 to 2019 Q2 files print a group's shared cells once. An employer
+    with several occupations takes one row per occupation, and only the first
+    carries the employer, address and province; the rest (continuation rows)
+    hold an occupation and a count, now and then an address of their own. The
+    province is printed on the first row of its block and, from 2017 Q1, the
+    stream on the first row of each stream block within it. A continuation row
+    belongs to the employer row above it; a row that leaves the stream or
+    province blank takes its block's. Nothing carries past a header, a
+    province heading line, a summary or footnote line, or a row that names a
+    province or stream of its own: a blank employer there (the 2019 Q3
+    negative file has one) is a name ESDC left out, and the row is skipped.
+
+    A row keeps the hash of its raw cells, so rows an earlier parser loaded
+    keep theirs. A continuation row, and a raw row repeated under a second
+    stream (the earlier parser kept only the first), are hashed with the
+    carried cells written in. A row equal to an earlier one after filling is
+    a duplicate and is skipped, as identical rows always were.
+    """
+    fields = map_headers(headers)
+    section: str | None = None   # province from a heading line (2014) or a block's first row (2016 on)
+    stream: str | None = None    # stream of the current block
+    parent: dict | None = None   # the employer row the next continuation row belongs to
+    hashes: set[str] = set()     # hashes handed out in this file
+    filled_seen: set[str] = set()
+    for row in rows:
+        # The 2014 file repeats its header under each province and names the
+        # province on a line of its own instead of in a column.
+        if is_header_row(row):
+            parent = None
+            continue
+        non_empty = [v for v in row if v not in (None, "")]
+        # A heading line names one province in every filled cell: usually
+        # once, but the 2015 negative file writes "Alberta,Alberta,".
+        codes = {province_code(str(v)) for v in non_empty}
+        if len(codes) == 1 and None not in codes:
+            section, stream, parent = codes.pop(), None, None
+            continue
+        own_province = _cell(fields, row, "province")
+        own_stream = _cell(fields, row, "stream")
+        block_province = province_code(own_province) if own_province else section
+        block_stream = own_stream or (None if own_province else stream)
+        employer = _cell(fields, row, "employer")
+        if employer:
+            filled = _filled(fields, row, {"stream": None if own_stream else block_stream})
+            rec = normalize_row(fields, filled)
+            if rec is None or is_summary_row(rec):
+                parent = None
+                continue
+            if rec["province"] is None:
+                rec["province"] = block_province
+            parent = {"employer": employer, "address": rec["address_raw"], "province": own_province,
+                      "rec_province": rec["province"], "province_raw": rec["province_raw"]}
+        elif (
+            parent is not None and not own_province and not own_stream
+            and _cell(fields, row, "occupation")
+            and (to_int(_cell(fields, row, "positions")) is not None or to_int(_cell(fields, row, "lmias")) is not None)
+        ):
+            if address := _cell(fields, row, "address"):
+                parent["address"] = address  # a second location; the rows below it follow it
+            filled = _filled(fields, row, {"employer": parent["employer"], "address": parent["address"],
+                                           "province": parent["province"], "stream": block_stream})
+            rec = normalize_row(fields, filled)
+            if rec is None:
+                continue
+            # The employer's province, so the row joins the employer above it.
+            rec["province"], rec["province_raw"] = parent["rec_province"], parent["province_raw"]
+        else:
+            parent = None
+            continue
+        section, stream = block_province, block_stream
+        full = row_hash(list_name, resource_id, filled)
+        if full in filled_seen:
+            continue
+        filled_seen.add(full)
+        raw = row_hash(list_name, resource_id, row)
+        h = raw if employer and raw not in hashes else full
+        if h in hashes:
+            continue
+        hashes.add(h)
+        yield rec, h
+
+
+# esdc_records columns written from a parsed row, in insert order (row_hash follows).
+RECORD_COLUMNS = (
+    "list", "period", "employer_id", "employer_raw", "province", "province_raw", "stream", "address_raw", "city",
+    "postal_code", "noc_code", "noc_title", "incorporate_status", "lmias", "positions", "resource_id",
+)
+_INSERT_RECORD = (
+    f"INSERT INTO esdc_records ({', '.join(RECORD_COLUMNS)}, row_hash) "
+    f"VALUES ({', '.join('?' * (len(RECORD_COLUMNS) + 1))})"
+)
+_UPDATE_RECORD = f"UPDATE esdc_records SET {', '.join(f'{c} = ?' for c in RECORD_COLUMNS)} WHERE id = ?"
 
 
 def english_resources(package: dict) -> list[dict]:
@@ -276,74 +420,112 @@ def load_resource(
         conn.commit()
         raise DuplicateFile(f"same file as {twin['period']} (resource {twin['resource_id']})")
     existing = conn.execute(
-        "SELECT sha256 FROM esdc_resources WHERE resource_id = ?", (res["id"],)
+        "SELECT sha256, parser_version FROM esdc_resources WHERE resource_id = ?", (res["id"],)
     ).fetchone()
-    if existing and existing["sha256"] == sha:
+    if existing and existing["sha256"] == sha and existing["parser_version"] >= PARSER_VERSION:
         return 0
-    if existing:
-        # ESDC revises files in place; reload the resource from scratch.
-        conn.execute("DELETE FROM esdc_records WHERE resource_id = ?", (res["id"],))
-
+    # Parsed before anything is deleted, so a file that fails to parse leaves
+    # the rows already loaded as they were.
     headers, rows = parse_resource(data, ext)
-    fields = map_headers(headers)
+    records = list(read_records(list_name, res["id"], headers, rows))
+
+    kept: dict[str, sqlite3.Row] = {}
+    touched: set[str] = set()  # employers that may have lost their last row
+    if existing:
+        prior = conn.execute("SELECT * FROM esdc_records WHERE resource_id = ?", (res["id"],)).fetchall()
+        touched = {r["employer_id"] for r in prior}
+        if existing["sha256"] == sha:
+            # Same file, older parser: rows are matched on their hash, so a row
+            # read correctly before keeps its id and is updated only where the
+            # parser now reads it differently (a stream, a province).
+            kept = {r["row_hash"]: r for r in prior}
+        else:
+            # ESDC revises files in place; reload the resource from scratch.
+            conn.execute("DELETE FROM esdc_records WHERE resource_id = ?", (res["id"],))
+
     inserted = 0
-    section_province: str | None = None
-    for row in rows:
-        # The 2014 file repeats its header under each province and names the
-        # province on a line of its own instead of in a column.
-        if is_header_row(row):
-            continue
-        non_empty = [v for v in row if v not in (None, "")]
-        # A heading line names one province in every filled cell: usually
-        # once, but the 2015 negative file writes "Alberta,Alberta,".
-        codes = {province_code(str(v)) for v in non_empty}
-        if len(codes) == 1 and None not in codes:
-            section_province = codes.pop()
-            continue
-        rec = normalize_row(fields, row)
-        if rec is None or is_summary_row(rec) or is_household_row(rec):
-            continue
-        if rec["province"] is None:
-            rec["province"] = section_province
-        h = row_hash(list_name, res["id"], row)
-        if conn.execute("SELECT 1 FROM esdc_records WHERE row_hash = ?", (h,)).fetchone():
+    for rec, h in records:
+        if is_household_row(rec):
             continue
         eid = upsert_employer(
             conn, rec["employer_raw"], rec["province"], source=f"esdc_{list_name}",
             city=rec["city"], postal_code=rec["postal_code"], now=stamp,
         )
-        conn.execute(
-            """
-            INSERT INTO esdc_records (list, period, employer_id, employer_raw, province, province_raw,
-              stream, address_raw, city, postal_code, noc_code, noc_title, incorporate_status,
-              lmias, positions, resource_id, row_hash)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                list_name, period, eid, rec["employer_raw"], rec["province"], rec["province_raw"],
-                rec["stream"], rec["address_raw"], rec["city"], rec["postal_code"], rec["noc_code"],
-                rec["noc_title"], rec["incorporate_status"], rec["lmias"], rec["positions"],
-                res["id"], h,
-            ),
+        values = (
+            list_name, period, eid, rec["employer_raw"], rec["province"], rec["province_raw"],
+            rec["stream"], rec["address_raw"], rec["city"], rec["postal_code"], rec["noc_code"],
+            rec["noc_title"], rec["incorporate_status"], rec["lmias"], rec["positions"], res["id"],
         )
-        inserted += 1
+        old = kept.pop(h, None)
+        if old is None:
+            conn.execute(_INSERT_RECORD, (*values, h))
+            inserted += 1
+        elif tuple(old[c] for c in RECORD_COLUMNS) != values:
+            conn.execute(_UPDATE_RECORD, (*values, old["id"]))
+    # Rows the older parser loaded that this one does not read.
+    conn.executemany("DELETE FROM esdc_records WHERE id = ?", [(r["id"],) for r in kept.values()])
+    loaded = conn.execute("SELECT COUNT(*) FROM esdc_records WHERE resource_id = ?", (res["id"],)).fetchone()[0]
     conn.execute(
         """
         INSERT INTO esdc_resources (resource_id, dataset, period, name, url, published, sha256, bytes,
-          rows_loaded, loaded_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          rows_loaded, loaded_at, parser_version)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(resource_id) DO UPDATE SET
           period = excluded.period, name = excluded.name, url = excluded.url,
           published = excluded.published, sha256 = excluded.sha256, bytes = excluded.bytes,
-          rows_loaded = excluded.rows_loaded, loaded_at = excluded.loaded_at
+          rows_loaded = excluded.rows_loaded, loaded_at = excluded.loaded_at,
+          parser_version = excluded.parser_version
         """,
         (
             res["id"], list_name, period, res.get("name") or "", url,
-            iso_date(res.get("created")), sha, len(data), inserted, stamp,
+            iso_date(res.get("created")), sha, len(data), loaded, stamp, PARSER_VERSION,
         ),
     )
+    drop_orphans(conn, touched)
     conn.commit()
     return inserted
+
+
+def reload_outdated(conn: sqlite3.Connection, client: PoliteClient, *, now: str | None = None) -> dict:
+    """Parse again, once, every loaded resource recorded under an older parser.
+
+    Runs before the listings are read, so a portal outage does not hold it
+    back. The file comes from the download cache whatever its age (the
+    recorded checksum tells load_resource whether it is the file that was
+    loaded) and is downloaded only when the cache lacks it. A resource whose
+    file cannot be had keeps its rows and its old version and is tried again
+    on the next run; once every resource carries PARSER_VERSION this finds
+    nothing. Returns the resources reloaded, the rows they gained, and any
+    failures and duplicate files.
+    """
+    stamp = now or now_iso()
+    out: dict = {"resources": 0, "rows": 0, "failures": [], "duplicates": []}
+    outdated = conn.execute(
+        "SELECT resource_id, dataset, period, name, url, published FROM esdc_resources "
+        "WHERE parser_version < ? ORDER BY dataset, period, resource_id",
+        (PARSER_VERSION,),
+    ).fetchall()
+    for r in outdated:
+        res = {"id": r["resource_id"], "name": r["name"], "url": r["url"], "created": r["published"]}
+        label = f"{r['period']} {r['dataset']}"
+        try:
+            data = client.get(r["url"], cache=True, max_age_s=float("inf"))
+        except FetchError as exc:
+            out["failures"].append(f"reload {label}: {exc}")
+            continue
+        try:
+            out["rows"] += load_resource(conn, r["dataset"], res, data, now=stamp)
+        except DuplicateFile as exc:
+            out["duplicates"].append(f"{label}: {exc}")
+            continue
+        except Exception as exc:  # keep reloading the others
+            # The cached copy is kept: an older parser read it without fault.
+            conn.rollback()
+            out["failures"].append(f"reload {label}: {exc}")
+            log.warning("reload of %s failed: %s", label, exc)
+            continue
+        out["resources"] += 1
+    return out
 
 
 def run(conn: sqlite3.Connection, client: PoliteClient, *, now: str | None = None) -> dict[str, int]:
@@ -351,11 +533,15 @@ def run(conn: sqlite3.Connection, client: PoliteClient, *, now: str | None = Non
     totals: dict[str, int] = {}
     failures: list[str] = []
     duplicates: list[str] = []
-    # Before any download, so a portal outage does not keep the rows an older
-    # parser loaded; a file already loaded is never parsed again unless ESDC
-    # revises it, and the parser now skips them.
+    # Before the listings, so a portal outage does not keep what an older
+    # parser loaded. Summary rows go by rule; files loaded under an older
+    # parser version are parsed again from the cache. Otherwise a loaded file
+    # is parsed again only when ESDC revises it.
     removed = remove_summary_rows(conn)
     households = remove_household_rows(conn)
+    reloaded = reload_outdated(conn, client, now=stamp)
+    failures.extend(reloaded["failures"])
+    duplicates.extend(reloaded["duplicates"])
     for list_name, dataset_id in config.ESDC_DATASETS.items():
         listing = config.CKAN_PACKAGE_SHOW.format(dataset=dataset_id)
         # A portal outage, or a maintenance page served with HTTP 200, costs
@@ -406,9 +592,12 @@ def run(conn: sqlite3.Connection, client: PoliteClient, *, now: str | None = Non
         detail += f" summary_rows_removed={removed['rows']} employers_removed={removed['employers']}"
     if households["rows"]:
         detail += f" household_rows_removed={households['rows']} household_employers_removed={households['employers']}"
+    if reloaded["resources"]:
+        detail += f" reloaded={reloaded['resources']} reload_rows_added={reloaded['rows']} parser_version={PARSER_VERSION}"
     if duplicates:
-        detail += " duplicates=" + "; ".join(duplicates)[:400]
+        # The reload and the listing can both meet the same copy.
+        detail += " duplicates=" + "; ".join(dict.fromkeys(duplicates))[:400]
     if failures:
         detail += " failures=" + "; ".join(failures)[:900]
-    log_run(conn, "esdc", detail=detail, rows_new=sum(totals.values()), ok=not failures)
+    log_run(conn, "esdc", detail=detail, rows_new=sum(totals.values()) + reloaded["rows"], ok=not failures)
     return totals
