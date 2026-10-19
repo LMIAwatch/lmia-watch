@@ -23,7 +23,7 @@ describe("pages", () => {
     expect(html).toContain('class="brand-mark"');
     expect(html).toContain('<script src="/theme.js"></script>');
     expect(html).toContain('<a href="https://x.com/LMIAwatch" class="footer-x" rel="noopener" aria-label="LMIA Watch on X"');
-    expect(html).toContain('<a href="https://bsky.app/profile/lmiawatch.bsky.social" class="footer-x" rel="noopener" aria-label="LMIA Watch on Bluesky"');
+    expect(html).toContain('<a href="https://bsky.app/profile/lmiawatch.ca" class="footer-x" rel="noopener" aria-label="LMIA Watch on Bluesky"');
     expect(html).toContain('<button type="button" class="theme-toggle"><span class="when-light">Dark</span><span class="when-dark">Light</span></button>');
   });
 

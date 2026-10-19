@@ -8,7 +8,7 @@ from lmia_pipeline.db import connect, get_meta, set_meta
 from lmia_pipeline.social import Digest, EmployerLine
 from test_social import CREDS as X_CREDS, EARLIER, LATEST, FakeJSON, add_posting, seed
 
-CREDS = {"BSKY_HANDLE": "lmiawatch.bsky.social", "BSKY_APP_PASSWORD": "abcd-efgh-ijkl-mnop"}
+CREDS = {"BSKY_HANDLE": "lmiawatch.ca", "BSKY_APP_PASSWORD": "abcd-efgh-ijkl-mnop"}
 LINK = "https://lmiawatch.ca/search?date=7d"
 DID = "did:plc:abc123example"
 BLOB = {"$type": "blob", "ref": {"$link": "bafkreiexample"}, "mimeType": "image/png", "size": 70000}
@@ -21,7 +21,7 @@ class FakeBsky:
                  record: FakeJSON | Exception | None = None) -> None:
         self.answers = {
             bluesky.SESSION_URL: session or FakeJSON(200, {"accessJwt": "access-jwt-value", "refreshJwt": "r", "did": DID,
-                                                            "handle": "lmiawatch.bsky.social"}),
+                                                            "handle": "lmiawatch.ca"}),
             bluesky.UPLOAD_URL: upload or FakeJSON(200, {"blob": BLOB}),
             bluesky.RECORD_URL: record or FakeJSON(200, {"uri": f"at://{DID}/app.bsky.feed.post/3kexample", "cid": "bafy"}),
         }
@@ -67,7 +67,7 @@ def test_text_carries_the_link_and_a_facet_over_its_exact_bytes(conn, tmp_path):
     assert image["alt"].startswith("LMIA Watch daily card. Job Bank, 2026-10-17")
     # Signed in with the handle and app password; later calls carry the session token, never the password.
     sign_in, upload, create = fake.calls
-    assert sign_in["json"] == {"identifier": "lmiawatch.bsky.social", "password": "abcd-efgh-ijkl-mnop"}
+    assert sign_in["json"] == {"identifier": "lmiawatch.ca", "password": "abcd-efgh-ijkl-mnop"}
     assert upload["headers"]["Authorization"] == "Bearer access-jwt-value"
     assert upload["headers"]["Content-Type"] == "image/png" and upload["data"][:8] == b"\x89PNG\r\n\x1a\n"
     assert create["json"]["repo"] == DID and create["json"]["collection"] == "app.bsky.feed.post"
@@ -174,11 +174,11 @@ def test_a_post_created_without_a_readable_uri_is_still_recorded(conn, tmp_path)
 def test_missing_credentials_skip_and_never_show_the_password(conn, tmp_path):
     seed(conn)
     fake = FakeBsky()
-    assert bluesky.run(conn, out_dir=tmp_path, env={"BSKY_HANDLE": "lmiawatch.bsky.social"}, session=fake) == "no credentials"
+    assert bluesky.run(conn, out_dir=tmp_path, env={"BSKY_HANDLE": "lmiawatch.ca"}, session=fake) == "no credentials"
     assert bluesky.run(conn, out_dir=tmp_path, env=X_CREDS, session=fake) == "no credentials"
     assert fake.calls == []
     assert repr(bluesky.credentials_from_env(CREDS)) == "Credentials(****)"
-    assert bluesky.credentials_from_env({"BSKY_HANDLE": "@lmiawatch.bsky.social", "BSKY_APP_PASSWORD": "x"}).handle == "lmiawatch.bsky.social"
+    assert bluesky.credentials_from_env({"BSKY_HANDLE": "@lmiawatch.ca", "BSKY_APP_PASSWORD": "x"}).handle == "lmiawatch.ca"
 
 
 def test_dry_run_prints_the_text_with_its_link_and_sends_nothing(conn, tmp_path):

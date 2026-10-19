@@ -8,7 +8,7 @@ so this post also carries the link to the last seven days on the search
 page. The code is in `pipeline/lmia_pipeline/bluesky.py`; it reuses the X
 post's composition and card from `social.py`.
 
-State on 2026-10-18: the account exists as `lmiawatch.bsky.social`, and the
+State on 2026-10-18: the account exists as `lmiawatch.ca`, and the
 repository holds the secrets `BSKY_HANDLE` and `BSKY_APP_PASSWORD` and the
 variable `BSKY_POST_ENABLED=true`. The steps below record how it was set up,
 for a rebuild or a second operator.
@@ -25,7 +25,7 @@ for a rebuild or a second operator.
    if it ever shows a hint, use a separate mailbox, as for X.
 4. Date of birth: Bluesky asks for one at sign-up; it is not shown on the
    profile.
-5. Handle: `lmiawatch` (the account becomes `lmiawatch.bsky.social`).
+5. Handle: `lmiawatch` (the account becomes `lmiawatch.ca`).
 6. Profile:
    - Display name: `LMIA Watch`.
    - Description: `Automated account run by LMIA Watch. One post a day from public Job Bank records. lmiawatch.ca`
@@ -70,7 +70,7 @@ account belongs to the site. Bluesky checks a DNS record for it.
 
 The record holds only the account's id, which is public anyway. The posts
 and followers stay with the account. Links that name the old handle
-(`lmiawatch.bsky.social`) stop working, and that handle becomes free for
+(`lmiawatch.ca`) stop working, and that handle becomes free for
 anyone to take.
 
 ## 4. App password
@@ -93,7 +93,7 @@ variables, Actions.
 
 | Tab | Name | Value |
 |---|---|---|
-| Secrets | `BSKY_HANDLE` | `lmiawatch.bsky.social` (or `lmiawatch.ca` after step 3) |
+| Secrets | `BSKY_HANDLE` | `lmiawatch.ca` (or `lmiawatch.ca` after step 3) |
 | Secrets | `BSKY_APP_PASSWORD` | the app password from step 4 |
 | Variables | `BSKY_POST_ENABLED` | `true` |
 
