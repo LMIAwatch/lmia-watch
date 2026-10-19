@@ -28,8 +28,8 @@ python -m lmia_pipeline run --limit 1 --detail-budget 2 --db ../data/lmia.sqlite
 cd ../site && npm install && npm run db:local && npm run data:local && npm run dev
 ```
 
-See CLAUDE.md for the rules that matter (operator anonymity, crawl politeness,
-exclusions, copy).
+The operating rules (operator anonymity, crawl politeness, what is stored and
+what is published) are kept outside the repository.
 
 ## Sources and licences
 The ESDC positive and negative LMIA employer lists are published on open.canada.ca

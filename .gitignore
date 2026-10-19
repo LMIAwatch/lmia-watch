@@ -21,3 +21,6 @@ site/.dev.vars
 
 # nightly data bundle copied in by the workflow or npm run data:local
 site/public/data/
+
+# the operator's working notes stay off the public repository
+CLAUDE.md
