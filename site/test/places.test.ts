@@ -252,9 +252,9 @@ describe("every new page", () => {
     }
   });
 
-  it("is linked once from the search page and the Data page", async () => {
+  it("is linked once from the search page and the Data page, apart from the navigation", async () => {
     for (const path of ["/search", "/data"]) {
-      const html = await (await get(path)).text();
+      const html = (await (await get(path)).text()).replace(/<nav [\s\S]*?<\/nav>/, "");
       expect(html.match(/href="\/occupations"/g)?.length, path).toBe(1);
       expect(html.match(/href="\/places"/g)?.length, path).toBe(1);
     }

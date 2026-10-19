@@ -211,10 +211,12 @@ describe("every release and ranking page", () => {
 
 describe("links into the release pages", () => {
   it("the home page's largest approvals and the data page's ESDC files each link the release list once", async () => {
-    const home = await html("/");
+    // Apart from the main navigation, which links the release list from every page.
+    const body = (page: string) => page.replace(/<nav [\s\S]*?<\/nav>/, "");
+    const home = body(await html("/"));
     expect(home.match(/href="\/releases"/g)?.length).toBe(1);
     expect(home).toContain("Every quarterly release, with its largest approvals");
-    const data = await html("/data");
+    const data = body(await html("/data"));
     expect(data.match(/href="\/releases"/g)?.length).toBe(1);
     expect(data).toContain('Each release also has a page with its totals and largest approvals: <a href="/releases">Quarterly Releases</a>.');
   });
