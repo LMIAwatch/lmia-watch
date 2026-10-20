@@ -361,7 +361,9 @@ details summary { cursor: pointer; color: var(--accent); font-weight: 600; margi
 .chart-x span { top: 5px; line-height: 1; }
 .chart-x .x-start, .chart-marks .x-start { transform: none; }
 .chart-x .x-end, .chart-marks .x-end { transform: translateX(-100%); }
-.chart-marks { position: relative; margin-top: 4px; font-size: 12px; }
+.chart-marks { position: relative; margin: 0 0 3px; font-size: 12px; height: var(--hn); }
+.chart-marks span { top: var(--tn); }
+@media (min-width: 1000px) { .chart-marks { height: var(--hw); } .chart-marks span { top: var(--tw); } }
 .chart-marks span { min-width: 1.5em; padding: 0 3px; border: 1px solid var(--text); background: var(--white); color: var(--text); text-align: center; font-weight: 700; line-height: 1.35; }
 .chart-legend { margin-top: 6px; }
 .chart-pair .chart-x .x-minor { display: none; }

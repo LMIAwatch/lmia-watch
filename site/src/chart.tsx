@@ -87,16 +87,19 @@ export interface AxisLabel {
 const f = (v: number) => (Math.round(v * 100) / 100).toString();
 
 // Marker numbers stagger onto as many rows as it takes to keep them this far
-// apart (a share of the plot's width; about 20 px on a phone).
+// apart, as a share of the plot's width: about 20 px on a phone, and a
+// tighter share on a wide screen (min-width 1000px in the stylesheet), where
+// the same share is three times as many pixels.
 const MARK_GAP = 4.5;
+const MARK_GAP_WIDE = 3.2;
 
-export function markerRows(markers: Marker[], domain: [number, number]): { m: Marker; left: number; row: number }[] {
+export function markerRows(markers: Marker[], domain: [number, number], gap = MARK_GAP): { m: Marker; left: number; row: number }[] {
   const last: number[] = [];
   return [...markers]
     .sort((a, b) => a.x - b.x)
     .map((m) => {
       const left = ((m.x - domain[0]) / (domain[1] - domain[0])) * 100;
-      let row = last.findIndex((at) => left - at >= MARK_GAP);
+      let row = last.findIndex((at) => left - at >= gap);
       if (row < 0) row = last.length;
       last[row] = left;
       return { m, left, row };
@@ -157,20 +160,26 @@ export const ChartStack: FC<{
   const peak = (p: Panel) => Math.max(0, ...(p.bars ?? []).map((b) => b.value), ...(p.line ?? []).map((pt) => pt.value));
   const sharedTicks = shared ? niceTicks(Math.max(...panels.map(peak))) : null;
   const placed = markerRows(markers, domain);
+  const wide = markerRows(markers, domain, MARK_GAP_WIDE);
   const rows = placed.reduce((n, p) => Math.max(n, p.row + 1), 0);
+  const rowsWide = wide.reduce((n, p) => Math.max(n, p.row + 1), 0);
+  // The numbers sit on the top plot's upper edge, under its title, so each one
+  // meets its dashed line; when two land close together the second stacks
+  // above the first rather than pushing the whole row up.
+  const markRow = rows ? (
+    <div class="chart-row" aria-hidden="true">
+      <span></span>
+      <div class="chart-marks" style={`--hn:${rows * 1.6}em;--hw:${rowsWide * 1.6}em`}>
+        {placed.map(({ m, left, row }, i) => (
+          <span class={anchor(left)}
+            style={`left:${f(left)}%;--tn:${(rows - 1 - row) * 1.6}em;--tw:${(rowsWide - 1 - wide[i].row) * 1.6}em`}>{m.n}</span>
+        ))}
+      </div>
+    </div>
+  ) : null;
   return (
     <div class="chart-stack">
-      {rows ? (
-        <div class="chart-row" aria-hidden="true">
-          <span></span>
-          <div class="chart-marks" style={`height:${rows * 1.6}em`}>
-            {placed.map(({ m, left, row }) => (
-              <span class={anchor(left)} style={`left:${f(left)}%;top:${row * 1.6}em`}>{m.n}</span>
-            ))}
-          </div>
-        </div>
-      ) : null}
-      {panels.map((p) => {
+      {panels.map((p, i) => {
         const ticks = sharedTicks ?? niceTicks(peak(p));
         const top = ticks[ticks.length - 1] || 1;
         const gap = Math.min(0.12, span / 400);
@@ -180,6 +189,7 @@ export const ChartStack: FC<{
               <span></span>
               <div class="chart-title">{p.title}</div>
             </div>
+            {i === 0 ? markRow : null}
             <div class={`chart-row tone-${p.tone ?? "approved"}`}>
               <div class="chart-y" aria-hidden="true" style={`height:${height}px`}>
                 {ticks.map((v) => <span style={`bottom:${f((v / top) * 100)}%`}>{fmt(v)}</span>)}
