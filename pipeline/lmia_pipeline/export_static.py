@@ -26,6 +26,7 @@ Output tree (under data/out/static):
   clusters/latest.json, clusters/since_2023q4.json   per postal area counts
   areas/<FSA>.json                   rows for one postal area, latest scope, capped
   profiles/<abc>.json                employer profiles keyed by id, sharded on id characters 5 to 7
+  trends/*.json                      the series behind /trends (trends.py)
   sitemaps/sitemap-<n>.xml           the fixed pages and every profile URL, at most 50,000 per file
   sitemaps/index.xml                 the sitemap index; the site serves it at /sitemap.xml and the
                                      parts at /sitemap-<n>.xml, since a sitemap may list only URLs
@@ -46,7 +47,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from xml.sax.saxutils import escape
 
-from . import config, places, releases
+from . import config, places, releases, trends
 from .db import log_run
 from .feeds import write_feeds
 from .normalize import period_end_date, period_sort_key
@@ -407,6 +408,9 @@ def sitemap_entries(conn: sqlite3.Connection, data_as_of: str | None) -> list[tu
     # each release page, dated by the lists' publication; none until a list is
     # loaded, so an empty page is never listed.
     entries += releases.sitemap_entries(conn)
+    # The trends views (trends.py): the ESDC series dated by the lists'
+    # publication, the daily pending series by its latest complete pass.
+    entries += trends.sitemap_entries(conn)
     entries += [(f"/employers/{r['id']}", _lastmod(r["updated_at"]))
                 for r in conn.execute("SELECT id, updated_at FROM employers ORDER BY id")]
     # Occupation and place pages at or above the record threshold, each dated
@@ -495,6 +499,7 @@ def _write_static(conn: sqlite3.Connection, out: Path) -> dict[str, int]:
     counts["areas"] = areas
     counts.update(write_feeds(conn, out))
     counts.update(releases.write_all(conn, out))
+    counts.update(trends.write_all(conn, out))
     counts.update(places.write_places(conn, out))
     counts["profile_shards"] = write_profiles(conn, out)
     counts.update(write_sitemaps(conn, out, config.SITE_URL, stats["data_as_of"]))

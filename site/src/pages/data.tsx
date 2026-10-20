@@ -18,6 +18,7 @@ export const CHANGELOG: readonly ChangeRow[] = [
     date: "2026-10-19", change: "data.change_esdc_rows", recomputed: "data.recomputed_esdc_rows",
     vars: { rows: 8359, positions: 49043, streams: 55006, provinces: 2349, headers: 473, header_positions: 1606 },
   },
+  { date: "2026-10-20", change: "data.change_trends", recomputed: "data.recomputed_trends" },
 ];
 // Numbers in an entry are formatted for the page's language; the drafted entry names the latest period.
 export function changelog(latestPeriod: string, lang: Lang): { date: string; change: Key; recomputed: Key; vars: Record<string, string> }[] {

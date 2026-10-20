@@ -20,6 +20,14 @@
   --accent: #1c3d6a;
   --chip-text: #3b4248;
   --danger: #801c18;
+  /* Charts (trends): approved bars in the Approved tag's blue, refused in the
+     Refused tag's grey, pending in a dark amber that holds contrast on white;
+     a file covering several quarters is a lighter step of the same colour. */
+  --chart-bar: #356dbb;
+  --chart-bar-light: #93b1dc;
+  --chart-refused: #6b7177;
+  --chart-refused-light: #b3b8bd;
+  --chart-pending: #a86b00;
   color-scheme: light;
   --font-body: "Public Sans", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, "Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
@@ -37,6 +45,11 @@
   --accent: #9dbbe3;
   --chip-text: #c9d0d6;
   --danger: #f0a39b;
+  --chart-bar: #7ea5dc;
+  --chart-bar-light: #3d5578;
+  --chart-refused: #a2abb3;
+  --chart-refused-light: #4f575e;
+  --chart-pending: #efb240;
   color-scheme: dark;
 }
 @media (prefers-color-scheme: dark) {
@@ -50,6 +63,11 @@
     --accent: #9dbbe3;
     --chip-text: #c9d0d6;
     --danger: #f0a39b;
+    --chart-bar: #7ea5dc;
+    --chart-bar-light: #3d5578;
+    --chart-refused: #a2abb3;
+    --chart-refused-light: #4f575e;
+    --chart-pending: #efb240;
     color-scheme: dark;
   }
 }
@@ -311,6 +329,48 @@ details summary { cursor: pointer; color: var(--accent); font-weight: 600; margi
 }
 .map .cluster-icon { background: var(--navy); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--navy); }
 
+/* trends: the view tabs, then the charts (site/src/chart.tsx). A chart is a
+   grid of rows: a y-axis column of HTML labels and a plot holding an SVG that
+   stretches to the plot's width; words stay HTML so they keep their size. */
+.view-tabs { margin: 18px 0 24px; border-bottom: 1px solid var(--rule); }
+.view-tabs ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0 24px; }
+.view-tabs li { margin: 0; }
+.view-tabs a { display: block; padding: 8px 0 6px; border-bottom: 4px solid transparent; font-weight: 600; text-decoration: none; }
+.view-tabs a:hover { text-decoration: underline; }
+.view-tabs a.active { color: var(--text); border-bottom-color: var(--accent); }
+.notes { padding-left: 20px; }
+.notes li { margin-bottom: 8px; }
+.chart { margin: 12px 0 20px; }
+.chart-row { display: grid; grid-template-columns: 4.4rem minmax(0, 1fr); column-gap: 10px; }
+.chart-title { font-size: 14px; font-weight: 600; margin: 12px 0 6px; }
+.chart-y { position: relative; font-size: 12px; color: var(--muted); }
+.chart-y span { position: absolute; right: 0; transform: translateY(50%); white-space: nowrap; font-variant-numeric: tabular-nums; line-height: 1; }
+.chart-plot { position: relative; border-bottom: 1px solid var(--text); }
+.chart-plot svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.chart-plot .grid { stroke: var(--rule); stroke-width: 1; }
+.chart-plot .grid-x { stroke-dasharray: 2 3; }
+.chart-plot .bar { fill: var(--chart-bar); }
+.chart-plot .bar-light { fill: var(--chart-bar-light); }
+.tone-refused .bar { fill: var(--chart-refused); }
+.tone-refused .bar-light { fill: var(--chart-refused-light); }
+.chart-plot .mark { stroke: var(--text); stroke-width: 1.5; stroke-dasharray: 5 3; }
+.chart-plot .line { fill: none; stroke: var(--chart-pending); stroke-width: 2.5; stroke-linejoin: round; }
+.chart-plot .dot { stroke: var(--chart-pending); stroke-width: 8; stroke-linecap: round; }
+.chart-x { position: relative; height: 22px; font-size: 12px; color: var(--muted); }
+.chart-x span, .chart-marks span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.chart-x span { top: 5px; line-height: 1; }
+.chart-x .x-start, .chart-marks .x-start { transform: none; }
+.chart-x .x-end, .chart-marks .x-end { transform: translateX(-100%); }
+.chart-marks { position: relative; margin-top: 4px; font-size: 12px; }
+.chart-marks span { min-width: 1.5em; padding: 0 3px; border: 1px solid var(--text); background: var(--white); color: var(--text); text-align: center; font-weight: 700; line-height: 1.35; }
+.chart-legend { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 6px; }
+.chart-pair .chart-x .x-minor { display: none; }
+.chart-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 0 40px; }
+.rule-list { padding-left: 24px; }
+.rule-list li { margin-bottom: 10px; }
+.total-row td { font-weight: 700; border-top: 2px solid var(--text); }
+.th-wrap { white-space: normal; }
+
 @media (min-width: 900px) {
   .container { padding-left: 28px; padding-right: 28px; }
 }
@@ -337,6 +397,10 @@ details summary { cursor: pointer; color: var(--accent); font-weight: 600; margi
   .actions { flex-direction: row; flex-wrap: wrap; }
   /* Other wide tables scroll inside their wrapper rather than crushing every column. */
   .table-wrap > table:not(.restack):has(th:nth-child(5)) { min-width: 600px; }
+  /* Every other year label, so a dozen years fit a phone. */
+  .chart-x .x-minor { display: none; }
+  .chart-row { grid-template-columns: 3.6rem minmax(0, 1fr); column-gap: 6px; }
+  .view-tabs ul { gap: 0 18px; }
 }
 
 @media (max-width: 720px) {

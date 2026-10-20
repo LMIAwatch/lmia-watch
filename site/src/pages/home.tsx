@@ -174,6 +174,7 @@ export async function homePage(c: Context<AppEnv>): Promise<Response> {
             </table>
           </div>
           <p class="small top-gap"><a href="/releases">{t(lang, "rel.home_link")}</a></p>
+          <p class="small"><a href="/trends">{t(lang, "trends.home_link")}</a></p>
         </div>
       </section>
 

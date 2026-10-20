@@ -222,6 +222,7 @@ export async function releasesIndexPage(c: Context<AppEnv>): Promise<Response> {
       <h1>{title}</h1>
       <p class="lead">{t(lang, "rel.index_lead")}</p>
       <p><a href="/rankings">{t(lang, "rel.rankings_link")}</a></p>
+      <p><a href="/trends">{t(lang, "trends.releases_link")}</a></p>
       <Caveat lang={lang} />
       <h2>{t(lang, "rel.index_title")}</h2>
       <div class="table-wrap">

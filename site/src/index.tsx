@@ -24,6 +24,7 @@ import { occupationPage, occupationsIndex } from "./pages/occupations";
 import { placePage, placesIndex, provincePage } from "./pages/places";
 import { searchPage } from "./pages/search";
 import { supportPage } from "./pages/support";
+import { trendsPage } from "./pages/trends";
 import { watchlistPage } from "./pages/watchlist";
 import { robotsTxt, sitemapFile } from "./seo";
 
@@ -86,6 +87,9 @@ app.get("/releases", releasesIndexPage);
 app.get("/releases/:slug", releasePage);
 app.get("/rankings", rankingsPage);
 app.get("/rankings/:year", rankingsPage);
+// The whole series at once: one small JSON file per view, charts drawn here.
+app.get("/trends", trendsPage);
+app.get("/trends/:view", trendsPage);
 app.get("/occupations", occupationsIndex);
 app.get("/occupations/:noc", occupationPage);
 app.get("/places", placesIndex);

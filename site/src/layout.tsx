@@ -159,6 +159,7 @@ export const Layout: FC<
     ["/occupations", "nav.occupations"],
     ["/places", "nav.places"],
     ["/releases", "nav.releases"],
+    ["/trends", "nav.trends"],
     ["/methodology", "nav.methodology"],
     ["/data", "nav.data"],
     ["/support", "nav.support"],
@@ -170,7 +171,7 @@ export const Layout: FC<
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>{title}</title>
-        <link rel="stylesheet" href="/styles.css?v=9" />
+        <link rel="stylesheet" href="/styles.css?v=10" />
         <script src="/theme.js"></script>
         <script src="/links.js" defer></script>
         <link rel="preload" href="/fonts/public-sans-latin-var.woff2" as="font" type="font/woff2" crossorigin="anonymous" />

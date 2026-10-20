@@ -1873,6 +1873,303 @@ const STRINGS = {
     en: "ESDC records 2016 to 2026, employer profiles, rankings",
     fr: "Inscriptions d'EDSC de 2016 à 2026, profils d'employeurs, classements",
   },
+  "data.change_trends": {
+    en: "New Trends page: ESDC's approvals and refusals since 2014 as series, by stream and by province, compared year over year and marked with dated rule changes, and the nightly count of Job Bank postings flagged LMIA requested on each complete pass.",
+    fr: "Nouvelle page Tendances : approbations et refus d'EDSC depuis 2014 en séries, par volet et par province, comparés d'une année à l'autre et accompagnés des changements de règles datés, et le relevé quotidien des offres du Guichet-Emplois portant la mention « EIMT demandée » à chaque passage complet.",
+  },
+  "data.recomputed_trends": {
+    en: "Nothing recomputed; new files under trends/",
+    fr: "Aucun recalcul; nouveaux fichiers sous trends/",
+  },
+
+  // --- trends ---
+  "nav.trends": { en: "Trends", fr: "Tendances" },
+  "trends.crumb": { en: "Trends", fr: "Tendances" },
+  "trends.h1": { en: "LMIA Trends Since {start}", fr: "Tendances des EIMT depuis {start}" },
+  "trends.h1_streams": { en: "LMIA Trends by Stream", fr: "Tendances des EIMT par volet" },
+  "trends.h1_provinces": { en: "LMIA Trends by Province", fr: "Tendances des EIMT par province" },
+  "trends.h1_pending": {
+    en: "Job Bank Postings Flagged LMIA Requested, Night by Night",
+    fr: "Offres du Guichet-Emplois portant la mention « EIMT demandée », nuit après nuit",
+  },
+  "trends.lead": {
+    en: "Every ESDC list of approved and refused LMIAs since {start} as one series, and the nightly count of Job Bank postings flagged LMIA requested. Each row on ESDC's lists is one employer's approval or refusal for an occupation at a location.",
+    fr: "Toutes les listes d'EDSC des EIMT approuvées et refusées depuis {start} en une seule série, et le relevé quotidien des offres du Guichet-Emplois portant la mention « EIMT demandée ». Chaque inscription des listes d'EDSC est l'approbation ou le refus d'un employeur pour une profession à un lieu donné.",
+  },
+  "trends.views": { en: "Views", fr: "Vues" },
+  "trends.view.national": { en: "All of Canada", fr: "Ensemble du Canada" },
+  "trends.view.streams": { en: "By stream", fr: "Par volet" },
+  "trends.view.provinces": { en: "By province", fr: "Par province" },
+  "trends.view.pending": { en: "Job Bank pending, nightly", fr: "En attente au Guichet-Emplois, chaque nuit" },
+  "trends.not_found": { en: "No Such Trends View", fr: "Vue de tendances introuvable" },
+  "trends.not_found_text": {
+    en: "The {trends} lists the views: all of Canada, by stream, by province, and Job Bank pending postings.",
+    fr: "La {trends} énumère les vues : ensemble du Canada, par volet, par province, et offres en attente au Guichet-Emplois.",
+  },
+  "trends.page_link": { en: "Trends page", fr: "page Tendances" },
+  "trends.not_published": { en: "This view has not been published yet.", fr: "Cette vue n'est pas encore publiée." },
+
+  "trends.yoy_title": { en: "Year over Year", fr: "D'une année à l'autre" },
+  "trends.yoy_quarter": {
+    en: "In {now}, {pos} positions were approved on {rows} rows of ESDC's positive list, against {pos_then} on {rows_then} rows in {then}, the same quarter a year earlier ({change}).",
+    fr: "Au {now}, {pos} postes ont été approuvés sur {rows} inscriptions de la liste positive d'EDSC, contre {pos_then} sur {rows_then} inscriptions au {then}, le même trimestre un an plus tôt ({change}).",
+  },
+  "trends.yoy_employers": {
+    en: "Employers with an approval: {n}, against {then_n} ({change}).",
+    fr: "Employeurs ayant une approbation : {n}, contre {then_n} ({change}).",
+  },
+  "trends.yoy_refused": {
+    en: "Rows on the negative list (refusals): {n} in {now}, against {then_n} in {then} ({change}).",
+    fr: "Inscriptions sur la liste négative (refus) : {n} au {now}, contre {then_n} au {then} ({change}).",
+  },
+  "trends.yoy_ytd": {
+    en: "From {first} to {now}, {pos} positions were approved on {rows} rows, against {pos_then} on {rows_then} rows in the same quarters of {year_then} ({change}).",
+    fr: "Du {first} au {now}, {pos} postes ont été approuvés sur {rows} inscriptions, contre {pos_then} sur {rows_then} inscriptions aux mêmes trimestres de {year_then} ({change}).",
+  },
+  "trends.yoy_ytd_refused": {
+    en: "Refused rows over the same quarters: {n}, against {then_n} ({change}).",
+    fr: "Inscriptions refusées aux mêmes trimestres : {n}, contre {then_n} ({change}).",
+  },
+  "trends.yoy_ytd_one": {
+    en: "So far {year} has only its first quarter, so the year to date is the comparison above.",
+    fr: "Pour l'instant, l'année {year} ne compte que son premier trimestre : le cumul de l'année est donc la comparaison ci-dessus.",
+  },
+  "trends.yoy_ytd_full": {
+    en: "The latest list completes {year}, so the year to date is the full-year comparison below.",
+    fr: "La dernière liste complète l'année {year} : le cumul de l'année est donc la comparaison annuelle ci-dessous.",
+  },
+  "trends.yoy_year": {
+    en: "In {year}, {pos} positions were approved on {rows} rows, against {pos_then} on {rows_then} rows in {year_then} ({change}).",
+    fr: "En {year}, {pos} postes ont été approuvés sur {rows} inscriptions, contre {pos_then} sur {rows_then} inscriptions en {year_then} ({change}).",
+  },
+  "trends.yoy_year_refused": {
+    en: "Refused rows: {n}, against {then_n} ({change}).",
+    fr: "Inscriptions refusées : {n}, contre {then_n} ({change}).",
+  },
+  "trends.yoy_no_refused": {
+    en: "No comparison of refusals: ESDC published no negative list for {periods}.",
+    fr: "Aucune comparaison des refus : EDSC n'a publié aucune liste négative pour {periods}.",
+  },
+  "trends.yoy_season": {
+    en: "Farm approvals peak in the first half of the year, so each quarter is set against the same quarter a year earlier, not against the quarter before.",
+    fr: "Les approbations agricoles culminent au premier semestre : chaque trimestre est donc comparé au même trimestre un an plus tôt, et non au trimestre précédent.",
+  },
+  "trends.change_up": { en: "up {pct} percent", fr: "en hausse de {pct} %" },
+  "trends.change_down": { en: "down {pct} percent", fr: "en baisse de {pct} %" },
+  "trends.change_same": { en: "no change", fr: "aucune variation" },
+  "trends.change_from_zero": { en: "from zero", fr: "à partir de zéro" },
+
+  "trends.notes_title": { en: "About These Series", fr: "À propos de ces séries" },
+  "trends.note_spans": {
+    en: "The 2014 file covers June 20 to December 31, 2014, the 2015 and 2016 files a year each, and one file covers {half}; every later file is one quarter. On the charts a file covering more than one quarter is drawn lighter, across the quarters it covers, at its average per quarter. The tables give each file's total.",
+    fr: "Le fichier de 2014 couvre du 20 juin au 31 décembre 2014, ceux de 2015 et 2016 une année chacun, et un fichier couvre les {half}; chaque fichier suivant couvre un trimestre. Sur les graphiques, un fichier qui couvre plus d'un trimestre est tracé en plus pâle, sur les trimestres qu'il couvre, à sa moyenne par trimestre. Les tableaux donnent le total de chaque fichier.",
+  },
+  "trends.note_streams": {
+    en: "Streams exist only from 2017: the 2014 to 2016 files have no stream column, so the view by stream starts with the {from} file.",
+    fr: "Les volets n'existent qu'à partir de 2017 : les fichiers de 2014 à 2016 n'ont pas de colonne de volet. La vue par volet commence donc avec le fichier {from}.",
+  },
+  "trends.note_reload": {
+    en: "The 2016 to 2019 files became complete here on 2026-10-19, when the rows ESDC prints without repeating the employer's name (one per further occupation) were loaded; figures for those years taken from this site before then are lower. See the {changelog}.",
+    fr: "Les fichiers de 2016 à 2019 sont complets ici depuis le 2026-10-19, date du chargement des inscriptions qu'EDSC imprime sans répéter le nom de l'employeur (une par profession supplémentaire); les chiffres de ces années tirés du site avant cette date sont inférieurs. Voir le {changelog}.",
+  },
+  "trends.changelog_link": { en: "changelog on the Data page", fr: "journal des modifications de la page Données" },
+  "trends.note_noc": {
+    en: "Occupation series break at {from}: from that file ESDC codes occupations in NOC 2021 instead of NOC 2011, and the two do not match code for code. The counts on this page do not depend on the occupation code.",
+    fr: "Les séries par profession sont rompues au {from} : à partir de ce fichier, EDSC code les professions selon la CNP 2021 plutôt que la CNP 2011, et les deux ne se correspondent pas code pour code. Les chiffres de cette page ne dépendent pas du code de profession.",
+  },
+  "trends.note_refused_missing": {
+    en: "ESDC published no negative list for {periods}, so the refusals for it are left blank rather than shown as zero.",
+    fr: "EDSC n'a publié aucune liste négative pour {periods} : les refus correspondants sont donc laissés en blanc plutôt qu'à zéro.",
+  },
+
+  "trends.chart_periods": { en: "Approved and Refused, File by File", fr: "Approbations et refus, fichier par fichier" },
+  "trends.chart_aria": {
+    en: "Bar chart; the table under the chart gives every figure.",
+    fr: "Graphique à barres; le tableau sous le graphique donne chaque chiffre.",
+  },
+  "trends.line_aria": {
+    en: "Line chart; the table under the chart gives every figure.",
+    fr: "Graphique linéaire; le tableau sous le graphique donne chaque chiffre.",
+  },
+  "trends.legend_light": {
+    en: "Lighter bars: a file covering more than one quarter, at its average per quarter.",
+    fr: "Barres plus pâles : fichier couvrant plus d'un trimestre, à sa moyenne par trimestre.",
+  },
+  "trends.legend_marks": {
+    en: "Numbered dashed lines: the rule changes listed under the chart.",
+    fr: "Lignes pointillées numérotées : changements de règles énumérés sous le graphique.",
+  },
+  "trends.legend_scale": { en: "Each panel has its own scale.", fr: "Chaque panneau a sa propre échelle." },
+  "trends.bar_title": { en: "{period}: {n}", fr: "{period} : {n}" },
+  "trends.bar_title_avg": {
+    en: "{period}: {n} ({avg} per quarter over {q} quarters)",
+    fr: "{period} : {n} ({avg} par trimestre sur {q} trimestres)",
+  },
+  "trends.table_periods": { en: "Figures by File", fr: "Chiffres par fichier" },
+  "trends.col_period": { en: "File", fr: "Fichier" },
+  "trends.col_quarters": { en: "Quarters", fr: "Trimestres" },
+  "trends.col_year": { en: "Year", fr: "Année" },
+  "trends.col_files": { en: "Files", fr: "Fichiers" },
+  "trends.col_cover": { en: "Coverage", fr: "Couverture" },
+  "trends.col_total": { en: "All streams", fr: "Tous les volets" },
+  "trends.col_all": { en: "All", fr: "Ensemble" },
+  "trends.col_no_stream": { en: "No stream", fr: "Sans volet" },
+  "trends.col_pct": { en: "Change (%)", fr: "Variation (%)" },
+  "trends.cover_full": { en: "Full year", fr: "Année complète" },
+  "trends.cover_2014": { en: "June 20 to December 31", fr: "Du 20 juin au 31 décembre" },
+  "trends.cover_to": { en: "To {period}", fr: "Jusqu'au {period}" },
+  "trends.chart_years": { en: "Positions Approved by Calendar Year", fr: "Postes approuvés par année civile" },
+  "trends.legend_years": {
+    en: "Lighter bars: a year the lists do not cover in full (2014 from June 20; the current year so far).",
+    fr: "Barres plus pâles : année que les listes ne couvrent pas en entier (2014 à partir du 20 juin; l'année en cours jusqu'ici).",
+  },
+  "trends.table_years": { en: "Figures by Calendar Year", fr: "Chiffres par année civile" },
+
+  "trends.marks_title": { en: "Rule Changes on the Charts", fr: "Changements de règles sur les graphiques" },
+  "trends.marks_note": {
+    en: "Each line is dated by when the change took effect, as the Government of Canada announced it. A drop after a line can come from the rule, from the economy, or from both; the charts do not separate them.",
+    fr: "Chaque ligne est datée de l'entrée en vigueur du changement, tel que le gouvernement du Canada l'a annoncé. Une baisse après une ligne peut tenir à la règle, à la conjoncture, ou aux deux; les graphiques ne les distinguent pas.",
+  },
+  "trends.mark.roadmap": {
+    en: "Workforce Solutions Road Map: LMIAs valid 18 months instead of 9, and no limit on low-wage positions in seasonal industries; from April 30, 2022, the cap on low-wage workers rose to 20 percent of an employer's workforce, and to 30 percent in seven sectors with shortages.",
+    fr: "Plan d'action pour les employeurs et la main-d'œuvre : EIMT valides 18 mois plutôt que 9, et plus de limite aux postes à bas salaire dans les industries saisonnières; à partir du 30 avril 2022, le plafond de travailleurs à bas salaire passe à 20 % de l'effectif d'un employeur, et à 30 % dans sept secteurs en pénurie.",
+  },
+  "trends.mark.noc": {
+    en: "ESDC's lists code occupations in NOC 2021 from the {period} file on (NOC 2011 before). A change of classification: the counts on this page are not affected, but occupation series break here.",
+    fr: "Les listes d'EDSC codent les professions selon la CNP 2021 à partir du fichier {period} (CNP 2011 auparavant). Il s'agit d'un changement de classification : les chiffres de cette page n'en sont pas touchés, mais les séries par profession sont rompues.",
+  },
+  "trends.mark.validity": {
+    en: "LMIAs valid 6 months instead of 12; the cap on low-wage workers fell from 30 to 20 percent for the employers covered by the 2022 road map, except in construction and health care.",
+    fr: "EIMT valides 6 mois plutôt que 12; le plafond de travailleurs à bas salaire passe de 30 à 20 % pour les employeurs visés par le plan d'action de 2022, sauf dans la construction et les soins de santé.",
+  },
+  "trends.mark.cma": {
+    en: "No processing of low-wage LMIA applications in census metropolitan areas with an unemployment rate of 6 percent or more, with exceptions for food security sectors, construction and health care; the cap on low-wage workers lowered to 10 percent of an employer's workforce (20 percent in health care, construction and food processing); low-wage positions limited to one year instead of two.",
+    fr: "Aucun traitement des demandes d'EIMT pour des postes à bas salaire dans les régions métropolitaines de recensement dont le taux de chômage atteint 6 % ou plus, sauf dans les secteurs de la sécurité alimentaire, la construction et les soins de santé; plafond de travailleurs à bas salaire abaissé à 10 % de l'effectif d'un employeur (20 % dans les soins de santé, la construction et la transformation des aliments); postes à bas salaire limités à un an plutôt que deux.",
+  },
+  "trends.mark.highwage": {
+    en: "The High Wage stream's threshold raised to 20 percent above the provincial or territorial median hourly wage, so positions paid between the old and the new threshold count as Low Wage.",
+    fr: "Le seuil du volet des postes à haut salaire passe à 20 % au-dessus du salaire horaire médian de la province ou du territoire : les postes payés entre l'ancien et le nouveau seuil relèvent donc du volet des postes à bas salaire.",
+  },
+  "trends.source_release": { en: "ESDC news release of {date}", fr: "communiqué d'EDSC du {date}" },
+  "trends.source_dataset": {
+    en: "ESDC positive LMIA employers list, Open Government Portal",
+    fr: "liste des employeurs ayant reçu une EIMT positive d'EDSC, Portail du gouvernement ouvert",
+  },
+  "trends.source_label": { en: "Source: {links}.", fr: "Source : {links}." },
+  "trends.sources_label": { en: "Sources: {links}.", fr: "Sources : {links}." },
+
+  "trends.streams_lead": {
+    en: "Positions approved in each stream, from the {from} file, the first to carry a stream column.",
+    fr: "Postes approuvés dans chaque volet, à partir du fichier {from}, le premier à comporter une colonne de volet.",
+  },
+  "trends.provinces_lead": {
+    en: "Positions approved by the province or territory of the business location, in every ESDC file since {start}.",
+    fr: "Postes approuvés selon la province ou le territoire du lieu de l'entreprise, dans chaque fichier d'EDSC depuis {start}.",
+  },
+  "trends.same_quarter": { en: "{now} Against {then}", fr: "{now} par rapport au {then}" },
+  "trends.same_quarter_note": {
+    en: "Positions approved in the latest quarter and in the same quarter a year earlier.",
+    fr: "Postes approuvés au dernier trimestre et au même trimestre un an plus tôt.",
+  },
+  "trends.chart_streams": { en: "Positions Approved by Stream, File by File", fr: "Postes approuvés par volet, fichier par fichier" },
+  "trends.chart_provinces": {
+    en: "Positions Approved by Province or Territory, File by File",
+    fr: "Postes approuvés par province ou territoire, fichier par fichier",
+  },
+  "trends.table_streams": { en: "Positions Approved by Stream", fr: "Postes approuvés par volet" },
+  "trends.table_provinces": { en: "Positions Approved by Province or Territory", fr: "Postes approuvés par province ou territoire" },
+  "trends.refused_streams": { en: "Refused rows by stream", fr: "Inscriptions refusées par volet" },
+  "trends.refused_provinces": { en: "Refused rows by province or territory", fr: "Inscriptions refusées par province ou territoire" },
+  "trends.codes_note": {
+    en: "Columns use the two-letter codes; XX is a head office outside Canada.",
+    fr: "Les colonnes portent les codes à deux lettres; XX désigne un siège social à l'extérieur du Canada.",
+  },
+
+  "trends.pending_lead": {
+    en: "The number of Job Bank postings carrying the \"LMIA requested\" flag, counted on each complete nightly pass over Job Bank's search. Job Bank shows only the postings open today; this series is the site's own count, kept since {first}.",
+    fr: "Le nombre d'offres du Guichet-Emplois portant la mention « EIMT demandée », compté à chaque passage nocturne complet sur la recherche du Guichet-Emplois. Le Guichet-Emplois ne montre que les offres ouvertes aujourd'hui; cette série est le relevé du site, tenu depuis le {first}.",
+  },
+  "trends.pending_latest": {
+    en: "Latest complete pass, {date}: {n} postings, against {prev_n} on {prev} ({change}).",
+    fr: "Dernier passage complet, {date} : {n} offres, contre {prev_n} le {prev} ({change}).",
+  },
+  "trends.pending_latest_one": { en: "First complete pass, {date}: {n} postings.", fr: "Premier passage complet, {date} : {n} offres." },
+  "trends.pending_began": {
+    en: "The series began on {first} with the first complete pass and gains a point each night.",
+    fr: "La série a commencé le {first} avec le premier passage complet et gagne un point chaque nuit.",
+  },
+  "trends.pending_rule": {
+    en: "A pass counts when it ran to the end without a failed request and listed at least half as many postings as the passes in the two weeks around it, which leaves out short test sweeps and passes the host cut off. Each point is dated by the day (UTC) its pass ended.",
+    fr: "Un passage compte quand il s'est rendu au bout sans requête échouée et a relevé au moins la moitié autant d'offres que les passages des deux semaines qui l'entourent, ce qui écarte les courts balayages d'essai et les passages interrompus par le serveur. Chaque point est daté du jour (UTC) où son passage a pris fin.",
+  },
+  "trends.pending_households": {
+    en: "Postings by private households are never stored, so they are not in the count.",
+    fr: "Les offres des ménages privés ne sont jamais conservées : elles ne figurent donc pas dans le compte.",
+  },
+  "trends.pending_caution": {
+    en: "A flagged posting shows that the employer requested an LMIA for the job. It is not a decision: ESDC may approve or refuse the request, and one posting can be for several positions.",
+    fr: "Une offre visée indique que l'employeur a demandé une EIMT pour le poste. Ce n'est pas une décision : EDSC peut approuver ou refuser la demande, et une offre peut viser plusieurs postes.",
+  },
+  "trends.chart_pending": {
+    en: "Postings Flagged LMIA Requested, Pass by Pass",
+    fr: "Offres portant la mention « EIMT demandée », passage par passage",
+  },
+  "trends.panel_pending": { en: "Postings flagged", fr: "Offres visées" },
+  "trends.table_pending": { en: "Figures by Pass", fr: "Chiffres par passage" },
+  "trends.col_vs_prev": { en: "Change from the previous pass", fr: "Variation depuis le passage précédent" },
+  "trends.pending_search": { en: "See today's pending postings", fr: "Voir les offres en attente aujourd'hui" },
+  "trends.pending_none": { en: "No complete pass is recorded yet.", fr: "Aucun passage complet n'est encore enregistré." },
+
+  "trends.sources": {
+    en: "Sources: ESDC's positive and negative LMIA employer lists (Open Government Licence, Canada) and Job Bank's search, read nightly; licences on the {data}. Rule changes: Government of Canada news releases, linked above.",
+    fr: "Sources : listes des employeurs ayant reçu une EIMT positive ou négative d'EDSC (Licence du gouvernement ouvert, Canada) et recherche du Guichet-Emplois, lue chaque nuit; licences à la {data}. Changements de règles : communiqués du gouvernement du Canada, en lien ci-dessus.",
+  },
+  "trends.sources_pending": {
+    en: "Source: Job Bank's search, read each night by this site; licences on the {data}.",
+    fr: "Source : recherche du Guichet-Emplois, lue chaque nuit par ce site; licences à la {data}.",
+  },
+  "trends.pr_gap": {
+    en: "ESDC's lists carry no Permanent Resident Only rows in the files from 2017 Q4 to 2023 Q3, so that panel is empty for those years; the gap is in the published files.",
+    fr: "Les listes d'EDSC ne contiennent aucune ligne du volet Résidence permanente seulement dans les fichiers du T4 2017 au T3 2023; ce panneau est donc vide pour ces années, et la lacune vient des fichiers publiés.",
+  },
+  "trends.small_streams": {
+    en: "{names}: under 0.1 percent of the positions, so in the tables only.",
+    fr: "{names} : moins de 0,1 % des postes, donc dans les tableaux seulement.",
+  },
+  "trends.seo_title": {
+    en: "LMIA Trends Since {start}: Approvals and Refusals by Quarter",
+    fr: "Tendances des EIMT depuis {start} : approbations et refus par trimestre",
+  },
+  "trends.seo_desc": {
+    en: "Approved positions and refused LMIAs in every ESDC list since {start}, compared year over year, with the dated rule changes that shaped them.",
+    fr: "Postes approuvés et EIMT refusées dans chaque liste d'EDSC depuis {start}, comparés d'une année à l'autre, avec les changements de règles datés.",
+  },
+  "trends.seo_title_streams": { en: "LMIA Approvals by Stream Since 2017", fr: "EIMT approuvées par volet depuis 2017" },
+  "trends.seo_desc_streams": {
+    en: "Positions approved in each LMIA stream (high wage, low wage, primary agriculture, Global Talent) in every ESDC list since 2017, year over year.",
+    fr: "Postes approuvés dans chaque volet des EIMT (haut salaire, bas salaire, agriculture primaire, talents mondiaux) dans chaque liste d'EDSC depuis 2017.",
+  },
+  "trends.seo_title_provinces": { en: "LMIA Approvals by Province Since {start}", fr: "EIMT approuvées par province depuis {start}" },
+  "trends.seo_desc_provinces": {
+    en: "Positions approved on ESDC's LMIA lists in each province and territory since {start}, file by file and year over year, with the rule changes marked.",
+    fr: "Postes approuvés sur les listes EIMT d'EDSC dans chaque province et territoire depuis {start}, fichier par fichier et d'une année à l'autre.",
+  },
+  "trends.seo_title_pending": {
+    en: "Job Bank Postings Flagged LMIA Requested, Nightly Count",
+    fr: "Offres du Guichet-Emplois avec mention « EIMT demandée », relevé quotidien",
+  },
+  "trends.seo_desc_pending": {
+    en: "The number of Job Bank postings flagged LMIA requested on each complete nightly pass since {first}, counted by LMIA Watch.",
+    fr: "Le nombre d'offres du Guichet-Emplois portant la mention « EIMT demandée » à chaque passage nocturne complet depuis le {first}.",
+  },
+  "trends.home_link": {
+    en: "Approvals and refusals since 2014, year over year",
+    fr: "Approbations et refus depuis 2014, d'une année à l'autre",
+  },
+  "trends.releases_link": {
+    en: "Trends: every release as one series, year over year",
+    fr: "Tendances : toutes les publications en une série, d'une année à l'autre",
+  },
 } as const satisfies Record<string, Entry>;
 
 export type Key = keyof typeof STRINGS;
