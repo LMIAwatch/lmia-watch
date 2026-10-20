@@ -1889,8 +1889,8 @@ const STRINGS = {
   "trends.h1_streams": { en: "LMIA Trends by Stream", fr: "Tendances des EIMT par volet" },
   "trends.h1_provinces": { en: "LMIA Trends by Province", fr: "Tendances des EIMT par province" },
   "trends.h1_pending": {
-    en: "Job Bank Postings Flagged LMIA Requested, Night by Night",
-    fr: "Offres du Guichet-Emplois portant la mention « EIMT demandée », nuit après nuit",
+    en: "Job Bank Postings Flagged LMIA Requested",
+    fr: "Offres du Guichet-Emplois portant la mention « EIMT demandée »",
   },
   "trends.lead": {
     en: "Every ESDC list of approved and refused LMIAs since {start} as one series, and the nightly count of Job Bank postings flagged LMIA requested. Each row on ESDC's lists is one employer's approval or refusal for an occupation at a location.",
@@ -1982,7 +1982,7 @@ const STRINGS = {
     fr: "EDSC n'a publié aucune liste négative pour {periods} : les refus correspondants sont donc laissés en blanc plutôt qu'à zéro.",
   },
 
-  "trends.chart_periods": { en: "Approved and Refused, File by File", fr: "Approbations et refus, fichier par fichier" },
+  "trends.chart_periods": { en: "Approved and Refused LMIAs Since 2014", fr: "EIMT approuvées et refusées depuis 2014" },
   "trends.chart_aria": {
     en: "Bar chart; the table under the chart gives every figure.",
     fr: "Graphique à barres; le tableau sous le graphique donne chaque chiffre.",
@@ -2071,10 +2071,10 @@ const STRINGS = {
     en: "Positions approved in the latest quarter and in the same quarter a year earlier.",
     fr: "Postes approuvés au dernier trimestre et au même trimestre un an plus tôt.",
   },
-  "trends.chart_streams": { en: "Positions Approved by Stream, File by File", fr: "Postes approuvés par volet, fichier par fichier" },
+  "trends.chart_streams": { en: "Positions Approved by Stream", fr: "Postes approuvés par volet" },
   "trends.chart_provinces": {
-    en: "Positions Approved by Province or Territory, File by File",
-    fr: "Postes approuvés par province ou territoire, fichier par fichier",
+    en: "Positions Approved by Province or Territory",
+    fr: "Postes approuvés par province ou territoire",
   },
   "trends.table_streams": { en: "Positions Approved by Stream", fr: "Postes approuvés par volet" },
   "trends.table_provinces": { en: "Positions Approved by Province or Territory", fr: "Postes approuvés par province ou territoire" },
@@ -2111,8 +2111,8 @@ const STRINGS = {
     fr: "Une offre visée indique que l'employeur a demandé une EIMT pour le poste. Ce n'est pas une décision : EDSC peut approuver ou refuser la demande, et une offre peut viser plusieurs postes.",
   },
   "trends.chart_pending": {
-    en: "Postings Flagged LMIA Requested, Pass by Pass",
-    fr: "Offres portant la mention « EIMT demandée », passage par passage",
+    en: "Flagged Postings Counted Each Night",
+    fr: "Offres portant la mention, comptées chaque nuit",
   },
   "trends.panel_pending": { en: "Postings flagged", fr: "Offres visées" },
   "trends.table_pending": { en: "Figures by Pass", fr: "Chiffres par passage" },
@@ -2151,8 +2151,8 @@ const STRINGS = {
   },
   "trends.seo_title_provinces": { en: "LMIA Approvals by Province Since {start}", fr: "EIMT approuvées par province depuis {start}" },
   "trends.seo_desc_provinces": {
-    en: "Positions approved on ESDC's LMIA lists in each province and territory since {start}, file by file and year over year, with the rule changes marked.",
-    fr: "Postes approuvés sur les listes EIMT d'EDSC dans chaque province et territoire depuis {start}, fichier par fichier et d'une année à l'autre.",
+    en: "Positions approved on ESDC's LMIA lists in each province and territory since {start}, with year-over-year comparisons and the rule changes marked.",
+    fr: "Postes approuvés sur les listes EIMT d'EDSC dans chaque province et territoire depuis {start}, avec les comparaisons d'une année à l'autre et les changements de règles.",
   },
   "trends.seo_title_pending": {
     en: "Job Bank Postings Flagged LMIA Requested, Nightly Count",

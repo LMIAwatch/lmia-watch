@@ -363,7 +363,7 @@ details summary { cursor: pointer; color: var(--accent); font-weight: 600; margi
 .chart-x .x-end, .chart-marks .x-end { transform: translateX(-100%); }
 .chart-marks { position: relative; margin-top: 4px; font-size: 12px; }
 .chart-marks span { min-width: 1.5em; padding: 0 3px; border: 1px solid var(--text); background: var(--white); color: var(--text); text-align: center; font-weight: 700; line-height: 1.35; }
-.chart-legend { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 6px; }
+.chart-legend { margin-top: 6px; max-width: 75ch; }
 .chart-pair .chart-x .x-minor { display: none; }
 .chart-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 0 40px; }
 .rule-list { padding-left: 24px; }

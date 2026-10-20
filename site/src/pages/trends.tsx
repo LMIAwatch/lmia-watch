@@ -333,20 +333,22 @@ function periodBars(lang: Lang, periods: Period[], values: (number | null)[]): B
 
 const toMarkers = (rules: NumberedRule[], scale = 1): Marker[] => rules.map((r) => ({ x: quarterPos(r.date) / scale, n: r.n }));
 
-const Legend: FC<{ lang: Lang; keys: Key[] }> = ({ lang, keys }) => (
-  <figcaption class="chart-legend muted small">{keys.map((k) => <span>{t(lang, k)}</span>)}</figcaption>
+// The notes under a chart read as one short paragraph.
+const Legend: FC<{ lang: Lang; keys: Key[]; extra?: string[] }> = ({ lang, keys, extra = [] }) => (
+  <figcaption class="chart-legend muted small">{[...keys.map((k) => t(lang, k)), ...extra].join(" ")}</figcaption>
 );
 
-const QuarterChart: FC<{ lang: Lang; periods: Period[]; panels: Panel[]; rules: NumberedRule[]; height: number; legend: Key[]; shared?: boolean }> = (
-  { lang, periods, panels, rules, height, legend, shared },
-) => {
+const QuarterChart: FC<{
+  lang: Lang; periods: Period[]; panels: Panel[]; rules: NumberedRule[]; height: number; legend: Key[]; shared?: boolean;
+  notes?: string[];
+}> = ({ lang, periods, panels, rules, height, legend, shared, notes }) => {
   const domain = domainOf(periods);
   const axis = yearAxis(domain);
   return (
     <figure class="chart">
       <ChartStack domain={domain} panels={panels} height={height} xLabels={axis.labels} grid={axis.grid}
         markers={toMarkers(rules)} fmt={fmtFor(lang)} aria={t(lang, "trends.chart_aria")} shared={shared} />
-      <Legend lang={lang} keys={legend} />
+      <Legend lang={lang} keys={legend} extra={notes} />
     </figure>
   );
 };
@@ -650,11 +652,11 @@ function breakdownBody(lang: Lang, d: Breakdown, kind: "streams" | "provinces") 
       <h2>{t(lang, kind === "streams" ? "trends.chart_streams" : "trends.chart_provinces")}</h2>
       {kind === "streams" ? (
         <>
-          <QuarterChart lang={lang} periods={P} panels={panels} rules={rules} height={84} legend={legend} />
-          {tableOnly.length ? (
-            <p class="muted small">{t(lang, "trends.small_streams", { names: joinList(lang, tableOnly.map(name)) })}</p>
-          ) : null}
-          <p class="muted small">{t(lang, "trends.pr_gap")}</p>
+          <QuarterChart lang={lang} periods={P} panels={panels} rules={rules} height={84} legend={legend}
+            notes={[
+              ...(tableOnly.length ? [t(lang, "trends.small_streams", { names: joinList(lang, tableOnly.map(name)) })] : []),
+              t(lang, "trends.pr_gap"),
+            ]} />
         </>
       ) : (
         <figure class="chart">
@@ -683,7 +685,7 @@ function breakdownBody(lang: Lang, d: Breakdown, kind: "streams" | "provinces") 
   );
 }
 
-// -- Job Bank pending, night by night ----------------------------------------------------
+// -- Job Bank pending, nightly -------------------------------------------------------------
 
 function dayAxis(lang: Lang, dates: string[]): { domain: [number, number]; labels: AxisLabel[]; grid: number[] } {
   const xs = dates.map(dayPos);
