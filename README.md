@@ -6,6 +6,8 @@ applications were approved or refused. Every row links to the government record 
 came from. The site rebuilds itself once a day, at midnight UTC, from the
 sources; that scheduled run is the only way anything on it changes.
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23488706.svg)](https://doi.org/10.5281/zenodo.23488706)
+
 ## Layout
 ```
 pipeline/   Python: scrape, load, merge, indicators, export (owns data/lmia.sqlite)
@@ -37,6 +39,25 @@ under the Open Government Licence, Canada. Job Bank content is Government of Can
 material reproduced with attribution. The IRCC list of employers found non-compliant
 is published on canada.ca. Derived files from this project carry the Open
 Government Licence, Canada.
+
+## Citing the data
+The files derived from ESDC's lists (the approved and refused quarterly lists
+and the index of source files with their checksums) are deposited on Zenodo,
+one version per ESDC quarter.
+
+| | DOI |
+|---|---|
+| All versions (resolves to the newest) | [10.5281/zenodo.23488706](https://doi.org/10.5281/zenodo.23488706) |
+| 2026 Q1 | [10.5281/zenodo.23488707](https://doi.org/10.5281/zenodo.23488707) |
+
+To cite a figure, use the version you worked from:
+
+> LMIA Watch (2026). *LMIA Watch: ESDC positive and negative LMIA employer
+> lists, derived files* (Version 2026Q1) [Data set]. Zenodo.
+> https://doi.org/10.5281/zenodo.23488707
+
+Later versions are listed on the record page, and the site's Data page shows
+the citation for the newest one.
 
 ## Code licence
 The code, documentation, page text, design and brand in this repository are
