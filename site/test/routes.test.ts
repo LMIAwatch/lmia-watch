@@ -147,7 +147,8 @@ describe("pages", () => {
     expect(data).toContain("Indicator rules v0.2.");
     expect(data).toContain("Private households left out of the ESDC lists");
     expect(data).not.toContain("planned");
-    expect(data.split('class="table-wrap bordered scroll-y"').length - 1).toBe(2);
+    // The ESDC files, the changelog and the recent runs each scroll inside their own box.
+    expect(data.split('class="table-wrap bordered scroll-y"').length - 1).toBe(3);
   });
 
   it("downloads fall back to a plain 404 page when nothing is published", async () => {

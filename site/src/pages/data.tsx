@@ -31,6 +31,12 @@ export function changelog(latestPeriod: string, lang: Lang): { date: string; cha
     });
 }
 
+// "2026-10-20T02:46:39Z" -> "2026-10-20 02:46 UTC" ("02 h 46" in French); anything else as given.
+export function runTime(iso: string | null | undefined, lang: Lang): string {
+  const m = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})/.exec(iso ?? "");
+  return m ? t(lang, "data.run_time", { date: m[1], hh: m[2], mm: m[3] }) : (iso ?? "");
+}
+
 export const DOWNLOADS: { file: string; contents: Key }[] = [
   { file: "pending_observations.csv", contents: "data.file.pending_observations" },
   { file: "approved_quarterly.csv", contents: "data.file.approved_quarterly" },
@@ -216,7 +222,7 @@ export async function dataPage(c: Context<AppEnv>): Promise<Response> {
           <p>{t(lang, "data.crawl_text")}</p>
 
           <h2 id="changelog">{t(lang, "data.toc_changelog")}</h2>
-          <div class="table-wrap bordered">
+          <div class="table-wrap bordered scroll-y">
             <table>
               <thead>
                 <tr>
@@ -251,7 +257,7 @@ export async function dataPage(c: Context<AppEnv>): Promise<Response> {
               <tbody>
                 {stats.runs.length === 0 ? <tr><td colspan={5} class="muted">{t(lang, "data.no_runs")}</td></tr> : stats.runs.map((r) => (
                   <tr>
-                    <td class="mono">{r.run_at}</td>
+                    <td class="mono nw">{runTime(r.run_at, lang)}</td>
                     <td>{r.source}</td>
                     <td class="small">{(r.detail ?? "").slice(0, 160)}</td>
                     <td class="mono num">{fmtInt(r.rows_new, lang)}</td>

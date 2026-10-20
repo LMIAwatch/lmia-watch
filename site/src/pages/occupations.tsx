@@ -85,19 +85,39 @@ export async function occupationsIndex(c: Context<AppEnv>): Promise<Response> {
     groups.set(key, list);
   }
   const latest = periodLabel(idx?.latest ?? "", lang);
+  const sorted = [...groups.entries()].sort();
+  const categoryName = (key: string) => idx?.categories?.[key]?.[lang] ?? key;
   return page(
     c,
     <Layout lang={lang} title={title} dataAsOf={stats.data_as_of} seo={seo}>
       <nav aria-label={t(lang, "employer.breadcrumb")} class="breadcrumb">
         <a href="/">{t(lang, "common.home")}</a> / {title}
       </nav>
+      <div class="doc-layout">
+        {sorted.length > 0 ? (
+          <nav aria-label={t(lang, "toc.label")} class="toc">
+            <span class="toc-title">{t(lang, "occ.toc_title")}</span>
+            {sorted.map(([key]) => <a href={`#cat-${key}`}>{categoryName(key)}</a>)}
+          </nav>
+        ) : null}
+        <div class="doc">
       <h1>{title}</h1>
       <p class="lead">{t(lang, "occ.index_lead", { from })}</p>
       <p class="muted small">{t(lang, "occ.noc_note", { from })}</p>
       <p><a href="/places">{t(lang, "occ.to_places")}</a></p>
-      {rows.length === 0 ? <p class="muted">{t(lang, "places.not_published")}</p> : [...groups.entries()].sort().map(([key, list]) => (
-        <section>
-          <h2>{idx?.categories?.[key]?.[lang] ?? key}</h2>
+      {/* Shown by occupations.js; without scripts the category links still serve. */}
+      <div id="occ-filter-box" hidden>
+        <div class="search-form">
+          <label for="occ-filter" class="visually-hidden">{t(lang, "occ.filter_label")}</label>
+          <input id="occ-filter" type="search" maxlength={60} autocomplete="off" placeholder={t(lang, "occ.filter_placeholder")}
+            aria-describedby="occ-filter-status" data-none={t(lang, "occ.filter_none")}
+            data-count={t(lang, "occ.filter_count", { n: "__N__", total: "__TOTAL__" })} />
+        </div>
+        <p id="occ-filter-status" class="muted small" aria-live="polite"></p>
+      </div>
+      {rows.length === 0 ? <p class="muted">{t(lang, "places.not_published")}</p> : sorted.map(([key, list]) => (
+        <section id={`cat-${key}`} data-cat={key}>
+          <h2>{categoryName(key)}</h2>
           <div class="table-wrap bordered">
             <table class="restack">
               <thead>
@@ -111,7 +131,7 @@ export async function occupationsIndex(c: Context<AppEnv>): Promise<Response> {
               </thead>
               <tbody>
                 {list.map((r) => (
-                  <tr>
+                  <tr data-occ={`${r.noc} ${r.title.en} ${r.title.fr}`}>
                     <td data-label={t(lang, "places.col_occupation")}><span><span class="mono muted">{r.noc}</span> <a href={`/occupations/${r.noc}`}>{r.title[lang]}</a></span></td>
                     <td data-label={t(lang, "places.col_records")} class="mono num">{n(r.records)}</td>
                     <td data-label={t(lang, "places.col_approved_positions")} class="mono num">{n(r.positions)}</td>
@@ -125,6 +145,9 @@ export async function occupationsIndex(c: Context<AppEnv>): Promise<Response> {
         </section>
       ))}
       <SourcesNote lang={lang} />
+        </div>
+      </div>
+      <script src="/occupations.js"></script>
     </Layout>,
   );
 }
