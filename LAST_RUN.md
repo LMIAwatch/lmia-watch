@@ -1,7 +1,7 @@
-Last successful refresh: 2026-10-20 02:46 UTC
+Last successful refresh: 2026-10-20 03:14 UTC
 
-X post: posted
+X post: already posted
 
-Bluesky post: posted
+Bluesky post: already posted
 
 Zenodo deposit: deposited
