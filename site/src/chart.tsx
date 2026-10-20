@@ -92,6 +92,9 @@ const f = (v: number) => (Math.round(v * 100) / 100).toString();
 // the same share is three times as many pixels.
 const MARK_GAP = 4.5;
 const MARK_GAP_WIDE = 3.2;
+// Markers float over the first panel's title line only when every one is at
+// least this far into the plot (percent), clear of the title text on a phone.
+const TITLE_CLEAR = 35;
 
 export function markerRows(markers: Marker[], domain: [number, number], gap = MARK_GAP): { m: Marker; left: number; row: number }[] {
   const last: number[] = [];
@@ -163,18 +166,24 @@ export const ChartStack: FC<{
   const wide = markerRows(markers, domain, MARK_GAP_WIDE);
   const rows = placed.reduce((n, p) => Math.max(n, p.row + 1), 0);
   const rowsWide = wide.reduce((n, p) => Math.max(n, p.row + 1), 0);
-  // The numbers sit on the top plot's upper edge, under its title, so each one
-  // meets its dashed line; when two land close together the second stacks
-  // above the first rather than pushing the whole row up.
-  const markRow = rows ? (
+  // The numbers sit on the top plot's upper edge, so each one meets its dashed
+  // line; when two land close together the second stacks above the first.
+  // They float over the title's line, leaving the title as close to its plot
+  // as every other panel's, unless one would land under the title text (the
+  // left part of the plot), in which case they take a row of their own.
+  const marks_ = rows ? (
+    <div class="chart-marks" style={`--hn:${rows * 1.6}em;--hw:${rowsWide * 1.6}em`}>
+      {placed.map(({ m, left, row }, i) => (
+        <span class={anchor(left)}
+          style={`left:${f(left)}%;--tn:${(rows - 1 - row) * 1.6}em;--tw:${(rowsWide - 1 - wide[i].row) * 1.6}em`}>{m.n}</span>
+      ))}
+    </div>
+  ) : null;
+  const overTitle = rows > 0 && placed.every((p) => p.left >= TITLE_CLEAR);
+  const markRow = rows && !overTitle ? (
     <div class="chart-row" aria-hidden="true">
       <span></span>
-      <div class="chart-marks" style={`--hn:${rows * 1.6}em;--hw:${rowsWide * 1.6}em`}>
-        {placed.map(({ m, left, row }, i) => (
-          <span class={anchor(left)}
-            style={`left:${f(left)}%;--tn:${(rows - 1 - row) * 1.6}em;--tw:${(rowsWide - 1 - wide[i].row) * 1.6}em`}>{m.n}</span>
-        ))}
-      </div>
+      {marks_}
     </div>
   ) : null;
   return (
@@ -187,7 +196,14 @@ export const ChartStack: FC<{
           <>
             <div class="chart-row">
               <span></span>
-              <div class="chart-title">{p.title}</div>
+              {i === 0 && overTitle ? (
+                <div class="chart-title-over">
+                  <div class="chart-title">{p.title}</div>
+                  <div class="chart-marks-over" aria-hidden="true">{marks_}</div>
+                </div>
+              ) : (
+                <div class="chart-title">{p.title}</div>
+              )}
             </div>
             {i === 0 ? markRow : null}
             <div class={`chart-row tone-${p.tone ?? "approved"}`}>
