@@ -265,6 +265,30 @@ jobs:
           fi
           "$WRANGLER" r2 object put --remote "$BUCKET/lmia.sqlite.gz" --file data/out/lmia.sqlite.gz
 
+      # Weekly snapshots, kept eight weeks. The nightly save keeps only tonight's
+      # backup and the previous night's, so a fault noticed later than that would
+      # reach every copy. Sundays (UTC) only; the slot is the ISO week modulo 8,
+      # so each snapshot replaces the one from eight weeks before and nothing has
+      # to be listed or pruned. The site's own D1 tables (forms, donations) go
+      # with it. The operator's machine pulls the newest backup and the D1 export
+      # into a folder off this account each week.
+      - name: Weekly snapshot (Sundays UTC, kept eight weeks)
+        id: snapshot
+        if: ${{ !cancelled() && steps.save_db.outcome == 'success' }}
+        continue-on-error: true
+        working-directory: site
+        run: |
+          if [ "$(date -u +%u)" != "7" ]; then echo "Not Sunday (UTC); no snapshot tonight."; exit 0; fi
+          slot=$(( 10#$(date -u +%V) % 8 ))
+          "$WRANGLER" r2 object put --remote "$BUCKET/backups/weekly/db-slot-$slot.sqlite.gz" --file ../data/out/lmia.sqlite.gz
+          "$WRANGLER" d1 export lmia-watch --remote --output ../data/out/d1.sql
+          gzip -c ../data/out/d1.sql > ../data/out/d1.sql.gz
+          "$WRANGLER" r2 object put --remote "$BUCKET/backups/weekly/d1-slot-$slot.sql.gz" --file ../data/out/d1.sql.gz
+          "$WRANGLER" r2 object put --remote "$BUCKET/backups/weekly/d1-latest.sql.gz" --file ../data/out/d1.sql.gz
+          date -u +"%Y-%m-%d" > ../data/out/slot.txt
+          "$WRANGLER" r2 object put --remote "$BUCKET/backups/weekly/slot-$slot.txt" --file ../data/out/slot.txt
+          echo "Snapshot saved to slot $slot."
+
       # The downloads and the bundle match what was deployed, so they are saved
       # only after a deploy that worked.
       - name: Save the public files to R2
