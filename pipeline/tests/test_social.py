@@ -387,3 +387,33 @@ def test_cli_dry_run_returns_zero(tmp_path, monkeypatch, capsys):
     assert capsys.readouterr().out.startswith('Newly flagged "LMIA requested" on Job Bank, 2026-10-17: 6 postings')
     assert (tmp_path / "out" / "social" / "2026-10-17.txt").exists()
     assert not (tmp_path / "out" / "social" / "2026-10-17.png").exists()
+
+
+def test_a_sweep_that_stopped_short_rolls_into_the_next_post(conn):
+    # Pass one completed; a second sweep stopped short (no jobbank_last_run of its
+    # own) after storing posting 21; pass three completed. Pass three's digest
+    # counts both 21 and its own 22, from the previous complete pass on.
+    one, short, three = "2026-10-15T00:10:00Z", "2026-10-16T00:10:00Z", "2026-10-16T03:00:00Z"
+    add_posting(conn, 20, "Old Posting Ltd", "MB", "Brandon", 9, first_seen=one)
+    add_posting(conn, 21, "Stopped Short Farms Ltd", "ON", "Simcoe", 12, first_seen=short)
+    add_posting(conn, 22, "Third Pass Inc", "AB", "Calgary", 3, first_seen=three)
+    set_meta(conn, "jobbank_prev_run", one)
+    set_meta(conn, "jobbank_last_run", three)
+    conn.commit()
+    d = social.collect(conn)
+    assert d.postings == 2 and d.provinces == ["AB", "ON"]
+    assert d.since_date is None  # 27 hours since the previous complete pass
+    assert [e.name for e in d.employers] == ["Stopped Short Farms Ltd", "Third Pass Inc"]
+    assert not d.first_pass
+
+
+def test_a_long_gap_since_the_previous_complete_pass_says_since(conn):
+    one, three = "2026-10-13T00:10:00Z", "2026-10-16T03:00:00Z"
+    add_posting(conn, 20, "Old Posting Ltd", "MB", "Brandon", 9, first_seen=one)
+    add_posting(conn, 21, "Later Farms Ltd", "ON", "Simcoe", 12, first_seen="2026-10-14T00:10:00Z")
+    set_meta(conn, "jobbank_prev_run", one)
+    set_meta(conn, "jobbank_last_run", three)
+    conn.commit()
+    d = social.collect(conn)
+    assert d.postings == 1 and d.since_date == "2026-10-12"  # Eastern day of the pass at 00:10 UTC
+

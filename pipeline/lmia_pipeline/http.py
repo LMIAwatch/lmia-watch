@@ -29,6 +29,12 @@ MAX_RETRY_AFTER_S = 300.0
 # could hold a request open indefinitely. A body must arrive within this many
 # seconds, or four read timeouts when that is longer.
 MIN_BODY_SECONDS = 900.0
+# Opening a connection takes well under a second when a host is up; waiting
+# the full read timeout for one only delays the news that it is not.
+CONNECT_TIMEOUT_S = 20.0
+# Attempts per request on a host in config.CONNECT_FAIL_FAST when the
+# connection itself fails.
+CONNECT_ATTEMPTS = 2
 CHUNK_BYTES = 1 << 16
 
 
@@ -111,6 +117,8 @@ class PoliteClient:
         self.default_delay = config.DEFAULT_DELAY if default_delay is None else default_delay
         self.max_consecutive_failures = max_consecutive_failures
         self.max_attempts = max_attempts
+        self.connect_fail_fast = dict(config.CONNECT_FAIL_FAST)
+        self._connect_failures: dict[str, int] = {}
         self.user_agent = user_agent or config.USER_AGENT
         self._sleep = sleep
         self._clock = clock
@@ -150,12 +158,18 @@ class PoliteClient:
             self._wait_for_host(host)
             started = self._clock()
             try:
-                resp = self.session.get(url, headers=req_headers, timeout=timeout, stream=True)
+                resp = self.session.get(url, headers=req_headers, timeout=(min(CONNECT_TIMEOUT_S, timeout), timeout),
+                                        stream=True)
             except requests.RequestException as exc:
                 self._mark(host)
-                self._retry_or_fail(url, attempt, repr(exc))
+                # ConnectTimeout is a ConnectionError too: the host took no
+                # connection at all, which a read timeout does not mean.
+                self._retry_or_fail(url, attempt, repr(exc), host=host,
+                                    connect=isinstance(exc, requests.ConnectionError))
                 continue
             self._mark(host)
+            # Any answer means the host is taking connections again.
+            self._connect_failures.pop(host, None)
             self.requests_made += 1
 
             if resp.status_code == 304 and entry is not None:
@@ -227,14 +241,24 @@ class PoliteClient:
                 raise _SlowBody(f"body still arriving after {limit:.0f} s")
         return b"".join(parts)
 
-    def _retry_or_fail(self, url: str, attempt: int, reason: str, wait: float | None = None) -> None:
+    def _retry_or_fail(self, url: str, attempt: int, reason: str, wait: float | None = None, *,
+                       host: str | None = None, connect: bool = False) -> None:
+        fail_fast = self.connect_fail_fast.get(host or "") if connect else None
+        attempts = min(self.max_attempts, CONNECT_ATTEMPTS) if fail_fast else self.max_attempts
         # The host's own Retry-After wins over the backoff when it is longer;
         # one longer than MAX_RETRY_AFTER_S is not retried early at all.
-        if attempt < self.max_attempts and (wait is None or wait <= MAX_RETRY_AFTER_S):
+        if attempt < attempts and (wait is None or wait <= MAX_RETRY_AFTER_S):
             self._sleep(max(min(2**attempt, 60), wait or 0.0))
             return
         if wait is not None and wait > MAX_RETRY_AFTER_S:
             reason += f" (Retry-After {wait:.0f} s)"
+        if fail_fast and host:
+            self._connect_failures[host] = self._connect_failures.get(host, 0) + 1
+            if self._connect_failures[host] >= fail_fast:
+                raise AbortRun(
+                    f"{host} stopped accepting connections: {self._connect_failures[host]} requests in a row "
+                    f"could not connect; last {reason} ({url})"
+                )
         self._consecutive_failures += 1
         if self._consecutive_failures >= self.max_consecutive_failures:
             raise AbortRun(

@@ -237,21 +237,32 @@ def compose(d: Digest, *, link: str | None, limit: int = MAX_CHARS,
 
 
 def collect(conn: sqlite3.Connection) -> Digest | None:
-    """Postings first seen on the latest completed Job Bank pass; None before any pass."""
+    """Postings first seen since the previous completed Job Bank pass; None before any pass.
+
+    jobbank.run stamps first_seen and jobbank_last_run with the same value and
+    writes jobbank_last_run only when a pass completes, keeping the one before as
+    jobbank_prev_run. Counting from that previous complete pass takes in what a
+    sweep that stopped short stored in between, so a broken night rolls into the
+    next post. A database from before jobbank_prev_run counts this pass alone.
+    """
     stamp = get_meta(conn, "jobbank_last_run")
     if not stamp:
         return None
-    # jobbank.run stamps first_seen and jobbank_last_run with the same value, and
-    # writes jobbank_last_run only when the pass completes.
-    rows = conn.execute(
-        "SELECT posting_id, employer_id, employer_raw, city, province, vacancies FROM jobbank_postings "
-        "WHERE first_seen = ? AND flag_first = 'requested'",
-        (stamp,),
-    ).fetchall()
-    earlier = conn.execute("SELECT 1 FROM jobbank_postings WHERE first_seen < ? LIMIT 1", (stamp,)).fetchone()
-    # Every posting a pass sees gets last_seen = its stamp, so the latest earlier
-    # last_seen is the previous pass, whether or not it found anything new.
-    prev = conn.execute("SELECT MAX(last_seen) FROM jobbank_postings WHERE last_seen < ?", (stamp,)).fetchone()[0]
+    start = get_meta(conn, "jobbank_prev_run")
+    if start and start >= stamp:
+        start = None
+    columns = "SELECT posting_id, employer_id, employer_raw, city, province, vacancies FROM jobbank_postings "
+    if start:
+        rows = conn.execute(columns + "WHERE first_seen > ? AND first_seen <= ? AND flag_first = 'requested'",
+                            (start, stamp)).fetchall()
+        earlier = conn.execute("SELECT 1 FROM jobbank_postings WHERE first_seen <= ? LIMIT 1", (start,)).fetchone()
+        prev = start
+    else:
+        rows = conn.execute(columns + "WHERE first_seen = ? AND flag_first = 'requested'", (stamp,)).fetchall()
+        earlier = conn.execute("SELECT 1 FROM jobbank_postings WHERE first_seen < ? LIMIT 1", (stamp,)).fetchone()
+        # Every posting a pass sees gets last_seen = its stamp, so the latest earlier
+        # last_seen is the previous pass, whether or not it found anything new.
+        prev = conn.execute("SELECT MAX(last_seen) FROM jobbank_postings WHERE last_seen < ?", (stamp,)).fetchone()[0]
     since = None
     if prev and (_parse(stamp) - _parse(prev)) > timedelta(hours=GAP_HOURS):
         since = local_date(prev)

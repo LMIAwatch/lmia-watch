@@ -1,7 +1,10 @@
-# The one and only trigger: a scheduled run at midnight UTC. There is no manual
-# trigger, no push trigger, and nothing on the site can start a run. Code on
-# main ships with the next scheduled run, because this job deploys the Worker
-# from the checked-out tree after the data stage.
+# Triggers: a scheduled run at midnight UTC, and a manual run (the Actions tab,
+# repository writers only) for re-running a night on the newest code; a re-run
+# of an old run keeps its old commit. The pipeline refuses a second Job Bank
+# pass within 20 hours, so a manual run cannot crawl twice in a day. There is
+# no push trigger, and nothing on the site can start a run. Code on main ships
+# with the next run, because this job deploys the Worker from the checked-out
+# tree after the data stage.
 #
 # Steps: restore the SQLite file from R2, run every pipeline stage (the
 # pipeline itself skips Job Bank if it already ran within the last 20 hours),
@@ -44,6 +47,7 @@ name: nightly
 on:
   schedule:
     - cron: "0 0 * * *"
+  workflow_dispatch:
 
 # contents: write only so the last step can record the run date; GitHub pauses
 # a schedule after 60 days without repository activity.
@@ -136,14 +140,15 @@ jobs:
           fetch lmia.sqlite.prev.gz
           python -m lmia_pipeline.nightly restore --dir data/restore --db data/lmia.sqlite --out data/out/restore.json
 
-      # 400 posting pages a night: at Job Bank's pace that is a few hours, well
-      # inside the window before the next run. A non-zero exit marks the run
+      # 150 posting pages a night, at Job Bank's pace with an 8-second gap between
+      # requests: well inside the Job Bank stage's four-hour cap, and fewer
+      # requests from one address in one night. A non-zero exit marks the run
       # failed, and the steps below still check and save what the run produced.
       - name: Run every stage
         id: pipeline
         run: |
           date -u +"%Y-%m-%dT%H:%M:%SZ" > data/out/run_started.txt
-          python -m lmia_pipeline run --db data/lmia.sqlite --detail-budget 400
+          python -m lmia_pipeline run --db data/lmia.sqlite --detail-budget 150
 
       - name: Check the database and the export
         id: verify

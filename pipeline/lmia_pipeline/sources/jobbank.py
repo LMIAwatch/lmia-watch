@@ -26,7 +26,7 @@ from typing import Callable
 from bs4 import BeautifulSoup
 
 from .. import config
-from ..db import log_run, now_iso, set_meta, upsert_employer
+from ..db import get_meta, log_run, now_iso, set_meta, upsert_employer
 from ..exclusions import is_private_household
 from ..http import AbortRun, FetchError, PoliteClient
 from ..normalize import POSTAL_RE, format_postal, parse_jobbank_date, parse_salary_text
@@ -340,6 +340,12 @@ def run(
         if problem:
             stats.problems.append(problem)
     if limit is not None or full_pass:
+        # The daily digest counts every posting first seen since the previous
+        # complete pass, so what a sweep that stopped short stored rolls into
+        # the next night's post instead of never being counted.
+        previous = get_meta(conn, "jobbank_last_run")
+        if previous and previous != stamp:
+            set_meta(conn, "jobbank_prev_run", previous)
         set_meta(conn, "jobbank_last_run", stamp)
     detail = (
         f"pages={stats.pages} listed={stats.listed} new={stats.new_postings} "

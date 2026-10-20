@@ -269,3 +269,23 @@ def test_marking_gone_handles_more_postings_than_sqlite_binds(conn, fake_client,
     conn.commit()
     gone = jobbank._mark_gone(conn, set(ids[:35_000]), "2026-10-13T00:00:00Z")
     assert gone == 5_000
+
+
+def test_a_complete_pass_keeps_the_previous_one_for_the_digest(conn, fake_client):
+    from lmia_pipeline.db import set_meta
+    set_meta(conn, "jobbank_last_run", "2026-10-11T00:00:00Z")
+    night_one(conn, fake_client)
+    assert get_meta(conn, "jobbank_last_run") == "2026-10-12T00:00:00Z"
+    assert get_meta(conn, "jobbank_prev_run") == "2026-10-11T00:00:00Z"
+
+
+def test_a_sweep_that_stopped_short_leaves_both_markers_alone(conn, fake_client):
+    from lmia_pipeline.db import set_meta
+    set_meta(conn, "jobbank_last_run", "2026-10-11T00:00:00Z")
+    set_meta(conn, "jobbank_prev_run", "2026-10-10T00:00:00Z")
+    client = fake_client({search_url("101010", 1): page([1, 2], count=50)}, max_attempts=1, max_consecutive_failures=1)
+    stats = jobbank.run(conn, client, now="2026-10-12T00:00:00Z")
+    assert not stats.complete
+    assert get_meta(conn, "jobbank_last_run") == "2026-10-11T00:00:00Z"
+    assert get_meta(conn, "jobbank_prev_run") == "2026-10-10T00:00:00Z"
+

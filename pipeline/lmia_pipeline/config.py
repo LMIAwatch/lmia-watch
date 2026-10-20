@@ -25,7 +25,15 @@ USER_AGENT = f"LMIAWatch/{__version__} (+{SITE_URL}; {CONTACT})"
 
 # robots.txt on jobbank.gc.ca sets Crawl-delay: 5. Everything else gets one
 # request per second, which is well under what the open-data hosts expect.
-CRAWL_DELAY: dict[str, float] = {"www.jobbank.gc.ca": 5.0, "jobbank.gc.ca": 5.0}
+# Job Bank's robots.txt asks for 5 seconds between requests. The crawler waits
+# 8: from a cloud runner the site's firewall stopped answering partway through
+# a sweep at the published pace (2026-10-20), and a slower one asks less of it.
+CRAWL_DELAY: dict[str, float] = {"www.jobbank.gc.ca": 8.0, "jobbank.gc.ca": 8.0}
+# Hosts where a refused or timed-out connection means the host has stopped
+# taking requests from this address: each request is tried twice, and this
+# many requests in a row failing that way end the run for the host (AbortRun)
+# instead of retrying for twenty minutes.
+CONNECT_FAIL_FAST: dict[str, int] = {"www.jobbank.gc.ca": 2, "jobbank.gc.ca": 2}
 DEFAULT_DELAY = 1.0
 
 JOBBANK_BASE = "https://www.jobbank.gc.ca"

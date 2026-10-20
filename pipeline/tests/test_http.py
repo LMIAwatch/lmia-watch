@@ -33,7 +33,7 @@ def test_spacing_per_host(tmp_path):
     client.get("https://www.jobbank.gc.ca/b")
     assert client.requests_made == 3
     # The second Job Bank request waited the full crawl delay; the other host did not.
-    assert max(clock.sleeps) == pytest.approx(5.0)
+    assert max(clock.sleeps) == pytest.approx(8.0)
     assert client.user_agent.startswith("LMIAWatch/")
     assert all(h["User-Agent"] == client.user_agent for _, h in session.calls)
 

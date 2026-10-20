@@ -151,3 +151,62 @@ def test_a_streamed_body_is_read_in_full(tmp_path):
 
     client = PoliteClient(session=Scripted([Chunks(200, b"")]), cache_dir=tmp_path, sleep=clock.sleep, clock=clock.now)
     assert client.get("https://x.example/ok") == b"abcd"
+
+
+# -- a host that stops taking connections ------------------------------------
+
+
+class Capturing(Scripted):
+    def __init__(self, answers) -> None:
+        super().__init__(answers)
+        self.timeouts: list = []
+
+    def get(self, url, headers=None, timeout=None, stream=False):
+        self.timeouts.append(timeout)
+        return super().get(url, headers=headers, timeout=timeout, stream=stream)
+
+
+def test_refused_connections_end_a_job_bank_run_within_two_requests(tmp_path):
+    from lmia_pipeline.http import AbortRun
+
+    refused = requests.exceptions.ConnectTimeout("timed out")
+    client, session, clock = client_for([refused] * 6, cache_dir=tmp_path, max_attempts=4, max_consecutive_failures=5)
+    with pytest.raises(FetchError, match="after 2 attempts"):
+        client.get("https://www.jobbank.gc.ca/jobsearch/jobposting/1")
+    with pytest.raises(AbortRun, match="stopped accepting connections"):
+        client.get("https://www.jobbank.gc.ca/jobsearch/jobposting/2")
+    # Two tries each, not four: a blocked address learns it in two requests.
+    assert session.calls == 4
+
+
+def test_an_answer_resets_the_refused_connection_count(tmp_path):
+    refused = requests.exceptions.ConnectionError("refused")
+    client, session, clock = client_for([refused, refused, b"ok", refused, refused], cache_dir=tmp_path, max_attempts=4)
+    with pytest.raises(FetchError):
+        client.get("https://www.jobbank.gc.ca/a")
+    assert client.get("https://www.jobbank.gc.ca/b") == b"ok"
+    with pytest.raises(FetchError):  # one failed request after an answer, not two in a row
+        client.get("https://www.jobbank.gc.ca/c")
+
+
+def test_other_hosts_keep_their_full_retries_on_connection_errors(tmp_path):
+    refused = requests.exceptions.ConnectionError("refused")
+    client, session, clock = client_for([refused] * 4, cache_dir=tmp_path, max_attempts=4)
+    with pytest.raises(FetchError, match="after 4 attempts"):
+        client.get("https://open.example/file.csv")
+    assert session.calls == 4
+
+
+def test_a_read_timeout_is_not_a_refused_connection(tmp_path):
+    slow = requests.exceptions.ReadTimeout("slow")
+    client, session, clock = client_for([slow] * 4, cache_dir=tmp_path, max_attempts=4)
+    with pytest.raises(FetchError, match="after 4 attempts"):
+        client.get("https://www.jobbank.gc.ca/a")
+
+
+def test_the_connect_timeout_is_capped_and_the_read_timeout_kept(tmp_path):
+    clock = Clock()
+    session = Capturing([b"ok"])
+    client = PoliteClient(session=session, cache_dir=tmp_path, sleep=clock.sleep, clock=clock.now)
+    client.get("https://open.example/big.zip", timeout=900)
+    assert session.timeouts == [(20.0, 900)]
