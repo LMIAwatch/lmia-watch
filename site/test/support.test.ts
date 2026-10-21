@@ -31,7 +31,7 @@ describe("support page", () => {
     for (const s of [
       "<h1>Support the Site</h1>",
       "What the Site Holds Today",
-      "Limits of the Free Tier",
+      "Current Limits",
       "What It Costs Today",
       "Upgrade Paths",
       "Beyond the Costs",
@@ -59,7 +59,7 @@ describe("support page", () => {
     expect(html).toContain("everything since 2023 Q4 in the browser");
     expect(html).toContain("Records before 2023 Q4 are in the");
     expect(html).toContain("One refresh a day, at midnight UTC.</li>");
-    expect(html).toContain("100,000 page views a day.");
+    expect(html).toContain("about 10,000,000 page views a month are included, with no daily ceiling.");
   });
 
   it("renders without the data files", async () => {
@@ -71,13 +71,15 @@ describe("support page", () => {
     expect(html).toContain("Older records are in the");
   });
 
-  it("states monthly cost against monthly support, and every tier is unfunded by default", async () => {
+  it("states monthly cost against monthly support; with no support the plan in place reads In place and the rest Not yet funded", async () => {
     const html = await (await get("/support")).text();
     expect(html).toContain(
       `Monthly cost of every tier: ${fmtCents(TARGET_CENTS_PER_MONTH)}. Monthly support received: $0.00.`,
     );
     expect(html).toContain(`Reserve held: 0 of ${RESERVE_GOAL_MONTHS} months.`);
-    expect(count(html, '<td class="tier-status">Not yet funded</td>')).toBe(TIERS.length);
+    expect(count(html, '<td class="tier-status">Not yet funded</td>')).toBe(TIERS.filter((t) => !t.inPlace).length);
+    expect(count(html, '<td class="tier-status">In place, paid by the operator</td>')).toBe(TIERS.filter((t) => t.inPlace).length);
+    expect(html).toContain("The operator pays for the plan; support received does not cover it yet.");
     expect(html).not.toContain('<td class="tier-status">Funded</td>');
     expect(html).not.toContain('<td class="tier-status">Partly funded</td>');
     for (const t of TIERS) expect(html).toContain(`data-tier="${t.id}"`);
@@ -177,6 +179,8 @@ describe("tier coverage", () => {
     const support = real[1].cumulativeCents + Math.floor(real[2].costCents / 2);
     const rows = tierCoverage(support, TIERS);
     expect(rows.map((r) => r.status)).toEqual(["Funded", "Funded", "Partly funded", "Partly funded", "Partly funded"]);
+    // Below the plan's cumulative cost, the plan in place reads In place, not Partly funded.
+    expect(tierCoverage(real[0].cumulativeCents, TIERS)[1].status).toBe("In place");
     expect(rows[2].width).toBeLessThan(100);
   });
 
@@ -191,7 +195,8 @@ describe("tier coverage", () => {
     expect(TIERS.map((t) => t.id)).toEqual(["baseline", "workers_paid", "hosted_search", "storage", "x_verification"]);
     const rows = tierCoverage(0);
     expect(rows[rows.length - 1].cumulativeCents).toBe(TARGET_CENTS_PER_MONTH);
-    expect(rows[0].costCents).toBe(COSTS_TODAY_CENTS);
+    // Today's costs are the baseline plus the Workers Paid plan already in place.
+    expect(rows[0].costCents + rows[1].costCents).toBe(COSTS_TODAY_CENTS);
     expect(TARGET_CENTS_PER_MONTH).toBe(TIERS.reduce((s, t) => s + toCents(t.monthlyCost), 0));
   });
 

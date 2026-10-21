@@ -949,8 +949,12 @@ const STRINGS = {
   "support.holds_refresh": { en: "One refresh a day, at {time}.", fr: "Une mise à jour par jour, à {time}." },
   "support.refresh_midnight": { en: "midnight UTC", fr: "minuit UTC" },
   "support.refresh_hour": { en: "{hh}:00 UTC", fr: "{hh} h 00 UTC" },
-  "support.limits": { en: "Limits of the Free Tier", fr: "Limites du forfait gratuit" },
+  "support.limits": { en: "Current Limits", fr: "Limites actuelles" },
   "support.limit_views": { en: "{n} page views a day.", fr: "{n} pages vues par jour." },
+  "support.limit_paid": {
+    en: "Since {date} the site runs on Cloudflare's Workers Paid plan: about {n} page views a month are included, with no daily ceiling. The operator pays for the plan; support received does not cover it yet.",
+    fr: "Depuis le {date}, le site fonctionne avec le forfait Workers Paid de Cloudflare : environ {n} pages vues par mois sont incluses, sans plafond quotidien. L'exploitant paie le forfait; le soutien reçu ne le couvre pas encore.",
+  },
   "support.limit_search": {
     en: "No server-side search of the full history; the long search scope is a multi-megabyte browser download.",
     fr: "Aucune recherche côté serveur dans l'historique complet; la période de recherche longue est un téléchargement de plusieurs mégaoctets dans le navigateur.",
@@ -961,13 +965,14 @@ const STRINGS = {
     fr: "Les montants sont mensuels et en dollars canadiens, sauf indication contraire.",
   },
   "support.bar_domain": { en: "Domain registration", fr: "Enregistrement du domaine" },
-  "support.bar_hosting": { en: "Hosting", fr: "Hébergement" },
+  "support.bar_workers": { en: "Workers Paid plan (paid by the operator for now)", fr: "Forfait Workers Paid (payé par l'exploitant pour l'instant)" },
+  "support.bar_hosting": { en: "Storage and database", fr: "Stockage et base de données" },
   "support.bar_github": { en: "GitHub task fees", fr: "Frais de tâches GitHub" },
   "support.bar_x": { en: "Daily post on X (optional)", fr: "Publication quotidienne sur X (facultatif)" },
   "support.bar_total": { en: "Total", fr: "Total" },
   "support.costs_detail": {
-    en: "Domain registration is {domain} a year. Hosting (the Workers, storage and database) is on free tiers. The nightly refresh runs as a scheduled task on GitHub, and runner minutes past the monthly allowance are billed per minute, about {github} a month. The daily post on X is billed by X per message ({usd} without a link), about {monthly} a month. It is optional and the site runs without it.",
-    fr: "L'enregistrement du domaine coûte {domain} par année. L'hébergement (les Workers, le stockage et la base de données) relève de forfaits gratuits. La mise à jour nocturne s'exécute comme tâche planifiée sur GitHub, et les minutes d'exécution au-delà de l'allocation mensuelle sont facturées à la minute, soit environ {github} par mois. La publication quotidienne sur X est facturée par X à chaque message ({usd} sans lien), soit environ {monthly} par mois. Elle est facultative et le site fonctionne sans elle.",
+    en: "Domain registration is {domain} a year. Since {since} the site runs on the Workers Paid plan, {workersUsd} a month plus an allowance for tax and usage, about {workers}; the operator pays for it until support covers it. File storage and the database stay on free tiers. The nightly refresh runs as a scheduled task on GitHub, and runner minutes past the monthly allowance are billed per minute, about {github} a month. The daily post on X is billed by X per message ({usd} without a link), about {monthly} a month. It is optional and the site runs without it.",
+    fr: "L'enregistrement du domaine coûte {domain} par année. Depuis le {since}, le site fonctionne avec le forfait Workers Paid, {workersUsd} par mois plus une provision pour la taxe et l'utilisation, soit environ {workers}; l'exploitant le paie jusqu'à ce que le soutien le couvre. Le stockage de fichiers et la base de données restent sur des forfaits gratuits. La mise à jour nocturne s'exécute comme tâche planifiée sur GitHub, et les minutes d'exécution au-delà de l'allocation mensuelle sont facturées à la minute, soit environ {github} par mois. La publication quotidienne sur X est facturée par X à chaque message ({usd} sans lien), soit environ {monthly} par mois. Elle est facultative et le site fonctionne sans elle.",
   },
   "support.tiers_summary": {
     en: "Monthly cost of every tier: {target}. Monthly support received: {support}. Reserve held: {months} of {goal}.",
@@ -985,6 +990,7 @@ const STRINGS = {
   "support.status.funded": { en: "Funded", fr: "Financé" },
   "support.status.partly": { en: "Partly funded", fr: "Partiellement financé" },
   "support.status.not_yet": { en: "Not yet funded", fr: "Pas encore financé" },
+  "support.status.in_place": { en: "In place, paid by the operator", fr: "En place, payé par l'exploitant" },
   "support.tier.baseline.name": { en: "Baseline", fr: "Base" },
   "support.tier.baseline.unlocks": {
     en: "Keeps the site online at its own address, with hosting on free tiers, the nightly refresh on GitHub, and the daily post on X.",

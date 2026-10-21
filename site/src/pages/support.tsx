@@ -12,7 +12,9 @@ import {
   DOMAIN_CENTS_PER_MONTH,
   ESDC_HISTORY_START_YEAR,
   EXAMPLE_GIFT_CAD,
-  FREE_PAGE_VIEWS_PER_DAY,
+  PAID_REQUESTS_PER_MONTH,
+  WORKERS_PAID_SINCE,
+  WORKERS_PLAN_CENTS_PER_MONTH,
   HOSTING_CENTS_PER_MONTH,
   RESERVE_GOAL_CENTS,
   RESERVE_GOAL_MONTHS,
@@ -74,6 +76,7 @@ const TIER_STATUS: Record<TierStatus, Key> = {
   Funded: "support.status.funded",
   "Partly funded": "support.status.partly",
   "Not yet funded": "support.status.not_yet",
+  "In place": "support.status.in_place",
 };
 
 type BarRow = { label: string; cents: number; total?: boolean };
@@ -162,7 +165,7 @@ export async function supportPage(c: Context<AppEnv>): Promise<Response> {
           </ul>
           <h3>{t(lang, "support.limits")}</h3>
           <ul>
-            <li>{t(lang, "support.limit_views", { n: fmtInt(FREE_PAGE_VIEWS_PER_DAY, lang) })}</li>
+            <li>{t(lang, "support.limit_paid", { date: WORKERS_PAID_SINCE, n: fmtInt(PAID_REQUESTS_PER_MONTH, lang) })}</li>
             <li>{t(lang, "support.limit_search")}</li>
             <li>{t(lang, "support.limit_storage", { n: STORAGE_FREE_GB })}</li>
           </ul>
@@ -173,6 +176,7 @@ export async function supportPage(c: Context<AppEnv>): Promise<Response> {
             lang={lang}
             rows={[
               { label: t(lang, "support.bar_domain"), cents: DOMAIN_CENTS_PER_MONTH },
+              { label: t(lang, "support.bar_workers"), cents: WORKERS_PLAN_CENTS_PER_MONTH },
               { label: t(lang, "support.bar_hosting"), cents: HOSTING_CENTS_PER_MONTH },
               { label: t(lang, "support.bar_github"), cents: ACTIONS_CENTS_PER_MONTH },
               { label: t(lang, "support.bar_x"), cents: X_POST_CENTS_PER_MONTH },
@@ -182,6 +186,9 @@ export async function supportPage(c: Context<AppEnv>): Promise<Response> {
           <p class="muted small top-gap">
             {t(lang, "support.costs_detail", {
               domain: prose(toCents(DOMAIN_CAD_PER_YEAR), lang),
+              since: WORKERS_PAID_SINCE,
+              workersUsd: fmtUsd(WORKERS_PAID_USD_PER_MONTH, lang),
+              workers: money(WORKERS_PLAN_CENTS_PER_MONTH),
               github: money(ACTIONS_CENTS_PER_MONTH),
               usd: fmtUsd(X_POST_USD_EACH, lang),
               monthly: money(X_POST_CENTS_PER_MONTH),

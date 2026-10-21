@@ -23,6 +23,14 @@ export const REFRESH_HOUR_UTC = 0;
 // pricing page.
 export const FREE_PAGE_VIEWS_PER_DAY = 100_000;
 
+// The Workers Paid plan has been in place since this date. The operator pays
+// for it until monthly support covers its tier; the page says so.
+export const WORKERS_PAID_SINCE = "2026-10-20";
+
+// Worker requests included each month on the Workers Paid plan, with no daily
+// ceiling. Host's published allowance. Revisit with the pricing page.
+export const PAID_REQUESTS_PER_MONTH = 10_000_000;
+
 // R2 storage that is free each month, in GB. Host's published free allowance.
 // Revisit with the pricing page.
 export const STORAGE_FREE_GB = 10;
@@ -157,13 +165,20 @@ export const X_POST_CENTS_PER_MONTH = toCents(X_POST_CAD_PER_MONTH);
 export const ACTIONS_CAD_PER_MONTH =
   Math.max(0, ACTIONS_MINUTES_PER_NIGHT * NIGHTS_PER_MONTH - ACTIONS_FREE_MINUTES_PER_MONTH) * ACTIONS_USD_PER_MINUTE * USD_TO_CAD;
 export const ACTIONS_CENTS_PER_MONTH = toCents(ACTIONS_CAD_PER_MONTH);
-export const COSTS_TODAY_CENTS = DOMAIN_CENTS_PER_MONTH + HOSTING_CENTS_PER_MONTH + ACTIONS_CENTS_PER_MONTH + X_POST_CENTS_PER_MONTH;
+// The Workers Paid plan as the site pays for it today: the list price plus the
+// allowance for tax and usage, the same estimate as its tier below.
+export const WORKERS_PLAN_CAD_PER_MONTH = WORKERS_PAID_USD_PER_MONTH * USD_TO_CAD + WORKERS_USAGE_ALLOWANCE_CAD_PER_MONTH;
+export const WORKERS_PLAN_CENTS_PER_MONTH = toCents(WORKERS_PLAN_CAD_PER_MONTH);
+export const COSTS_TODAY_CENTS =
+  DOMAIN_CENTS_PER_MONTH + HOSTING_CENTS_PER_MONTH + ACTIONS_CENTS_PER_MONTH + X_POST_CENTS_PER_MONTH + WORKERS_PLAN_CENTS_PER_MONTH;
 export const WORKERS_PAID_LIST_CENTS = toCents(WORKERS_PAID_USD_PER_MONTH * USD_TO_CAD);
 export const STORAGE_CENTS_PER_GB_MONTH = toCents(STORAGE_USD_PER_GB_MONTH * USD_TO_CAD);
 export const STORAGE_RESERVE_GB = Math.floor(STORAGE_RESERVE_CAD_PER_MONTH / (STORAGE_USD_PER_GB_MONTH * USD_TO_CAD));
 
 export type TierId = "baseline" | "workers_paid" | "hosted_search" | "storage" | "x_verification";
-export type Tier = { id: TierId; name: string; monthlyCost: number; unlocks: string };
+// inPlace: the site already runs on this tier, paid by the operator until
+// monthly support covers it.
+export type Tier = { id: TierId; name: string; monthlyCost: number; unlocks: string; inPlace?: boolean };
 
 const TIER_VARS = { year: ESDC_HISTORY_START_YEAR, free: STORAGE_FREE_GB, gb: STORAGE_RESERVE_GB };
 
@@ -186,8 +201,9 @@ export const TIERS: readonly Tier[] = [
   {
     id: "workers_paid",
     name: tierName("en", "workers_paid"),
-    monthlyCost: WORKERS_PAID_USD_PER_MONTH * USD_TO_CAD + WORKERS_USAGE_ALLOWANCE_CAD_PER_MONTH,
+    monthlyCost: WORKERS_PLAN_CAD_PER_MONTH,
     unlocks: tierUnlocks("en", "workers_paid"),
+    inPlace: true,
   },
   {
     id: "hosted_search",
@@ -209,7 +225,7 @@ export const TIERS: readonly Tier[] = [
   },
 ];
 
-export type TierStatus = "Funded" | "Partly funded" | "Not yet funded";
+export type TierStatus = "Funded" | "Partly funded" | "Not yet funded" | "In place";
 export type TierCoverage = Tier & { costCents: number; cumulativeCents: number; width: number; status: TierStatus };
 
 // Compares monthly support with the cumulative monthly cost through each tier,
@@ -221,7 +237,9 @@ export function tierCoverage(supportCents: number, tiers: readonly Tier[] = TIER
   return tiers.map((tier) => {
     const costCents = toCents(tier.monthlyCost);
     cumulative += costCents;
-    const status: TierStatus = support >= cumulative ? "Funded" : support > 0 ? "Partly funded" : "Not yet funded";
+    // A tier the site already runs on reads "In place" until support covers it.
+    const status: TierStatus =
+      support >= cumulative ? "Funded" : tier.inPlace ? "In place" : support > 0 ? "Partly funded" : "Not yet funded";
     return { ...tier, costCents, cumulativeCents: cumulative, width: barWidth(Math.min(support, cumulative), cumulative), status };
   });
 }
