@@ -37,6 +37,7 @@ const PAGES: [string, string, string][] = [
   ["/methodology", "https://lmiawatch.ca/methodology", "Methodology: Sources, Status and Indicators | LMIA Watch"],
   ["/data", "https://lmiawatch.ca/data", "LMIA Data Downloads, API and Licence | LMIA Watch"],
   ["/support", "https://lmiawatch.ca/support", "Support the Site | LMIA Watch"],
+  ["/cite", "https://lmiawatch.ca/cite", "How to Cite | LMIA Watch"],
   ["/corrections?employer=emp-a000000001", "https://lmiawatch.ca/corrections", "Request a Correction | LMIA Watch"],
   ["/employers/emp-a000000005", "https://lmiawatch.ca/employers/emp-a000000005", "Jealous Fruits Ltd. | LMIA Watch"],
 ];
@@ -86,6 +87,9 @@ describe("page metadata", () => {
     );
     expect(jsonLd(data)[0].inLanguage).toBe("fr");
     expect(title(await headOf("/support?lang=fr"))).toBe("Soutenir le site | LMIA Watch");
+    const cite = await headOf("/cite?lang=fr");
+    expect(title(cite)).toBe("Comment citer | LMIA Watch");
+    expect(canonical(cite)).toBe("https://lmiawatch.ca/cite?lang=fr");
     expect(canonical(home)).toBe("https://lmiawatch.ca/?lang=fr");
   });
 

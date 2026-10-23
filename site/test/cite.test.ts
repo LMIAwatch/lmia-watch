@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { validCitation } from "../src/cite";
+import { isoDate, styleDate, validCitation } from "../src/cite";
 import { app } from "../src/index";
-import { fakeAssets, testEnv } from "./assets";
+import { emptyAssets, fakeAssets, testEnv } from "./assets";
 import stats from "./fixtures/stats.json";
 
 const EM_DASH = String.fromCharCode(0x2014);
@@ -13,18 +13,20 @@ const CITATION = {
   published: "2026-10-19",
 };
 
-// The fixture export with a citation added, served the way the assets binding serves the real one.
-function withCitation(citation: unknown): Fetcher {
+// The fixture export with fields of stats.json replaced (a citation added),
+// served the way the assets binding serves the real one.
+function withStats(extra: object): Fetcher {
   return {
     fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (new URL(url).pathname === "/data/stats.json") {
-        return new Response(JSON.stringify({ ...stats, citation }), { headers: { "content-type": "application/json" } });
+        return new Response(JSON.stringify({ ...stats, ...extra }), { headers: { "content-type": "application/json" } });
       }
       return fakeAssets.fetch(input as RequestInfo, init);
     },
   } as unknown as Fetcher;
 }
+const withCitation = (citation: unknown) => withStats({ citation });
 
 const get = async (path: string, assets: Fetcher) => (await app.request(path, {}, testEnv(assets))).text();
 
@@ -84,5 +86,153 @@ describe("statements on the Data and Support pages", () => {
   it("notes that the Bluesky post is free", async () => {
     expect(await get("/support", fakeAssets)).toContain("The same daily post on Bluesky is free to send");
     expect(await get("/support?lang=fr", fakeAssets)).toContain("La même publication quotidienne sur Bluesky est gratuite");
+  });
+});
+
+// The citation blocks as a reader copies them: markup dropped, entities read,
+// French no-break spaces compared as plain ones.
+const decode = (s: string) =>
+  s.replace(/<[^>]+>/g, "").replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+const blocks = (html: string) =>
+  [...html.matchAll(/<pre class="cite-block">([\s\S]*?)<\/pre>/g)].map((m) => decode(m[1]).replace(/[  ]/g, " "));
+// The fixture's data date is 2026-10-12; the date of access is today's (UTC).
+const today = () => new Date().toISOString().slice(0, 10);
+
+describe("the /cite page", () => {
+  it("answers in both languages, linked from the footer between Corrections and Support", async () => {
+    for (const [path, word] of [["/cite", "Cite"], ["/cite?lang=fr", "Citer"], ["/", "Cite"], ["/data?lang=fr", "Citer"]]) {
+      const res = await app.request(path, {}, testEnv(fakeAssets));
+      expect(res.status, path).toBe(200);
+      const html = await res.text();
+      const footer = html.slice(html.indexOf('<footer class="site-footer">'));
+      const at = (href: string) => footer.indexOf(`<a href="${href}">`);
+      expect(at("/corrections"), path).toBeGreaterThan(-1);
+      expect(at("/corrections"), path).toBeLessThan(at("/cite"));
+      expect(at("/cite"), path).toBeLessThan(at("/support"));
+      expect(footer, path).toContain(`<a href="/cite">${word}</a>`);
+      expect(html, path).not.toContain(EM_DASH);
+    }
+  });
+
+  it("gives the website in six styles, each naming the data date", async () => {
+    const html = await get("/cite", fakeAssets);
+    expect(html).toContain("<h1>How to Cite</h1>");
+    expect(html).toContain("2026-10-12 in the citations below");
+    expect(html).toContain('<h3 id="cite-apa">APA (7th edition)</h3>');
+    expect(html).toContain(
+      "LMIA Watch. (2026). <i>LMIA Watch: Public records of Labour Market Impact Assessments</i> (Data as of October 12, 2026). Retrieved ",
+    );
+    expect(html).toContain('<script src="/cite.js" defer=""></script>');
+    const [apa, mla, chicago, harvard, bib, ris, ...rest] = blocks(html);
+    expect(rest).toEqual([]);
+    expect(apa).toMatch(/Retrieved [A-Z][a-z]+ \d{1,2}, \d{4}, from https:\/\/lmiawatch\.ca$/);
+    expect(mla).toMatch(/^LMIA Watch: Public Records of Labour Market Impact Assessments\. Data as of 12 Oct\. 2026, lmiawatch\.ca\. Accessed \d{1,2} [A-Z][a-z]+\.? \d{4}\.$/);
+    expect(chicago).toMatch(/^LMIA Watch\. 2026\. LMIA Watch: Public Records of Labour Market Impact Assessments\. Data as of October 12, 2026\. Accessed .+\. https:\/\/lmiawatch\.ca\.$/);
+    expect(harvard).toMatch(/^LMIA Watch \(2026\) LMIA Watch: public records of Labour Market Impact Assessments\. Data as of 12 October 2026\. Available at: https:\/\/lmiawatch\.ca \(Accessed: .+\)\.$/);
+    expect(bib).toBe([
+      "@misc{lmiawatch2026,",
+      "  author       = {{LMIA Watch}},",
+      "  title        = {{LMIA Watch: public records of Labour Market Impact Assessments}},",
+      "  year         = {2026},",
+      "  howpublished = {\\url{https://lmiawatch.ca}},",
+      "  note         = {Data as of 2026-10-12},",
+      `  urldate      = {${today()}},`,
+      "}",
+    ].join("\n"));
+    expect(ris.startsWith("TY  - ELEC\n")).toBe(true);
+    expect(ris).toBe([
+      "TY  - ELEC",
+      "TI  - LMIA Watch: public records of Labour Market Impact Assessments",
+      "AU  - LMIA Watch",
+      "PY  - 2026",
+      "DA  - 2026/10/12",
+      "UR  - https://lmiawatch.ca",
+      `Y2  - ${today().replace(/-/g, "/")}`,
+      "N1  - Data as of 2026-10-12",
+      "ER  - ",
+    ].join("\n"));
+    // No deposit in the fixture, so no data section.
+    expect(html).not.toContain('<h2 id="data">');
+    expect(html).not.toContain("@dataset");
+  });
+
+  it("speaks French on the French page", async () => {
+    const html = (await get("/cite?lang=fr", fakeAssets)).replace(/[  ]/g, " ");
+    expect(html).toContain("<h1>Comment citer</h1>");
+    expect(html).toContain('<h2 id="website">Le site Web</h2>');
+    expect(html).toContain("(Données au 12 octobre 2026). Consulté le ");
+    expect(html).toContain("<i>LMIA Watch : dossiers publics des études d’impact sur le marché du travail</i>");
+    const [apa, mla, , harvard, bib, ris] = blocks(html);
+    expect(apa).toMatch(/Consulté le .+ à https:\/\/lmiawatch\.ca$/);
+    expect(mla).toContain("Données au 12 oct. 2026, lmiawatch.ca. Consulté le ");
+    expect(harvard).toContain("Disponible à l’adresse : https://lmiawatch.ca (consulté le ");
+    // The machine formats carry plain spaces and straight apostrophes.
+    expect(bib).toContain("title        = {{LMIA Watch : dossiers publics des études d'impact sur le marché du travail}},");
+    expect(bib).toContain("note         = {Données au 2026-10-12},");
+    expect(ris).toContain("N1  - Données au 2026-10-12");
+    expect(html).not.toContain("Retrieved");
+    expect(html).not.toContain("Data as of");
+  });
+
+  it("adds the Zenodo deposit in BibTeX and RIS when stats.json carries one", async () => {
+    const html = await get("/cite", withCitation(CITATION));
+    expect(html).toContain('<h2 id="data">The Data</h2>');
+    // The deposit's APA reference comes from the shared block, under the page's own heading.
+    expect(html).toContain("(Version 2026Q1) [Data set]. Zenodo.");
+    expect(html).not.toContain('<h2 id="cite">');
+    const found = blocks(html);
+    expect(found).toHaveLength(8);
+    expect(found[6]).toBe([
+      "@dataset{lmiawatch2026data,",
+      "  author    = {{LMIA Watch}},",
+      "  title     = {{LMIA Watch: ESDC positive and negative LMIA employer lists, derived files}},",
+      "  year      = {2026},",
+      "  version   = {2026Q1},",
+      "  publisher = {Zenodo},",
+      "  doi       = {10.5281/zenodo.1000005},",
+      "  url       = {https://doi.org/10.5281/zenodo.1000005},",
+      "}",
+    ].join("\n"));
+    expect(found[7]).toBe([
+      "TY  - DATA",
+      "TI  - LMIA Watch: ESDC positive and negative LMIA employer lists, derived files",
+      "AU  - LMIA Watch",
+      "PY  - 2026",
+      "ET  - 2026Q1",
+      "PB  - Zenodo",
+      "DO  - 10.5281/zenodo.1000005",
+      "UR  - https://doi.org/10.5281/zenodo.1000005",
+      "ER  - ",
+    ].join("\n"));
+    expect(html).not.toContain(EM_DASH);
+    expect(await get("/cite?lang=fr", withCitation(CITATION))).toContain('<h2 id="data">Les données</h2>');
+    // Without a well-formed DOI, only the website section.
+    for (const bad of [null, { ...CITATION, concept_doi: "javascript:alert(1)" }]) {
+      const page = await get("/cite", withCitation(bad));
+      expect(page).not.toContain("@dataset");
+      expect(page).not.toContain('<h2 id="data">');
+      expect(blocks(page)).toHaveLength(6);
+    }
+  });
+
+  it("answers 503 without a usable data date", async () => {
+    expect((await app.request("/cite", {}, testEnv(emptyAssets))).status).toBe(503);
+    for (const data_as_of of [null, "2026-13-45", "2026-02-30", 20261012]) {
+      expect((await app.request("/cite", {}, testEnv(withStats({ data_as_of })))).status, String(data_as_of)).toBe(503);
+    }
+  });
+
+  it("writes dates the way each style does", () => {
+    expect(styleDate("2026-10-12", "en", "apa")).toBe("October 12, 2026");
+    expect(styleDate("2026-10-12", "en", "chicago")).toBe("October 12, 2026");
+    expect(styleDate("2026-10-12", "en", "harvard")).toBe("12 October 2026");
+    expect(styleDate("2026-10-12", "en", "mla")).toBe("12 Oct. 2026");
+    expect(styleDate("2026-09-01", "en", "mla")).toBe("1 Sept. 2026");
+    expect(styleDate("2026-06-05", "en", "mla")).toBe("5 June 2026");
+    expect(styleDate("2026-07-01", "fr", "apa")).toBe("1er juillet 2026");
+    expect(styleDate("2026-10-12", "fr", "harvard")).toBe("12 octobre 2026");
+    expect(styleDate("2026-10-12", "fr", "mla")).toBe("12 oct. 2026");
+    expect(isoDate("2026-10-12")).toBe("2026-10-12");
+    for (const bad of ["2026-13-45", "2026-02-30", "2026-1x-40", "", 7, null, undefined]) expect(isoDate(bad), String(bad)).toBeNull();
   });
 });

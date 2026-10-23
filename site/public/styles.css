@@ -321,6 +321,12 @@ details summary { cursor: pointer; color: var(--accent); font-weight: 600; margi
 .doc { flex: 999 1 560px; min-width: 0; }
 .doc h2 { margin-top: 40px; }
 
+/* citation page: one block per style, plain text a reader can select (cite.js
+   adds a copy button under each); long addresses wrap on a phone */
+.cite-page { max-width: 880px; }
+.cite-block { margin: 0 0 8px; padding: 12px 14px; border: 1px solid var(--rule); background: var(--panel); font-family: var(--font-mono); font-size: 14px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.cite-copy { font-size: 14px; padding: 3px 10px; }
+
 /* map */
 .map-controls { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin: 20px 0 12px; font-size: 15px; }
 .map-controls .check { align-items: center; }

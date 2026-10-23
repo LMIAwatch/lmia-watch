@@ -47,6 +47,7 @@ const SENTINELS = [
   "Card processing fee",
   "Click a cluster",
   "Your name and role",
+  "is a secondary source",
 ];
 
 const FRENCH_PAGES = [
@@ -68,14 +69,18 @@ const FRENCH_PAGES = [
   "/nothing-here?lang=fr",
   "/downloads/employers.csv?lang=fr",
   "/program?lang=fr",
+  "/cite?lang=fr",
 ];
 
 // The data blocks hold {name} templates on purpose, and the JSON-LD search
 // action holds {search_term_string}; the API table shows
-// endpoint patterns with braces. Everything else must be filled in.
+// endpoint patterns with braces, and a BibTeX entry on the citation page
+// (a block that starts with @) braces its fields. Everything else must be
+// filled in.
 function visible(html: string): string {
   return html
     .replace(/<script type="application\/(?:ld\+)?json"[^>]*>[\s\S]*?<\/script>/g, "")
+    .replace(/<pre class="cite-block">@[\s\S]*?<\/pre>/g, "")
     .replace(/\{(id|fsa|PROV|YEAR)\}/g, "");
 }
 
@@ -408,7 +413,7 @@ describe("rendered French pages", () => {
 
   it("keep the sentinel list honest: each phrase is on an English page", async () => {
     const pages = await Promise.all(
-      ["/", "/search", "/search?status=refused", "/map", "/methodology", "/data", "/support", "/employers/emp-a000000001", "/nothing-here", "/employers/emp-a000000001/respond"].map(
+      ["/", "/search", "/search?status=refused", "/map", "/methodology", "/data", "/support", "/cite", "/employers/emp-a000000001", "/nothing-here", "/employers/emp-a000000001/respond"].map(
         async (p) => (await get(p)).text(),
       ),
     );

@@ -11,6 +11,7 @@ import { measure } from "./views";
 import { runWatchdog } from "./watchdog";
 import { langFrom, t, tj } from "./i18n";
 import { Layout, page } from "./layout";
+import { citePage } from "./pages/cite";
 import { DOWNLOADS, dataPage } from "./pages/data";
 import { employerPage } from "./pages/employer";
 import { feedsPage } from "./pages/feeds";
@@ -79,6 +80,7 @@ app.get("/map", mapPage);
 app.get("/methodology", methodologyPage);
 app.get("/data", dataPage);
 app.get("/support", supportPage);
+app.get("/cite", citePage);
 // Feeds are static files under /data/feeds/; this page lists them. The
 // watchlist lives in the visitor's browser; this page is its shell.
 app.get("/feeds", feedsPage);

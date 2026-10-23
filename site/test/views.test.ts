@@ -49,7 +49,7 @@ describe("route templates", () => {
     expect(routeTemplate("POST", "/hooks/kofi")).toEqual({ route: "/hooks/kofi", kind: "hook" });
     expect(routeTemplate("GET", "/sitemap-12.xml")).toEqual({ route: "/sitemap.xml", kind: "file" });
     expect(routeTemplate("GET", "/robots.txt")).toEqual({ route: "/robots.txt", kind: "file" });
-    for (const page of ["/feeds", "/watchlist", "/releases", "/rankings", "/trends", "/program", "/occupations", "/places"]) {
+    for (const page of ["/cite", "/feeds", "/watchlist", "/releases", "/rankings", "/trends", "/program", "/occupations", "/places"]) {
       expect(routeTemplate("GET", page), page).toEqual({ route: page, kind: "page" });
     }
     expect(routeTemplate("GET", "/releases/2026-q1")).toEqual({ route: "/releases/:slug", kind: "page" });

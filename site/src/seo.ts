@@ -58,7 +58,7 @@ export interface Seo {
 
 type Both = Record<Lang, string>;
 
-export type PageKey = "home" | "search" | "map" | "methodology" | "data" | "support" | "corrections";
+export type PageKey = "home" | "search" | "map" | "methodology" | "data" | "support" | "cite" | "corrections";
 
 // `name` is the result-list name, either written here or, where the page's own
 // heading already reads well in a result list, its dictionary key.
@@ -113,6 +113,14 @@ const PAGES: Record<PageKey, { path: string; name: Both | Key; title?: Both; des
     description: {
       en: "What LMIA Watch costs to run each month, how it is funded, and where a donation goes. The site is free, carries no advertising and sells nothing.",
       fr: "Ce que coûte LMIA Watch chaque mois, comment le site est financé et où va un don. Le site est gratuit, sans publicité, et ne vend rien.",
+    },
+  },
+  cite: {
+    path: "/cite",
+    name: "cite.title",
+    description: {
+      en: "How to cite LMIA Watch and its data in APA, MLA, Chicago, Harvard, BibTeX or RIS, with the data date that each citation should name.",
+      fr: "Comment citer LMIA Watch et ses données selon APA, MLA, Chicago, Harvard, BibTeX ou RIS, avec la date des données à indiquer.",
     },
   },
   corrections: {

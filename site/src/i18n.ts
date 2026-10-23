@@ -42,6 +42,7 @@ const STRINGS = {
   "footer.watchlist": { en: "Watchlist", fr: "Liste de suivi" },
   "footer.feeds": { en: "Feeds", fr: "Fils" },
   "footer.corrections": { en: "Corrections", fr: "Corrections" },
+  "footer.cite": { en: "Cite", fr: "Citer" },
   "footer.support": { en: "Support the Site", fr: "Soutenir le site" },
   "footer.x": { en: "LMIA Watch on X", fr: "LMIA Watch sur X" },
   "footer.bluesky": { en: "LMIA Watch on Bluesky", fr: "LMIA Watch sur Bluesky" },
@@ -1467,6 +1468,58 @@ const STRINGS = {
     en: "To cite every version at once, or to point at whichever version is newest, use the concept DOI {doi}.",
     fr: "Pour citer toutes les versions à la fois, ou pour renvoyer à la plus récente, utilisez le DOI de concept {doi}.",
   },
+  // The /cite page. The fmt.* templates hold each style's connective words;
+  // cite.tsx fills them with the title, the dates and the address.
+  "citepage.lead": {
+    en: "LMIA Watch is a secondary source. It compiles public records, and every row links to the government record it came from. Those records change nightly, so a citation should name the data date shown in the header ({date} in the citations below).",
+    fr: "LMIA Watch est une source secondaire. Le site compile des dossiers publics, et chaque ligne renvoie au dossier gouvernemental d'où elle vient. Ces dossiers changent chaque nuit : une citation doit donc indiquer la date des données affichée dans l'en-tête ({date} dans les citations ci-dessous).",
+  },
+  "citepage.page_note": {
+    en: "To cite one page, such as an employer profile or a release, give that page's own address with the same data date.",
+    fr: "Pour citer une seule page, comme le profil d'un employeur ou une publication, donnez l'adresse de cette page avec la même date des données.",
+  },
+  "citepage.website": { en: "The Website", fr: "Le site Web" },
+  "citepage.data": { en: "The Data", fr: "Les données" },
+  "citepage.style.apa": { en: "APA (7th edition)", fr: "APA (7e édition)" },
+  "citepage.style.mla": { en: "MLA (9th edition)", fr: "MLA (9e édition)" },
+  "citepage.style.chicago": { en: "Chicago (17th edition, author-date)", fr: "Chicago (17e édition, auteur-date)" },
+  "citepage.style.harvard": { en: "Harvard (Cite Them Right)", fr: "Harvard (selon Cite Them Right)" },
+  "citepage.style.bibtex": { en: "BibTeX", fr: "BibTeX" },
+  "citepage.style.ris": { en: "RIS", fr: "RIS" },
+  "citepage.fmt.apa": {
+    en: "{author}. ({year}). {title} ({data}). Retrieved {accessed}, from {url}",
+    fr: "{author}. ({year}). {title} ({data}). Consulté le {accessed} à {url}",
+  },
+  "citepage.fmt.mla": {
+    en: "{title}. {data}, {url}. Accessed {accessed}.",
+    fr: "{title}. {data}, {url}. Consulté le {accessed}.",
+  },
+  "citepage.fmt.chicago": {
+    en: "{author}. {year}. {title}. {data}. Accessed {accessed}. {url}.",
+    fr: "{author}. {year}. {title}. {data}. Consulté le {accessed}. {url}.",
+  },
+  "citepage.fmt.harvard": {
+    en: "{author} ({year}) {title}. {data}. Available at: {url} (Accessed: {accessed}).",
+    fr: "{author} ({year}) {title}. {data}. Disponible à l'adresse : {url} (consulté le {accessed}).",
+  },
+  "citepage.data_as_of": { en: "Data as of {date}", fr: "Données au {date}" },
+  // The site's title as each style writes it: as given (Harvard, BibTeX,
+  // RIS), APA's sentence case, and the headline case of MLA and Chicago.
+  // French keeps sentence case in every style.
+  "citepage.site_title": {
+    en: "LMIA Watch: public records of Labour Market Impact Assessments",
+    fr: "LMIA Watch : dossiers publics des études d'impact sur le marché du travail",
+  },
+  "citepage.site_title_sentence": {
+    en: "LMIA Watch: Public records of Labour Market Impact Assessments",
+    fr: "LMIA Watch : dossiers publics des études d'impact sur le marché du travail",
+  },
+  "citepage.site_title_headline": {
+    en: "LMIA Watch: Public Records of Labour Market Impact Assessments",
+    fr: "LMIA Watch : dossiers publics des études d'impact sur le marché du travail",
+  },
+  "citepage.copy": { en: "Copy", fr: "Copier" },
+  "citepage.copied": { en: "Copied", fr: "Copié" },
   "support.bluesky_free": {
     en: "The same daily post on Bluesky is free to send, so it carries a link to the site.",
     fr: "La même publication quotidienne sur Bluesky est gratuite, et elle comporte donc un lien vers le site.",
@@ -2700,6 +2753,8 @@ export const SAME_IN_BOTH: ReadonlySet<Key> = new Set<Key>([
   "site.name",
   "footer.copyright",
   "footer.corrections",
+  "citepage.style.bibtex",
+  "citepage.style.ris",
   "wage.unit.HOUR",
   "col.date",
   "col.source",

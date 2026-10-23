@@ -83,7 +83,7 @@ STATUSES = ["pending", "approved", "refused"]
 # entry is about 100 bytes).
 SITEMAP_MAX_URLS = 50_000
 SITEMAP_NS = "http://www.sitemaps.org/schemas/sitemap/0.9"
-SITEMAP_PAGES = ["/", "/search", "/map", "/methodology", "/data", "/support", "/corrections"]
+SITEMAP_PAGES = ["/", "/search", "/map", "/methodology", "/data", "/support", "/cite", "/corrections"]
 # Pages whose content follows the nightly data carry its date; the others
 # change only with the code, so they carry none rather than a false one.
 SITEMAP_DATED_PAGES = {"/", "/search", "/map", "/data"}

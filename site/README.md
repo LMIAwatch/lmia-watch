@@ -131,6 +131,7 @@ the user agent and the About page point at the corrections form.
 | `src/search_db.ts` | the search's parsing, planning, SQL and paging over the search database, used by the API route and by the search page's first view (`src/pages/search.tsx`) |
 | `src/i18n.ts` | every UI string in English and French, the number, wage and quarter formats, and the French forms of the pipeline's indicator sentences; `test/i18n.test.ts` fails on a key with no French |
 | `src/support.ts`, `src/pages/support.tsx` | Support page: every cost, tier and support figure in one file (support received is updated each quarter), then the page; `DONATE_URL` in `wrangler.jsonc` turns on the donate button |
+| `src/cite.tsx`, `src/pages/cite.tsx`, `public/cite.js` | the How to Cite block of the Data and Methodology pages (shown once a Zenodo DOI is in stats.json) and the /cite page: the website in APA, MLA, Chicago, Harvard, BibTeX and RIS, and the deposit in BibTeX and RIS; cite.js adds the copy buttons |
 | `public/styles.css`, `public/search.js`, `public/map.js` | the only stylesheet and the two client scripts; the scripts read their words from the page's `<script type="application/json" id="i18n">` block |
 | `seed/dev_seed.sql` | sample form rows for local work and tests |
 | `test/fixtures/` | sample JSON standing in for the pipeline's export |

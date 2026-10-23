@@ -54,7 +54,7 @@ const CASES: { file: string; data: unknown; paths: string[] }[] = [
   { file: "places/mb/winnipeg-cma.json", data: winnipegCma, paths: ["/places/mb/winnipeg-cma"] },
   { file: "feeds/index.json", data: feedIndex, paths: ["/feeds"] },
   { file: "program/index.json", data: program, paths: ["/program"] },
-  { file: "stats.json", data: WITH_CITATION, paths: ["/data", "/methodology", "/", "/search"] },
+  { file: "stats.json", data: WITH_CITATION, paths: ["/data", "/methodology", "/", "/search", "/cite"] },
   // The search page's first rows and counts; the home page reads the counts too.
   { file: "search/first.json", data: first, paths: ["/search", "/"] },
   { file: "search/facets.json", data: facets, paths: ["/search", "/"] },

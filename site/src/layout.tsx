@@ -171,7 +171,7 @@ export const Layout: FC<
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>{title}</title>
-        <link rel="stylesheet" href="/styles.css?v=13" />
+        <link rel="stylesheet" href="/styles.css?v=14" />
         <script src="/theme.js"></script>
         <script src="/links.js" defer></script>
         <link rel="preload" href="/fonts/public-sans-latin-var.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
@@ -226,6 +226,7 @@ export const Layout: FC<
             <a href="/watchlist">{t(lang, "footer.watchlist")}</a>
             <a href="/feeds">{t(lang, "footer.feeds")}</a>
             <a href="/corrections">{t(lang, "footer.corrections")}</a>
+            <a href="/cite">{t(lang, "footer.cite")}</a>
             <a href="/support">{t(lang, "footer.support")}</a>
             <span class="footer-copyright">{t(lang, "footer.copyright")}</span>
             <a href={X_ACCOUNT_URL} class="footer-x" target="_blank" rel="noopener" aria-label={t(lang, "footer.x")} title={t(lang, "footer.x")}>

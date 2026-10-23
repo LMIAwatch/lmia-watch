@@ -29,7 +29,7 @@ import { DOWNLOADS } from "./pages/data";
 export type Kind = "page" | "api" | "download" | "form" | "hook" | "file" | "feed" | "other";
 
 const PAGES = new Set([
-  "/", "/search", "/map", "/methodology", "/data", "/support", "/corrections",
+  "/", "/search", "/map", "/methodology", "/data", "/support", "/cite", "/corrections",
   "/feeds", "/watchlist", "/releases", "/rankings", "/trends", "/program", "/occupations", "/places",
 ]);
 const API_FIXED = new Set(["/api/stats", "/api/pending", "/api/clusters", "/api/search", "/api/search/facets"]);
