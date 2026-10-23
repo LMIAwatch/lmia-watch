@@ -239,6 +239,7 @@ td.mono { white-space: nowrap; }
 .filters legend { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 6px; padding: 0; }
 .filter-hint { margin: -4px 0 4px; line-height: 1.35; }
 .filters input[type="text"], .filters input[type="number"] { padding: 6px 8px; width: 100%; }
+.filters select { padding: 5px 6px; }
 .inline-fields { display: flex; gap: 6px; align-items: center; font-size: 14px; }
 .inline-fields input { width: 64px !important; min-width: 0; }
 .check { display: flex; gap: 8px; align-items: flex-start; font-size: 15px; line-height: 1.4; }
@@ -254,6 +255,8 @@ td.mono { white-space: nowrap; }
 .results-tools .btn { font-size: 14px; padding: 3px 10px; }
 .results-tools select { padding: 3px 6px; }
 .pagination { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px; margin: 16px 0; font-size: 15px; }
+/* The search database could not answer: one sentence above the rows shown instead. */
+#search-unavailable { margin: 0 0 12px; padding: 12px 16px; }
 .pages { display: flex; gap: 10px; align-items: center; }
 /* Nine columns beside the filter rail: a step smaller and tighter than other tables. */
 .results table { font-size: 14px; }

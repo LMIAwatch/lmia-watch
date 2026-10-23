@@ -110,12 +110,12 @@ def test_restore_command_writes_its_record_and_exit_code(tmp_path):
 
 
 def write_export(static, employers=3, mtime=None):
-    (static / "search" / "latest").mkdir(parents=True)
+    (static / "search" / "latest" / "status").mkdir(parents=True)
     (static / "profiles").mkdir()
     (static / "sitemaps").mkdir()
     (static / "stats.json").write_text(json.dumps({"data_as_of": "2026-10-18", "counts": {"employers": employers}}))
     (static / "search" / "first.json").write_text("[]")
-    (static / "search" / "latest" / "all.json").write_text("[]")
+    (static / "search" / "latest" / "status" / "pending.json").write_text("[]")
     (static / "search" / "facets.json").write_text("{}")
     (static / "profiles" / "a00.json").write_text("{}")
     (static / "sitemaps" / "index.xml").write_text("<sitemapindex/>")
@@ -166,8 +166,8 @@ def test_an_export_left_from_an_earlier_run_or_empty_is_not_deployed(tmp_path):
 def test_a_truncated_file_or_too_many_files_is_not_deployed(tmp_path, monkeypatch):
     static = tmp_path / "static"
     write_export(static)
-    (static / "search" / "latest" / "all.json").write_text('[{"employer":')
-    assert any("all.json cannot be read" in p for p in nightly.check_export(static, None))
+    (static / "search" / "latest" / "status" / "pending.json").write_text('[{"employer":')
+    assert any("pending.json cannot be read" in p for p in nightly.check_export(static, None))
     monkeypatch.setattr(nightly, "MAX_FILES", 3)
     assert any("more than the 3" in p for p in nightly.check_export(static, None))
 

@@ -105,8 +105,9 @@ export const INDICATORS = [
 ] as const;
 export const SORTS = ["newest", "positions", "name"] as const;
 export type Sort = (typeof SORTS)[number];
-// As search.js defines them: postings of the last 7 days; and postings of the
-// last 92 days with every list row.
+// Counted from the data's date: postings of the last 7 days; and postings of
+// the last 92 days with the list rows of the latest ESDC period (counts.json
+// latest_period), which is what the search page's control says.
 export const DATES = ["any", "7d", "last_quarter"] as const;
 export type DateFilter = (typeof DATES)[number];
 
@@ -417,6 +418,8 @@ interface BuildOptions {
   // The indicator sets (counts.json values.ind) that hold the requested
   // indicator; without them the filter is checked with instr row by row.
   indValues?: string[] | null;
+  // The latest ESDC period, for date=last_quarter (null: no list row).
+  latestPeriod?: string | null;
 }
 
 interface CountOptions {
@@ -424,6 +427,7 @@ interface CountOptions {
   driver?: Driver | null;
   dataDate?: string;
   indValues?: string[] | null;
+  latestPeriod?: string | null;
 }
 
 // The indicator sets in counts.json that contain the key: "high_volume"
@@ -443,6 +447,27 @@ function shiftDate(iso: string, days: number): string {
   if (Number.isNaN(d.getTime())) return "";
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
+}
+
+// A list period's last day, which is a list row's sort date
+// (normalize.period_end_date): "2026Q1" gives "2026-03-31", "2017Q1-Q2"
+// "2017-06-30", "2015" "2015-12-31"; null for anything else.
+function periodEnd(period: string): string | null {
+  const m = /^(\d{4})(?:Q([1-4])(?:-Q([1-4]))?)?$/.exec(period);
+  if (!m) return null;
+  return `${m[1]}-${["03-31", "06-30", "09-30", "12-31"][Number(m[3] ?? m[2] ?? 4) - 1]}`;
+}
+
+// The earliest sort date a row in the last-quarter window can have: a
+// posting sorts on its date, which the window holds to the last 92 days, and
+// a list row of the latest period on that period's last day. As a bound on
+// sort_date it changes no result, and it lets a count seek the newest,
+// status or province index instead of reading the table from its start,
+// where the latest period's rows (the highest ids) come last.
+export function lastQuarterFrom(dataDate: string, latestPeriod: string | null | undefined): string {
+  const cutoff = shiftDate(dataDate, -92);
+  const end = latestPeriod ? periodEnd(latestPeriod) : null;
+  return end && end < cutoff ? end : cutoff;
 }
 
 // The string just after every string that starts with prefix: "632" gives
@@ -501,7 +526,7 @@ function nocPredicate(w: Where, q: SearchQuery, col: string): void {
 // "ltd"). The list is built once per statement instead; it costs a row read
 // per matching row, and no more CPU than a scan.
 function filters(q: SearchQuery, bare: Driver | null, dataDate: string, text: "in" | "residual" | "none",
-  indValues: string[] | null | undefined): Where {
+  indValues: string[] | null | undefined, latestPeriod: string | null | undefined): Where {
   const w = new Where();
   const col = (name: string, d: Driver): string => (bare === d ? name : `+${name}`);
   const match = matchExpression(q);
@@ -517,7 +542,15 @@ function filters(q: SearchQuery, bare: Driver | null, dataDate: string, text: "i
   if (q.wageMin !== null) w.add("+wage_min >= ?", q.wageMin);
   if (q.wageMax !== null) w.add("+wage_max <= ?", q.wageMax);
   if (q.date === "7d") w.add("+date >= ?", shiftDate(dataDate, -7));
-  else if (q.date === "last_quarter") w.add("(+kind <> 'posting' OR +date >= ?)", shiftDate(dataDate, -92));
+  else if (q.date === "last_quarter") {
+    // Postings of the last 92 days, and the list rows of the latest period.
+    // kind is posting or esdc, so "<> 'posting'" is the list rows and the
+    // module needs no second literal. Every column carries a plus, so the OR
+    // never turns into an index lookup per arm that would then need a sort.
+    // Without a latest period the second arm binds "", which no list row
+    // holds.
+    w.add("((+kind = 'posting' AND +date >= ?) OR (+kind <> 'posting' AND +period = ?))", shiftDate(dataDate, -92), latestPeriod ?? "");
+  }
   yearPredicate(w, q, col("year", "year"));
   if (q.indicator) {
     // As the sets that contain it, the filter is an equality the ind index
@@ -558,7 +591,7 @@ export function buildSelect(q: SearchQuery, opts: BuildOptions = {}): BuiltSql {
   const small = plan.mode === "small";
   const p = small ? "+" : "";
   const where = () => filters(q, plan.mode === "ordered" ? null : plan.driver, dataDate, small && plan.driver === "fts" ? "in" : "residual",
-    opts.indValues);
+    opts.indValues, opts.latestPeriod);
   const w = where();
   const c = q.cursor;
   const order = (small ? ORDER[q.sort].map((t) => `+${t}`) : ORDER[q.sort]).join(", ");
@@ -645,7 +678,7 @@ export function buildCount(q: SearchQuery, opts: CountOptions = {}): BuiltSql {
     // From the text index, row by row: CROSS JOIN keeps search_fts the outer
     // loop, and every search_rows column is checked with a plus, so the
     // planner cannot turn this into a text lookup per row.
-    const w = filters(q, null, dataDate, "none", opts.indValues);
+    const w = filters(q, null, dataDate, "none", opts.indValues, opts.latestPeriod);
     const others = w.parts.length ? ` AND ${w.parts.join(" AND ")}` : "";
     return finish({
       sql: `SELECT COUNT(1) AS n FROM (SELECT search_rows.rid FROM search_fts CROSS JOIN search_rows ON search_rows.rid = search_fts.rowid ` +
@@ -653,12 +686,14 @@ export function buildCount(q: SearchQuery, opts: CountOptions = {}): BuiltSql {
       params: [matchExpression(q), ...w.params],
     });
   }
-  const w = filters(q, driver === "ind" && !opts.indValues?.length ? null : driver, dataDate, "residual", opts.indValues);
+  const w = filters(q, driver === "ind" && !opts.indValues?.length ? null : driver, dataDate, "residual", opts.indValues,
+    opts.latestPeriod);
   // The year's sort-date bounds, bare: the newest, status and province
   // indexes all hold sort_date next, so a year range narrows any of them.
   const { from, to } = yearBounds(q);
   if (from) w.add("sort_date >= ?", from);
   if (to) w.add("sort_date < ?", to);
+  if (q.date === "last_quarter") w.add("sort_date >= ?", lastQuarterFrom(dataDate, opts.latestPeriod));
   return finish({ sql: `SELECT COUNT(1) AS n FROM (SELECT rid FROM search_rows${w.sql}${cap}`, params: w.params });
 }
 
@@ -864,6 +899,18 @@ export interface RunOptions {
   plan?: Plan;
 }
 
+// The latest list period, for date=last_quarter when counts.json (which
+// carries it as latest_period) is missing: the period of the newest list row,
+// read backwards through the newest index past the postings (about 4,500 on
+// the full data). Null when the table holds no list row.
+export const LATEST_PERIOD_SQL = "SELECT period FROM search_rows WHERE +kind <> 'posting' ORDER BY sort_date DESC, key DESC LIMIT 1";
+
+async function latestListPeriod(db: D1Database, trace?: SearchTrace): Promise<string | null> {
+  const res = (await batch(db, [{ built: { sql: LATEST_PERIOD_SQL, params: [] } }], trace))[0];
+  const period = res?.results?.[0]?.period;
+  return typeof period === "string" && period ? period : null;
+}
+
 // The search, or null when the database is missing or a query failed (the
 // route answers 503; the page falls back to its static files).
 export async function runSearch(env: Env, q: SearchQuery, dataDate: string, counts: SearchCounts | null = null,
@@ -883,6 +930,7 @@ export async function runSearch(env: Env, q: SearchQuery, dataDate: string, coun
       return empty;
     }
     const indValues = indicatorSets(counts, q);
+    const latestPeriod = q.date === "last_quarter" ? (counts ? counts.latest_period : await latestListPeriod(db, trace)) : null;
     const sizes: Partial<Record<Driver, number>> = counts ? dimensionSizes(counts, q) : {};
     // Without counts.json the status, province, stream and year filters are
     // sized by probes too, each reading at most SMALL_SET + 1 index entries.
@@ -906,14 +954,14 @@ export async function runSearch(env: Env, q: SearchQuery, dataDate: string, coun
       total = Math.min(n, COUNT_CAP);
       capped = n > COUNT_CAP;
     }
-    const raw = (await batch(db, [{ built: buildSelect(q, { plan, dataDate, indValues }) }], trace))[0]?.results ?? [];
+    const raw = (await batch(db, [{ built: buildSelect(q, { plan, dataDate, indValues, latestPeriod }) }], trace))[0]?.results ?? [];
     if (total === null && !q.cursor) {
       if (raw.length <= PAGE_SIZE) {
         // The first page holds every match: that is the total, and the count,
         // which for a rare match is the most expensive statement, is skipped.
         total = raw.length;
       } else {
-        const built = buildCount(q, { driver: countDriver(q, plan, sizes, match), dataDate, indValues });
+        const built = buildCount(q, { driver: countDriver(q, plan, sizes, match), dataDate, indValues, latestPeriod });
         const n = firstCount((await batch(db, [{ built }], trace))[0]);
         total = Math.min(n, COUNT_CAP);
         capped = n > COUNT_CAP;

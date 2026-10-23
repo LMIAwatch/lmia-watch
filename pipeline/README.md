@@ -99,8 +99,9 @@ data/lmia.sqlite        the database (schema: ../pipeline/schema.sql)
 data/out/csv/           files the Data page offers
 data/out/mirror/        raw ESDC files plus SHA256SUMS
 data/out/static/        the JSON the site serves as static assets (see export_static.py):
-                          stats.json, search/latest.json, search/pending.json,
-                          search/<PROV>/postings.json, search/<PROV>/<YEAR>.json,
+                          stats.json, search/first.json and search/facets.json (the
+                          search page's fallback), search/counts.json (the search
+                          API's totals), search/latest/status/pending.json (/api/pending),
                           clusters/*.json, areas/<FSA>.json, profiles/<abc>.json,
                           aliases/<abc>.json (retired employer id to live id),
                           occupations/*.json, places/**/*.json (places.py),
@@ -111,7 +112,8 @@ data/out/search/        written by `search-sync`: batch-0001.sql and on (at most
 ```
 The static export is deterministic (sorted keys and rows), so an unchanged file
 keeps its bytes and the deploy skips it. Each file stays under the 25 MiB
-static-asset limit because province data is split by year.
+static-asset limit; the search page reads the hosted search database rather
+than large files (`../docs/hosted-search.md`).
 
 ## Employer identity
 An employer is its normalized legal name plus its province

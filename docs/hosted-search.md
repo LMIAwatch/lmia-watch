@@ -2,14 +2,15 @@
 
 The nightly workflow keeps a copy of the search rows in a D1 database of its
 own, `lmia-watch-search` (binding `SEARCH` in `site/wrangler.jsonc`), so the
-search page can query it instead of loading large files in the browser.
+search page queries it instead of loading large files in the browser.
 Step 1 of hosted search fills the database and keeps it current every
 night; the code is `pipeline/lmia_pipeline/search_db.py`, the schema
 `pipeline/search_schema.sql` and the step "Sync the search database" in
 `.github/workflows/nightly.yml`. Step 2 is the search API on top of it,
 `GET /api/search` (see *The API* below; `site/src/search_db.ts`), which only
-the site's own search page may call for now. The search page itself does not
-use it yet; that is step 3.
+the site's own search page may call for now. Step 3 moved the search page
+onto it (see *The page*): every record since 2014 is searchable on the site,
+and the browser search files are no longer exported.
 
 ## What the database holds
 
@@ -17,12 +18,13 @@ One table, `search_rows`, with one row per:
 
 - ESDC list row since 2014, positive and negative (483,021 on 2026-10-23);
 - Job Bank posting whose LMIA flag is requested or approved (4,526). A
-  posting whose flag is gone from Job Bank leaves the table, as it leaves the
-  search page today.
+  posting whose flag is gone from Job Bank leaves the table, and the search
+  page with it (its profile keeps it).
 
-Each row carries the fields the static search files carry (kind, reference,
-employer id and name, job or occupation, NOC, address, wages, date or period,
-positions, status, stream, source link, sort date) plus:
+Each row carries the fields a search row shows (kind, reference, employer id
+and name, job or occupation, NOC, address, wages, date or period, positions,
+status, stream, source link, sort date; the shape of `search/first.json`'s
+rows) plus:
 
 | Column | Holds |
 |---|---|
@@ -194,8 +196,8 @@ run-attention issue lists it (`docs/alerts.md`).
 ## The API
 
 `GET /api/search` answers from this database (`site/src/search_db.ts`, route
-in `site/src/api.ts`). Nothing a reader sees uses it yet; step 3 moves the
-search page onto it.
+in `site/src/api.ts`). The search page's script is its one caller (see *The
+page*).
 
 ### Who may call it
 
@@ -230,7 +232,7 @@ is a 400.
 | `noc` | 1 to 5 digits: a prefix of the occupation code. Anything else: words matched in the job or occupation title only | 60 characters |
 | `wage_min`, `wage_max` | a decimal number (up to 4 decimals): the posting's minimum wage at least, or its maximum wage at most; postings only | 0 to 10,000 |
 | `year_from`, `year_to` | a year: the list's period year, or the posting's year | 2014 to next year |
-| `date` | `any`, `7d` (postings of the last 7 days), `last_quarter` (postings of the last 92 days and every list row), counted from the data's date | allowlist |
+| `date` | `any`, `7d` (postings of the last 7 days), `last_quarter` (postings of the last 92 days and the list rows of the latest ESDC period, `latest_period` in the counts file), counted from the data's date | allowlist |
 | `indicator` | one of the six indicator keys | allowlist |
 | `sort` | `newest` (default), `positions`, `name` | allowlist |
 | `cursor` | the `next` value of the previous page, as given | 8,200 characters, checked field by field |
@@ -241,7 +243,7 @@ is a 400.
 { "rows": [...], "total": 4279, "capped": false, "facets": {...}, "next": "...", "ignored": ["wage_max"] }
 ```
 
-- `rows`: up to 50 rows, each shaped as the static search files' rows
+- `rows`: up to 50 rows, each shaped as `search/first.json`'s rows
   (`SearchRow` in `site/src/data.ts`).
 - `next`: present when another page exists; pass it back as `cursor` with
   the same filters and sort. Paging is by keyset, so page 100 costs what
@@ -255,7 +257,7 @@ is a 400.
   applied, when the request filters only on status, province, stream, year
   and indicator.
 - 503 `{"error": "search unavailable"}` (not cached) when the database is
-  missing or a query fails; step 3's page falls back to the static files.
+  missing or a query fails; the page keeps the rows it shows and says so.
 - Successful answers carry `Cache-Control: public, max-age=300`.
 
 ### Totals
@@ -263,12 +265,19 @@ is a 400.
 Counting is what reads rows, so totals come from the cheapest source that
 is exact:
 
-1. `search/counts.json`, written by the export beside the search files: the
+1. `search/counts.json`, written by the export (an isolated section, so a
+   failure there costs totals a database read, not the night's export): the
    database's rows counted by status, province, stream, year and indicator
-   set (about 3,000 cells, 50 KB). A request filtering on nothing else gets
-   its total and facets from it with no database read, and a request whose
-   status, province, stream, year and indicator filters match no row is
-   answered empty without the database.
+   set (about 3,000 cells, 50 KB), with the data's date (`data_as_of`, from
+   which the date windows count) and the latest ESDC period
+   (`latest_period`, `2026Q1`, the list rows `date=last_quarter` keeps). A
+   request filtering on nothing else gets its total and facets from it with
+   no database read, and a request whose status, province, stream, year and
+   indicator filters match no row is answered empty without the database. A
+   date window is never answered from the file alone, since it knows no
+   posting date. Without the file (or with any field failing its check),
+   `last_quarter` reads the latest period from the table: the period of the
+   newest list row, through the newest index past the postings.
 2. A text query with no other filter: the count the planner reads from the
    full-text index anyway, capped at 10,001.
 3. A first page with fewer than 51 rows: its rows are the total.
@@ -292,6 +301,14 @@ always, and up to 20,000 when the counts file shows the filters together
 match so few rows that reading in order would cost more. Without the counts
 file the planner sizes the filters with probes that read at most 5,001
 index entries each.
+
+`date=last_quarter` is written
+`((+kind = 'posting' AND +date >= ?) OR (+kind <> 'posting' AND +period = ?))`,
+the cutoff and the period bound as values. Its count also gets
+`sort_date >= ?`, the earliest sort date a row in the window can have (the
+cutoff, or the latest period's last day when that is earlier), so it seeks
+the newest, status or province index instead of reading the table from its
+start, where the latest period's rows, having the highest ids, come last.
 
 ### No SQL injection, nothing a visitor can make expensive
 
@@ -339,3 +356,90 @@ about 4 ms a row in CPU, since FTS5 rebuilds a prefix term's list on every
 call; a prefix index on `search_fts` (`prefix='2 3'`, which needs a full
 reload) would make that check cheap. Without the counts file, an indicator
 filter is checked row by row (481,618 rows for a first page).
+
+## The page
+
+`/search` (`site/src/pages/search.tsx`, script `site/public/search.js`)
+searches every record since 2014. The scope selector and the size notice of
+the earlier browser-side search are gone.
+
+### The first view, on the server
+
+The page reads the URL with `parseQuery`, the parser the API uses, and calls
+`runSearch` directly (the route is for the browser; the page needs neither
+its check nor a second request). It renders:
+
+- the rows, the total, and "10,000 or more" when the total is capped;
+- the counts beside the status and province boxes when the answer has
+  `facets` (filters on status, province, stream, year and indicator only),
+  and blank counts otherwise;
+- a Next link carrying the filters, the cursor and the page number
+  (`/search?status=approved&cursor=...&page=2`). The page number is for the
+  "Page 2 of 9" line only; the cursor alone says where the page starts. Page
+  2 links back to the first page. Later pages leave Back to the browser,
+  since a keyset page cannot step backwards; a cursor without a page number
+  shows no range line.
+
+So the page works without JavaScript, and a shared URL renders the filters
+it names. A value the API drops (`ignored`) is cleared from its control and
+left off the links, and a cursor the site did not issue gives the first page
+of the same filters. The date control offers every date since 2014 (the
+default), postings of the last 7 days, postings of the last 92 days and
+the latest quarter's lists (`last_quarter`, labelled with that quarter), and
+a year range, From and To, from 2014 to the data's year (`year_from`,
+`year_to`). The home page's "Approved Last Quarter" and "Refused Last
+Quarter" links carry `date=last_quarter`, since search alone now covers
+every year.
+
+### The fallback
+
+When `runSearch` returns null (no `SEARCH` binding, or a failed query), or a
+first page comes back empty from a table with no row at all (a new database,
+or a full reload under way; one more row read tells that apart from a filter
+that matches nothing), the page renders as it did before hosted search: the
+newest rows of `search/first.json`, 25 a page by `?page=`, counted from
+`search/facets.json`, with one sentence above them: "Search is unavailable
+for the moment, so the newest records are shown." (in French on French
+pages). The filters in the URL stay in their controls; the rows are the
+newest whatever the filters say. The fallback is sent with
+`Cache-Control: no-store`, so a browser does not keep it once the database
+answers again. With `search/first.json` unreadable too, the page shows no
+rows and leaves them to the script.
+
+### The script
+
+- Every change of a filter or the sort fetches `/api/search` at once with
+  the same parameters the page reads; typed text (name, occupation, wages)
+  waits for a 300 ms pause, since a common word costs the database a large
+  read. A request whose answer is on screen or on its way is not sent again,
+  and an answer to an older request is dropped.
+- It is a plain same-origin `fetch`, which the browser marks
+  `Sec-Fetch-Site: same-origin`, so the page-only check accepts it.
+- Next sends the answer's `next`; Previous sends the cursor kept for the
+  page before (a stack that starts from the first page). Page 1's total is
+  kept when a later page answers `total: null`.
+- Counts change only when an answer has `facets`. A parameter named in
+  `ignored` is cleared from its control; a text field typed on since the
+  request left keeps what it holds.
+- The state goes into the address with `history.replaceState`: the filters,
+  then `cursor` and `page` past the first page.
+- On a 503 or a network failure the rows on screen stay and a sentence says
+  they are from before the last change; the next answer removes it. On the
+  fallback page the server's sentence stays until the API answers.
+- The CSV link saves the rows on screen (50 at most); on the fallback it
+  opens the downloads.
+
+### What the export keeps
+
+The export writes `search/first.json` (the fallback's rows),
+`search/facets.json` (the fallback's counts, the home page's bars and
+`/api/search/facets`), `search/counts.json` (the API's totals) and
+`search/latest/status/pending.json` (`/api/pending`; now written even on a
+night without a pending posting, where it used to be missing and the route
+answered 503). The browser slices are no longer written:
+`search/latest/all.json`, `search/latest/status/approved.json` and
+`refused.json`, `search/latest/prov/*` and `search/long/*` (the long scope
+alone was about 100 MB in about 60 files on 2026-10-13). On the pipeline
+tests' seed the export loses 12 files and 6,576 bytes. `stats.json` no
+longer carries `search_years` (only the long scope's files used it); the map
+keeps `search_from_period` and its two periods.

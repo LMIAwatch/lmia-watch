@@ -297,7 +297,9 @@ def check_export(static: Path, started: float | None, before_employers: int = 0)
     except (OSError, ValueError, KeyError, TypeError) as exc:
         problems.append(f"stats.json cannot be read: {exc}")
         employers = 0
-    for rel, kind in (("search/first.json", list), ("search/latest/all.json", list), ("search/facets.json", dict)):
+    # The search page's fallback rows and counts, and the file /api/pending
+    # serves; the search page itself reads the search database.
+    for rel, kind in (("search/first.json", list), ("search/latest/status/pending.json", list), ("search/facets.json", dict)):
         try:
             if not isinstance(_load(static / rel), kind):
                 problems.append(f"{rel} has the wrong shape")

@@ -19,6 +19,9 @@ describe("pages", () => {
     expect(html).toContain("Job Bank postings carrying the &quot;LMIA requested&quot; flag, newest first.");
     expect(html).toContain("Pending by province, all 5,883 postings.");
     expect(html).toContain('<a href="/search?status=pending&amp;province=BC">British Columbia</a>');
+    // Search covers every year, so the last-quarter links carry the window.
+    expect(html).toContain('<a href="/search?status=approved&amp;date=last_quarter">Approved Last Quarter</a>');
+    expect(html).toContain('<a href="/search?status=refused&amp;date=last_quarter">Refused Last Quarter</a>');
     expect(html).toContain('<link rel="icon" href="/favicon.svg" type="image/svg+xml"');
     expect(html).toContain('class="brand-mark"');
     expect(html).toContain('<script src="/theme.js"></script>');
@@ -29,6 +32,8 @@ describe("pages", () => {
     expect(html).toContain('<button type="button" class="theme-toggle"><span class="when-light">Dark</span><span class="when-dark">Light</span></button>');
   });
 
+  // This file's search database is empty (test/search_page.test.ts fills its
+  // own), so these are the fallback: the page as before hosted search.
   it("a plain search visit is rendered on the server with counts", async () => {
     const html = await (await get("/search")).text();
     expect(html).toContain('data-ssr="1"');
@@ -40,25 +45,26 @@ describe("pages", () => {
     expect(html).toContain('data-count="status:pending"> 2');
     expect(html).toContain('data-count="province:BC"> 4');
     expect(html).toContain("Page 1 of 1");
-    expect(html).toContain("5 records, larger download");
+    expect(html).toContain('<p class="panel bordered" id="search-unavailable" role="status">Search is unavailable for the moment, so the newest records are shown.</p>');
     const page2 = await (await get("/search?page=2")).text();
     expect(page2).toContain('data-ssr="1"');
     expect(page2).toContain("No records.");
   });
 
-  it("a filtered search renders the rail and leaves the rows to the script", async () => {
+  it("a filtered search without the search database keeps the filters and shows the newest records", async () => {
     const html = await (await get("/search?status=refused&province=NL&q=haveli&date=since_2023q4")).text();
-    expect(html).toContain('data-ssr="0"');
-    expect(html).toContain("Loading records");
-    expect(html).toContain('data-latest="2026Q1"');
-    expect(html).toContain('data-from="2023Q4"');
-    expect(html).toContain('data-years="2023,2024,2025,2026"');
+    expect(html).toContain('data-mode="static"');
+    expect(html).toContain('data-ssr="1"');
+    expect(html).toContain('<p class="panel bordered" id="search-unavailable" role="status">Search is unavailable for the moment, so the newest records are shown.</p>');
     expect(html).toContain('src="/search.js"');
     expect(html).toContain('value="haveli"');
     expect(html).toMatch(/name="status" value="refused" checked/);
     expect(html).toMatch(/name="province" value="NL" checked/);
-    expect(html).toMatch(/name="date" value="since_2023q4" checked/);
-    expect(html).not.toContain("Haveli Restaurant Inc</a>");
+    // The longer search period is gone: its old value is dropped, and every year is the default.
+    expect(html).not.toContain("since_2023q4");
+    expect(html).toMatch(/name="date" value="any" checked/);
+    expect(html).not.toContain("data-years");
+    expect(html).toContain("Haveli Restaurant Inc</a>");
     expect(html).toContain("downloads");
   });
 

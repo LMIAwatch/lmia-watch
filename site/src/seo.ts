@@ -79,8 +79,8 @@ const PAGES: Record<PageKey, { path: string; name: Both | Key; title?: Both; des
     path: "/search",
     name: { en: "Search LMIA Employer Records", fr: "Rechercher les dossiers EIMT des employeurs" },
     description: {
-      en: "Search pending Job Bank postings and ESDC's quarterly lists of approved and refused LMIAs by employer, city, postal code or occupation.",
-      fr: "Recherchez les offres en attente au Guichet-Emplois et les EIMT approuvées et refusées des listes d’EDSC, par employeur, ville, code postal ou profession.",
+      en: "Search ESDC's lists of approved and refused LMIAs since 2014 and Job Bank's LMIA postings by employer, city or occupation.",
+      fr: "Recherchez les EIMT approuvées et refusées des listes d’EDSC depuis 2014 et les offres EIMT du Guichet-Emplois, par employeur, ville ou profession.",
     },
   },
   map: {

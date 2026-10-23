@@ -31,7 +31,7 @@ const SENTINELS = [
   "Support the Site",
   "What the Site Holds Today",
   "Known false positives",
-  "Loading records",
+  "Search is unavailable",
   "Download these results",
   "Data Not Published Yet",
   "Page Not Found",
@@ -321,7 +321,8 @@ describe("client scripts", () => {
       (await (await get("/search?lang=fr")).text()).match(/<script type="application\/json" id="i18n">([\s\S]*?)<\/script>/)?.[1] ?? "{}",
     );
     expect(search.strings["search.no_match"]).toBe("Aucun dossier ne correspond à ces filtres.");
-    expect(nbsp(search.strings["search.gate_csv"])).toBe("Page des téléchargements (CSV)");
+    expect(nbsp(search.strings["search.total_capped"])).toBe("{n} ou plus");
+    expect(search.strings["search.unavailable"]).toBe("La recherche est indisponible pour le moment, alors les dossiers les plus récents sont affichés.");
   });
 });
 
@@ -352,8 +353,10 @@ describe("rendered French pages", () => {
     expect(search).toContain("Télécharger ces résultats (CSV)");
     expect(search).toContain("Page 1 sur 1");
 
-    const loading = await (await get("/search?lang=fr&status=refused")).text();
-    expect(loading).toContain("Chargement des dossiers");
+    // This file's search database is empty, so a filtered search falls back.
+    const fallback = nbsp(await (await get("/search?lang=fr&status=refused")).text());
+    expect(fallback).toContain('id="search-unavailable" role="status">La recherche est indisponible pour le moment, alors les dossiers les plus récents sont affichés.</p>');
+    expect(fallback).toContain("Toutes les dates depuis 2014");
 
     const meth = nbsp(await (await get("/methodology?lang=fr")).text());
     expect(meth).toContain('<h2 id="status">Cycle de vie des statuts</h2>');

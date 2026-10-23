@@ -1,5 +1,5 @@
 import { Hono, type Context } from "hono";
-import { assetResponse, loadAlias, loadProfile, loadSearchCounts, type SearchRow } from "./data";
+import { assetResponse, loadAlias, loadProfile, loadSearchCounts, type SearchCounts, type SearchRow } from "./data";
 import type { AppEnv } from "./env";
 import { parseQuery, runSearch } from "./search_db";
 import { SITE_ORIGIN } from "./seo";
@@ -163,21 +163,26 @@ export function pageOnly(c: Context<AppEnv>): Response | null {
   return c.json({ error: "the search API is not open; the site's search page uses it" }, 403);
 }
 
+// The date the search's date filters count from: the data's own date (the
+// counts file carries it), else today. The search page renders its first
+// view with the same date, so its rows and the route's agree.
+export function searchDataDate(counts: SearchCounts | null): string {
+  const asOf = counts?.data_as_of ?? "";
+  return /^\d{4}-\d{2}-\d{2}/.test(asOf) ? asOf.slice(0, 10) : new Date().toISOString().slice(0, 10);
+}
+
 // Search over every record since 2014, 50 rows a page (src/search_db.ts for
 // the parameters, the plans and the injection posture). A bad cursor is the
 // only 400; any other value it cannot use is dropped and its parameter named
-// in "ignored". The date filters count from the data's own date (the counts
-// file carries it), else from today. When the search database cannot answer,
-// the reply is a 503 that no cache keeps, so the next request tries again.
+// in "ignored". When the search database cannot answer, the reply is a 503
+// that no cache keeps, so the next request tries again.
 api.get("/search", async (c) => {
   const refused = pageOnly(c);
   if (refused) return refused;
   const parsed = parseQuery(new URL(c.req.url));
   if (!parsed.ok) return c.json({ error: "bad request", problems: parsed.problems }, 400);
   const counts = await loadSearchCounts(c.env);
-  const asOf = counts?.data_as_of ?? "";
-  const dataDate = /^\d{4}-\d{2}-\d{2}/.test(asOf) ? asOf.slice(0, 10) : new Date().toISOString().slice(0, 10);
-  const result = await runSearch(c.env, parsed.query, dataDate, counts);
+  const result = await runSearch(c.env, parsed.query, searchDataDate(counts), counts);
   if (!result) {
     c.header("Cache-Control", "no-store");
     return c.json({ error: "search unavailable" }, 503);

@@ -46,7 +46,9 @@ const STRINGS = {
   "footer.x": { en: "LMIA Watch on X", fr: "LMIA Watch sur X" },
   "footer.bluesky": { en: "LMIA Watch on Bluesky", fr: "LMIA Watch sur Bluesky" },
   "footer.copyright": { en: "© 2026 LMIA Watch", fr: "© 2026 LMIA Watch" },
-  "search.placeholder": { en: "Employer, city, postal code or occupation", fr: "Employeur, ville, code postal ou profession" },
+  // The search index holds the employer name, the job or occupation title and
+  // the city; postal codes are not in it.
+  "search.placeholder": { en: "Employer, city or occupation", fr: "Employeur, ville ou profession" },
   "search.button": { en: "Search", fr: "Rechercher" },
   "toc.label": { en: "On this page", fr: "Sur cette page" },
   "toc.title": { en: "On This Page", fr: "Sur cette page" },
@@ -77,7 +79,6 @@ const STRINGS = {
   "wage.unit.WEEKLY": { en: " week", fr: "/semaine" },
   "wage.unit.BIWEEKLY": { en: " biweek", fr: "/deux semaines" },
   "wage.unit.SEMIMONTH": { en: " semi-month", fr: "/demi-mois" },
-  "size.mb": { en: "{n} MB", fr: "{n} Mo" },
 
   // -- statuses, indicators, columns -------------------------------------------
   "status.pending": { en: "Pending", fr: "En attente" },
@@ -211,58 +212,73 @@ const STRINGS = {
   "search.wage": { en: "Wage (postings only)", fr: "Salaire (offres d'emploi seulement)" },
   "search.min": { en: "Min", fr: "Min." },
   "search.max": { en: "Max", fr: "Max." },
-  "search.date_any": { en: "Pending now and {period}", fr: "En attente maintenant et {period}" },
+  "search.date_any": { en: "Any date since {year}", fr: "Toutes les dates depuis {year}" },
   "search.date_7d": { en: "Posted in the last 7 days", fr: "Publiées dans les 7 derniers jours" },
-  "search.date_last_quarter": { en: "Last 92 days and {period}", fr: "92 derniers jours et {period}" },
-  "search.date_long": { en: "Since {period} ({n} records, larger download)", fr: "Depuis le {period} ({n} dossiers, téléchargement plus lourd)" },
+  // date=last_quarter: postings of the last 92 days and the latest period's
+  // list rows (src/search_db.ts), {period} being that period.
+  "search.date_last_quarter": {
+    en: "Postings of the last 92 days and the {period} lists",
+    fr: "Offres des 92 derniers jours et listes du {period}",
+  },
+  "search.year_hint": { en: "Year of the list or the posting", fr: "Année de la liste ou de l'offre" },
+  "search.year_from": { en: "From", fr: "De" },
+  "search.year_to": { en: "To", fr: "À" },
+  "search.year_any": { en: "Any", fr: "Toutes" },
   "search.any_state": { en: "Any state", fr: "Tous les états" },
   "search.show_results": { en: "Show results", fr: "Voir les résultats" },
   "search.clear": { en: "Clear", fr: "Effacer" },
   "search.records_one": { en: "{n} record", fr: "{n} dossier" },
   "search.records_many": { en: "{n} records", fr: "{n} dossiers" },
   "search.loading": { en: "Loading records", fr: "Chargement des dossiers" },
+  // Beside the count: what the search database answers from, and what the
+  // fallback (search/first.json) holds.
+  "search.note_all": { en: "Job Bank postings and ESDC lists since {year}", fr: "offres du Guichet-Emplois et listes d'EDSC depuis {year}" },
   "search.note_latest": { en: "pending postings and the {period} lists", fr: "offres en attente et listes du {period}" },
+  // A total the search stopped counting at (search_db.ts COUNT_CAP): beside
+  // the count, and inside "Showing 1 to 50 of ...".
+  "search.records_capped": { en: "{n} or more records", fr: "{n} dossiers ou plus" },
+  "search.total_capped": { en: "{n} or more", fr: "{n} ou plus" },
+  "search.unavailable": {
+    en: "Search is unavailable for the moment, so the newest records are shown.",
+    fr: "La recherche est indisponible pour le moment, alors les dossiers les plus récents sont affichés.",
+  },
+  // search.js, when a change cannot be answered and earlier results stay on screen.
+  "search.unavailable_kept": {
+    en: "Search is unavailable for the moment, so the records shown are from before the last change.",
+    fr: "La recherche est indisponible pour le moment, alors les dossiers affichés précèdent la dernière modification.",
+  },
   "search.view": { en: "View", fr: "Affichage" },
   "search.list": { en: "List", fr: "Liste" },
   "search.sort": { en: "Sort", fr: "Trier" },
   "search.sort_newest": { en: "Newest", fr: "Plus récents" },
   "search.sort_name": { en: "Employer A to Z", fr: "Employeur de A à Z" },
+  // Shown without JavaScript when neither the search database nor
+  // search/first.json could give the page its rows.
   "search.noscript": {
-    en: "Filtering needs JavaScript. The same data is in the {downloads}.",
-    fr: "Le filtrage nécessite JavaScript. Les mêmes données se trouvent dans les {downloads}.",
+    en: "The records could not be loaded. The same data is in the {downloads}.",
+    fr: "Les dossiers n'ont pas pu être chargés. Les mêmes données se trouvent dans les {downloads}.",
   },
   "search.pagination": { en: "Pagination", fr: "Pagination" },
   "search.showing": { en: "Showing {from} to {to} of {total}", fr: "Affichage de {from} à {to} sur {total}" },
   "search.page_of": { en: "Page {page} of {pages}", fr: "Page {page} sur {pages}" },
+  // A later page whose total is not known (keyset pages carry no count).
+  "search.page": { en: "Page {page}", fr: "Page {page}" },
   "search.prev": { en: "Previous", fr: "Précédente" },
   "search.next": { en: "Next", fr: "Suivante" },
   "search.csv": { en: "Download these results (CSV)", fr: "Télécharger ces résultats (CSV)" },
   "search.footnote": {
-    en: 'The quarterly lists carry no wages, so ESDC rows show "n/a". "See posting" means the value is on the Job Bank page and not yet parsed. Records before {period} are in the {downloads}.',
-    fr: "Les listes trimestrielles ne donnent aucun salaire : les lignes d'EDSC affichent donc « s.o. ». « Voir l'offre » signifie que la valeur figure sur la page du Guichet-Emplois et n'a pas encore été extraite. Les dossiers antérieurs au {period} se trouvent dans les {downloads}.",
+    en: 'The quarterly lists carry no wages, so ESDC rows show "n/a". "See posting" means the value is on the Job Bank page and not yet parsed. Search covers every ESDC list since {year} and the Job Bank postings that carry an LMIA flag; the full files are in the {downloads}.',
+    fr: "Les listes trimestrielles ne donnent aucun salaire : les lignes d'EDSC affichent donc « s.o. ». « Voir l'offre » signifie que la valeur figure sur la page du Guichet-Emplois et n'a pas encore été extraite. La recherche couvre toutes les listes d'EDSC depuis {year} et les offres du Guichet-Emplois qui portent une mention EIMT; les fichiers complets se trouvent dans les {downloads}.",
   },
   "search.source_jobbank": { en: "Job Bank {ref}", fr: "Guichet-Emplois {ref}" },
   "search.source_positive": { en: "ESDC positive {period}", fr: "EDSC positive {period}" },
   "search.source_negative": { en: "ESDC negative {period}", fr: "EDSC négative {period}" },
-  // search.js only
   "search.no_match": { en: "No records match these filters.", fr: "Aucun dossier ne correspond à ces filtres." },
-  "search.so_far": { en: "{count} so far", fr: "{count} jusqu'ici" },
-  "search.note_since": { en: "since {period}", fr: "depuis le {period}" },
-  "search.gate_long": {
-    en: "The long scope holds {rows} records across {files} files, about {size} before compression. Once loaded, it is filtered in the browser with no further downloads.",
-    fr: "La période longue compte {rows} dossiers répartis dans {files} fichiers, environ {size} avant compression. Une fois chargée, elle est filtrée dans le navigateur sans autre téléchargement.",
-  },
-  "search.gate_loading": { en: "Loading {rows} records.", fr: "Chargement de {rows} dossiers." },
-  "search.gate_load": { en: "Load {rows} records", fr: "Charger {rows} dossiers" },
-  "search.gate_csv": { en: "Downloads Page (CSV)", fr: "Page des téléchargements (CSV)" },
-  "search.gate_waiting": { en: "Waiting for your choice", fr: "En attente de votre choix" },
-  "search.gate_progress": {
-    en: "Loaded {done} of {files} files, {rows} records so far.",
-    fr: "{done} fichiers chargés sur {files}, {rows} dossiers jusqu'ici.",
-  },
 
   // -- map ------------------------------------------------------------------------
   "map.period": { en: "Period", fr: "Période" },
+  // The map keeps its two periods (clusters/latest.json and since_2023q4.json).
+  "map.period_latest": { en: "Pending now and {period}", fr: "En attente maintenant et {period}" },
   "map.period_long": { en: "Since {period}", fr: "Depuis le {period}" },
   "map.locate": { en: "Use my location", fr: "Utiliser ma position" },
   "map.aria": {
@@ -985,12 +1001,8 @@ const STRINGS = {
   },
   "data.api.area": { en: "Records in one postal area, latest scope", fr: "Dossiers d'un secteur postal, période récente" },
   "data.api.facets": {
-    en: "Record counts by status and province for both search scopes, and every search file's size",
-    fr: "Nombre de dossiers par statut et par province pour les deux périodes de recherche, et taille de chaque fichier de recherche",
-  },
-  "data.api.files": {
-    en: "The search rows, as the search page loads them (file list in the facets)",
-    fr: "Les lignes de recherche, telles que la page de recherche les charge (liste des fichiers dans les facettes)",
+    en: "Record counts by status and province, for the newest records and for the map's longer period",
+    fr: "Nombre de dossiers par statut et par province, pour les dossiers les plus récents et pour la période longue de la carte",
   },
   "data.licence": { en: "Licence and Attribution", fr: "Licence et attribution" },
   "data.code_licence": { en: "The site's own code, text and design are published for inspection and are not licensed for reuse or for running another site; the data licences above are unaffected.", fr: "Le code, les textes et le design du site sont publiés pour consultation et ne sont pas concédés sous licence pour réutilisation ni pour exploiter un autre site; les licences des données ci-dessus demeurent inchangées." },
@@ -1178,14 +1190,9 @@ const STRINGS = {
   },
   "support.holds_employers": { en: " ({n} employers)", fr: " ({n} employeurs)" },
   "support.holds_search": {
-    en: "Search covers pending postings and the latest quarter, or on request {scope} in the browser.",
-    fr: "La recherche couvre les offres en attente et le dernier trimestre, ou sur demande {scope} dans le navigateur.",
+    en: "Search covers every record since {year} on the site, with no download: ESDC's lists and the Job Bank postings that carry an LMIA flag.",
+    fr: "La recherche couvre tous les dossiers depuis {year} sur le site, sans téléchargement : les listes d'EDSC et les offres du Guichet-Emplois qui portent une mention EIMT.",
   },
-  "support.holds_since": { en: "everything since {period}", fr: "l'ensemble des dossiers depuis le {period}" },
-  "support.holds_longer": { en: "a longer history", fr: "un historique plus long" },
-  "support.holds_older": { en: "{older} are in the {downloads} only.", fr: "{older} se trouvent seulement dans les {downloads}." },
-  "support.holds_before": { en: "Records before {period}", fr: "Les dossiers antérieurs au {period}" },
-  "support.holds_older_records": { en: "Older records", fr: "Les dossiers plus anciens" },
   "support.holds_matched": {
     en: "The IRCC non-compliance list and the federal corporations registry are matched nightly.",
     fr: "La liste des employeurs non conformes d'IRCC et le registre des sociétés fédérales sont jumelés chaque nuit.",
@@ -1200,8 +1207,8 @@ const STRINGS = {
     fr: "Depuis le {date}, le site fonctionne avec le forfait Workers Paid de Cloudflare : environ {n} pages vues par mois sont incluses, sans plafond quotidien. L'exploitant paie le forfait; le soutien reçu ne le couvre pas encore.",
   },
   "support.limit_search": {
-    en: "No server-side search of the full history; the long search scope is a multi-megabyte browser download.",
-    fr: "Aucune recherche côté serveur dans l'historique complet; la période de recherche longue est un téléchargement de plusieurs mégaoctets dans le navigateur.",
+    en: "Search shows {page} records a page, and a total above {cap} is shown as \"{cap} or more\".",
+    fr: "La recherche affiche {page} dossiers par page, et un total de plus de {cap} s'affiche « {cap} ou plus ».",
   },
   "support.limit_storage": { en: "{n} GB of file storage.", fr: "{n} Go de stockage de fichiers." },
   "support.costs_note": {
@@ -1215,8 +1222,8 @@ const STRINGS = {
   "support.bar_x": { en: "Daily post on X (optional)", fr: "Publication quotidienne sur X (facultatif)" },
   "support.bar_total": { en: "Total", fr: "Total" },
   "support.costs_detail": {
-    en: "Domain registration is {domain} a year. Since {since} the site runs on the Workers Paid plan, {workersUsd} a month plus an allowance for tax and usage, about {workers}; the operator pays for it until support covers it. File storage and the database stay on free tiers. The nightly refresh runs as a scheduled task on GitHub, and runner minutes past the monthly allowance are billed per minute, about {github} a month. The daily post on X is billed by X per message ({usd} without a link), about {monthly} a month. It is optional and the site runs without it.",
-    fr: "L'enregistrement du domaine coûte {domain} par année. Depuis le {since}, le site fonctionne avec le forfait Workers Paid, {workersUsd} par mois plus une provision pour la taxe et l'utilisation, soit environ {workers}; l'exploitant le paie jusqu'à ce que le soutien le couvre. Le stockage de fichiers et la base de données restent sur des forfaits gratuits. La mise à jour nocturne s'exécute comme tâche planifiée sur GitHub, et les minutes d'exécution au-delà de l'allocation mensuelle sont facturées à la minute, soit environ {github} par mois. La publication quotidienne sur X est facturée par X à chaque message ({usd} sans lien), soit environ {monthly} par mois. Elle est facultative et le site fonctionne sans elle.",
+    en: "Domain registration is {domain} a year. Since {since} the site runs on the Workers Paid plan, {workersUsd} a month plus an allowance for tax and usage, about {workers}; the operator pays for it until support covers it. File storage stays on its free tier, and the databases fit inside the plan's included D1 allowances. The nightly refresh runs as a scheduled task on GitHub, and runner minutes past the monthly allowance are billed per minute, about {github} a month. The daily post on X is billed by X per message ({usd} without a link), about {monthly} a month. It is optional and the site runs without it.",
+    fr: "L'enregistrement du domaine coûte {domain} par année. Depuis le {since}, le site fonctionne avec le forfait Workers Paid, {workersUsd} par mois plus une provision pour la taxe et l'utilisation, soit environ {workers}; l'exploitant le paie jusqu'à ce que le soutien le couvre. Le stockage de fichiers reste sur son forfait gratuit, et les bases de données tiennent dans les quantités D1 incluses dans le forfait. La mise à jour nocturne s'exécute comme tâche planifiée sur GitHub, et les minutes d'exécution au-delà de l'allocation mensuelle sont facturées à la minute, soit environ {github} par mois. La publication quotidienne sur X est facturée par X à chaque message ({usd} sans lien), soit environ {monthly} par mois. Elle est facultative et le site fonctionne sans elle.",
   },
   "support.tiers_summary": {
     en: "Monthly cost of every tier: {target}. Monthly support received: {support}. Reserve held: {months} of {goal}.",
@@ -1247,8 +1254,8 @@ const STRINGS = {
   },
   "support.tier.hosted_search.name": { en: "Hosted search", fr: "Recherche hébergée" },
   "support.tier.hosted_search.unlocks": {
-    en: "A hosted database, so the full history since {year} is searchable on the site with no large download.",
-    fr: "Une base de données hébergée, pour que l'historique complet depuis {year} soit consultable sur le site sans gros téléchargement.",
+    en: "The full history since {year} is searchable on the site with no download. It runs inside the Workers Paid plan: D1's included storage, reads and writes cover it, so it adds nothing to the monthly cost.",
+    fr: "L'historique complet depuis {year} est consultable sur le site sans téléchargement. La recherche fonctionne dans le forfait Workers Paid : le stockage, les lectures et les écritures D1 qu'il inclut la couvrent, et elle n'ajoute rien au coût mensuel.",
   },
   "support.tier.storage.name": { en: "Storage reserve", fr: "Réserve de stockage" },
   "support.tier.storage.unlocks": {
@@ -2192,6 +2199,14 @@ const STRINGS = {
     en: "Low-wage stream indicator; new file program/index.json",
     fr: "Indicateur du volet des postes à bas salaire; nouveau fichier program/index.json",
   },
+  "data.change_search": {
+    en: "Search runs on the site's server over every record since 2014: ESDC's lists from 2014 on and the Job Bank postings that carry an LMIA flag, 50 rows a page, with a year range in place of the longer search period and no download in the browser. The browser search files under search/latest/ and search/long/ are no longer published; search/first.json, search/facets.json and search/latest/status/pending.json remain.",
+    fr: "La recherche s'exécute sur le serveur du site et couvre tous les dossiers depuis 2014 : les listes d'EDSC depuis 2014 et les offres du Guichet-Emplois qui portent une mention EIMT, 50 lignes par page, avec un intervalle d'années à la place de la période de recherche longue et aucun téléchargement dans le navigateur. Les fichiers de recherche du navigateur sous search/latest/ et search/long/ ne sont plus publiés; search/first.json, search/facets.json et search/latest/status/pending.json demeurent.",
+  },
+  "data.recomputed_search": {
+    en: "Nothing recomputed; fewer files under search/",
+    fr: "Aucun recalcul; moins de fichiers sous search/",
+  },
 
   // --- trends ---
   "nav.trends": { en: "Trends", fr: "Tendances" },
@@ -2659,6 +2674,7 @@ export const SAME_IN_BOTH: ReadonlySet<Key> = new Set<Key>([
   "col.source",
   "search.province",
   "search.pagination",
+  "search.page",
   "prov.AB",
   "prov.MB",
   "prov.NU",

@@ -2,8 +2,9 @@ import type { Context } from "hono";
 import type { FC } from "hono/jsx";
 import { loadStats } from "../data";
 import type { AppEnv, Env } from "../env";
-import { t, tj, tn, type Key, type Lang } from "../i18n";
+import { t, tn, type Key, type Lang } from "../i18n";
 import { Layout, fmtInt, page, periodLabel } from "../layout";
+import { COUNT_CAP, PAGE_SIZE as SEARCH_PAGE_SIZE, YEAR_MIN as SEARCH_YEAR_MIN } from "../search_db";
 import { pageSeo } from "../seo";
 import {
   ACTIONS_CENTS_PER_MONTH,
@@ -111,11 +112,9 @@ export async function supportPage(c: Context<AppEnv>): Promise<Response> {
   const tiers = tierCoverage(sup.monthlySupportCents);
   const met = budgetMet(sup.monthlySupportCents, sup.reserveMonths);
   const latest = stats?.esdc_latest_period ? periodLabel(stats.esdc_latest_period, lang) : null;
-  const from = stats?.search_from_period ? periodLabel(stats.search_from_period, lang) : null;
   const employers = stats?.counts?.employers;
   const money = (v: number) => fmtCents(v, lang);
   const goal = months(lang, RESERVE_GOAL_MONTHS);
-  const downloads = <a href="/data#downloads">{t(lang, "common.downloads_link")}</a>;
 
   return page(
     c,
@@ -149,24 +148,14 @@ export async function supportPage(c: Context<AppEnv>): Promise<Response> {
                 count: employers ? t(lang, "support.holds_employers", { n: fmtInt(employers, lang) }) : "",
               })}
             </li>
-            <li>
-              {t(lang, "support.holds_search", {
-                scope: from ? t(lang, "support.holds_since", { period: from }) : t(lang, "support.holds_longer"),
-              })}
-            </li>
-            <li>
-              {tj(lang, "support.holds_older", {
-                older: from ? t(lang, "support.holds_before", { period: from }) : t(lang, "support.holds_older_records"),
-                downloads,
-              })}
-            </li>
+            <li>{t(lang, "support.holds_search", { year: SEARCH_YEAR_MIN })}</li>
             <li>{t(lang, "support.holds_matched")}</li>
             <li>{t(lang, "support.holds_refresh", { time: refreshTimeText(undefined, lang) })}</li>
           </ul>
           <h3>{t(lang, "support.limits")}</h3>
           <ul>
             <li>{t(lang, "support.limit_paid", { date: WORKERS_PAID_SINCE, n: fmtInt(PAID_REQUESTS_PER_MONTH, lang) })}</li>
-            <li>{t(lang, "support.limit_search")}</li>
+            <li>{t(lang, "support.limit_search", { page: SEARCH_PAGE_SIZE, cap: fmtInt(COUNT_CAP, lang) })}</li>
             <li>{t(lang, "support.limit_storage", { n: STORAGE_FREE_GB })}</li>
           </ul>
 

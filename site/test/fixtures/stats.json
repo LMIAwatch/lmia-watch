@@ -5,7 +5,6 @@
   "esdc_latest_published": "2026-07-21",
   "rules_version": "0.1",
   "search_from_period": "2023Q4",
-  "search_years": [2023, 2024, 2025, 2026],
   "counts": {
     "pending": 5883,
     "approved_records": 8790,

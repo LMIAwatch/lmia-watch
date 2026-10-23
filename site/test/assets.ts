@@ -22,9 +22,9 @@ const FILES: Record<string, unknown> = {
   "stats.json": stats,
   "search/first.json": latest,
   "search/facets.json": facets,
-  "search/latest/all.json": latest,
+  // The export's other search files: the pending list /api/pending serves.
+  // The search page reads the search database (test/search_page.test.ts).
   "search/latest/status/pending.json": latest.filter((r) => r.status === "pending"),
-  "search/latest/prov/BC.json": latest.filter((r) => r.prov === "BC"),
   "clusters/latest.json": clusters,
   "clusters/since_2023q4.json": clusters,
   "areas/V0N.json": area,

@@ -32,7 +32,7 @@ export async function mapPage(c: Context<AppEnv>): Promise<Response> {
         <label class="check"><input type="checkbox" name="status" value="refused" /> <Badge status="refused" lang={lang} /></label>
         <label for="period" class="muted">{t(lang, "map.period")}</label>
         <select id="period" name="period">
-          <option value="latest">{t(lang, "search.date_any", { period: periodLabel(stats.esdc_latest_period, lang) })}</option>
+          <option value="latest">{t(lang, "map.period_latest", { period: periodLabel(stats.esdc_latest_period, lang) })}</option>
           <option value="since_2023q4">{t(lang, "map.period_long", { period: periodLabel(stats.search_from_period, lang) })}</option>
         </select>
         <button type="button" class="btn" id="locate">{t(lang, "map.locate")}</button>

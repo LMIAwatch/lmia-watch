@@ -77,7 +77,7 @@ describe("missing and corrupt data files", () => {
     }
   });
 
-  it("home reads its lists strictly; search treats unreadable search years as none", async () => {
+  it("home reads its lists strictly", async () => {
     const stats = JSON.parse(await (await fakeAssets.fetch("https://assets.invalid/data/stats.json")).text());
     const row = stats.recent_pending[0];
     const broken: Record<string, unknown>[] = [
@@ -100,12 +100,21 @@ describe("missing and corrupt data files", () => {
       top_approvals: [{ ...stats.top_approvals[0], city: null, prov: null, stream: null }],
     };
     expect((await req("/", { ASSETS: assetsWith({ "stats.json": JSON.stringify({ ...stats, ...nulls }) }) })).status).toBe(200);
-    for (const years of ["2023", { a: 1 }, [2023, "2024"], null]) {
-      const res = await req("/search", { ASSETS: assetsWith({ "stats.json": JSON.stringify({ ...stats, search_years: years }) }) });
-      expect(res.status, JSON.stringify(years)).toBe(200);
-      expect(await res.text()).toContain('data-years=""');
+  });
+
+  it("the search page's year range survives an unreadable data date", async () => {
+    const stats = JSON.parse(await (await fakeAssets.fetch("https://assets.invalid/data/stats.json")).text());
+    for (const asOf of [null, 7, 20261, "", "x2026", { y: 1 }, "9999-12-31"]) {
+      const res = await req("/search", { ASSETS: assetsWith({ "stats.json": JSON.stringify({ ...stats, data_as_of: asOf }) }) });
+      expect(res.status, JSON.stringify(asOf)).toBe(200);
+      // The range runs from 2014 to the current year instead, and a date far
+      // ahead stops at the last year the API accepts.
+      const html = await res.text();
+      const year = new Date().getUTCFullYear();
+      expect(html).toContain('<option value="2014">2014</option>');
+      expect(html).toContain(`<option value="${year}">`);
+      expect(html).not.toContain(`<option value="${year + 2}">`);
     }
-    expect(await (await req("/search")).text()).toContain('data-years="2023,2024,2025,2026"');
   });
 
   it("a corrupt search/first.json leaves the rows to the script; a corrupt facets file still renders", async () => {
@@ -295,6 +304,28 @@ describe("storage outages", () => {
     expect(await support.text()).toContain("Monthly support received: $0.00.");
     const noBinding = await req("/support", { DB: undefined });
     expect(noBinding.status).toBe(200);
+  });
+
+  it("the search page falls back to its static rows when the search database fails or is missing, and no cache keeps it", async () => {
+    for (const SEARCH of [brokenDb, undefined]) {
+      for (const path of ["/search", "/search?q=haveli&status=refused&sort=name", "/search?cursor=abc&page=3"]) {
+        const res = await req(path, { SEARCH });
+        expect(res.status, path).toBe(200);
+        expect(res.headers.get("cache-control"), path).toBe("no-store");
+        const html = await res.text();
+        expect(html, path).toContain('data-mode="static"');
+        expect(html, path).toContain('<p class="panel bordered" id="search-unavailable" role="status">Search is unavailable for the moment, so the newest records are shown.</p>');
+        expect(html, path).toContain("PinkCloud Cleaning &amp; Home Services");
+      }
+    }
+    // With the fallback file broken too, the page still answers and leaves the rows to the script.
+    const both = await req("/search", { SEARCH: brokenDb, ASSETS: assetsWith({ "search/first.json": "[{" }) });
+    expect(both.status).toBe(200);
+    const html = await both.text();
+    expect(html).toContain('data-ssr="0"');
+    // No sentence about newest records when none are shown (the script's
+    // strings block still carries it).
+    expect(html).not.toContain('id="search-unavailable"');
   });
 
   it("forms fail politely with D1 down: the form comes back with what was typed", async () => {

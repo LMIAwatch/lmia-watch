@@ -70,33 +70,38 @@ def test_static_export_tree(conn, tmp_path):
     assert stats["top_approvals"][0]["employer_id"] == a
     assert stats["by_stream"] == [{"k": "Primary Agriculture", "n": 1}]
     assert stats["search_from_period"] == "2023Q4"
-    assert stats["search_years"] == [2023, 2024, 2025, 2026]
+    # Only the long scope's files read it, and they are gone.
+    assert "search_years" not in stats
 
-    latest = load(out, "search/latest/all.json")
-    assert {r["employer"] for r in latest} == {"Alpha Farms Ltd", "Beta Inn", "Delta Nowhere"}
-    assert load(out, "search/first.json") == latest
-    alpha = next(r for r in latest if r["employer"] == "Alpha Farms Ltd")
+    first = load(out, "search/first.json")
+    assert {r["employer"] for r in first} == {"Alpha Farms Ltd", "Beta Inn", "Delta Nowhere"}
+    alpha = next(r for r in first if r["employer"] == "Alpha Farms Ltd")
     assert alpha["ind"] == ["high_volume"] and alpha["status"] == "approved" and alpha["sort_date"] == "2026-03-31"
     assert alpha["source"].startswith("https://open.canada.ca/data/en/dataset/90fed587")
     assert [r["ref"] for r in load(out, "search/latest/status/pending.json")] == [5]
-    assert [r["employer"] for r in load(out, "search/latest/prov/BC.json")] == ["Alpha Farms Ltd"]
-    assert [r["employer"] for r in load(out, "search/latest/prov/BC/approved.json")] == ["Alpha Farms Ltd"]
-    # A row without a province lands in the unknown bucket instead of vanishing.
-    assert [r["employer"] for r in load(out, "search/latest/prov/UN/refused.json")] == ["Delta Nowhere"]
 
     facets = load(out, "search/facets.json")
     assert facets["default"]["total"] == 3
     assert facets["default"]["status"] == {"pending": 1, "approved": 1, "refused": 1}
     assert facets["default"]["status_prov"]["approved|BC"] == 1
+    # A row without a province is counted in the unknown bucket instead of vanishing.
+    assert facets["default"]["status_prov"]["refused|UN"] == 1
+    # The 2019 row is older than the map's longer period, so Ontario counts nothing.
     assert facets["long"]["prov_year"] == {"BC|2026": 1, "NS|postings": 1, "UN|2026": 1}
-    assert facets["files"]["search/latest/all.json"]["rows"] == 3
-    assert facets["files"]["search/long/BC/2026.json"]["bytes"] > 100
+    assert facets["long"]["total"] == 3 and counts["search_long"] == 3
     assert facets["first_rows"] == 500
 
-    assert (out / "search" / "long" / "BC" / "2026.json").exists() and (out / "search" / "long" / "NS" / "postings.json").exists()
-    # The 2019 row is older than the search scope, so Ontario has no files.
-    assert not (out / "search" / "long" / "ON").exists()
-    assert counts["search_long"] == 3
+    # The search page queries the search database: the export keeps the fallback
+    # rows, the counts, the API's totals and the pending list, and nothing else
+    # under search/.
+    written = sorted(p.relative_to(out / "search").as_posix() for p in (out / "search").rglob("*") if p.is_file())
+    assert written == ["counts.json", "facets.json", "first.json", "latest/status/pending.json"]
+    assert sorted(facets["files"]) == ["search/first.json", "search/latest/status/pending.json"]
+    assert facets["files"]["search/first.json"]["rows"] == 3
+    assert facets["files"]["search/latest/status/pending.json"]["bytes"] > 100
+    # The map still gets its longer period from the long rows.
+    long_clusters = {x["fsa"]: x for x in load(out, "clusters/since_2023q4.json")}
+    assert long_clusters["V4V"]["approved"] == 1 and long_clusters["B2Y"]["pending"] == 1 and "M5V" not in long_clusters
 
     cl = {x["fsa"]: x for x in load(out, "clusters/latest.json")}
     assert cl["V4V"]["approved"] == 1 and cl["B2Y"]["pending"] == 1 and "M5V" not in cl
@@ -204,6 +209,8 @@ def test_search_counts_cover_exactly_the_search_rows(conn, tmp_path):
     doc = load(out, "search/counts.json")
     assert doc["dims"] == ["status", "prov", "stream", "year", "ind"]
     assert doc["data_as_of"] == load(out, "stats.json")["data_as_of"]
+    # The period whose list rows date=last_quarter keeps, as stats.json names it.
+    assert doc["latest_period"] == load(out, "stats.json")["esdc_latest_period"] == "2026Q1"
 
     from lmia_pipeline.search_db import search_rows
     rows = list(search_rows(conn))
@@ -235,7 +242,7 @@ def test_search_counts_cover_exactly_the_search_rows(conn, tmp_path):
 def test_a_failing_counts_section_leaves_the_search_files(conn, tmp_path, monkeypatch):
     seed(conn)
 
-    def boom(conn, out, data_as_of):
+    def boom(conn, out, data_as_of, latest_period=None):
         raise ValueError("cannot count")
 
     monkeypatch.setattr(export_static, "write_search_counts", boom)
@@ -244,3 +251,19 @@ def test_a_failing_counts_section_leaves_the_search_files(conn, tmp_path, monkey
     assert (out / "search" / "facets.json").exists() and not (out / "search" / "counts.json").exists()
     rows = [(r[0], r[1]) for r in conn.execute("SELECT source, ok FROM sources_log ORDER BY id") if r[0].startswith("export")]
     assert rows == [("export_search_counts", 0), ("export", 1)]
+
+
+def test_the_pending_file_is_written_on_a_night_with_no_pending_posting(conn, tmp_path):
+    # /api/pending answers 503 for a missing file; an empty night is an empty list.
+    seed(conn)
+    conn.execute("UPDATE jobbank_postings SET flag_current = 'approved'")
+    out = tmp_path / "static"
+    export_static.export_static(conn, out)
+    assert load(out, "search/latest/status/pending.json") == []
+    assert load(out, "search/facets.json")["files"]["search/latest/status/pending.json"]["rows"] == 0
+
+
+def test_search_counts_carry_no_latest_period_before_any_list_is_loaded(conn, tmp_path):
+    # An empty meta value is no period: date=last_quarter then keeps postings only.
+    export_static.write_search_counts(conn, tmp_path, "2026-10-22", "")
+    assert load(tmp_path, "search/counts.json")["latest_period"] is None

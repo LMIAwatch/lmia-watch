@@ -662,9 +662,10 @@ async function renderPlace(c: Context<AppEnv>, file: string): Promise<Response> 
   });
   const seo = sectionSeo(path, t(lang, "places.seo_title", { place: p.kind === "cma" ? heading : where }), description, crumbs, !indexed);
   const core = p.name.split(" - ")[0].split(" / ")[0];
+  // Search covers every year, so the link needs no date.
   const searchHref = p.kind === "province"
-    ? `/search?province=${p.prov}&date=since_2023q4`
-    : `/search?province=${p.prov}&q=${encodeURIComponent(core)}&date=since_2023q4`;
+    ? `/search?province=${p.prov}`
+    : `/search?province=${p.prov}&q=${encodeURIComponent(core)}`;
   const jobBank = jobBankSearch(lang, { locationstring: p.kind === "province" ? provName : `${core}, ${p.prov}` });
   const regionName = p.region ? placeName(lang, p.region.name) : null;
   const ctx = p.context;

@@ -5,8 +5,8 @@ from the static JSON the pipeline exports. The data ships with the Worker as
 static assets, so page views cost nothing per row and the site fits the free
 plan. D1 holds what visitors submit (responses and corrections) and, in a
 database of its own (`lmia-watch-search`, binding `SEARCH`), the search rows
-the nightly run sends, which `GET /api/search` reads (`../docs/hosted-search.md`);
-R2 holds the downloads.
+the nightly run sends, which the search page and `GET /api/search` read
+(`../docs/hosted-search.md`); R2 holds the downloads.
 
 ## Local development
 ```
@@ -15,20 +15,24 @@ npm run db:local      # schema + sample form rows into the local D1 emulator
 npm run data:local    # copy ../data/out/static into public/data (run the pipeline's export first)
 npm run dev           # http://localhost:8787
 npm run typecheck
-npm test              # vitest: fixture JSON through a fake assets binding, local D1 for the forms
+npm test              # vitest: fixture JSON through a fake assets binding, local D1 for the forms and search
 ```
 Without `npm run data:local` every page answers "Data not published yet" (503),
 which is also what a fresh deployment shows before its first nightly run.
+The local search database starts empty, so the search page shows its
+fallback until it is loaded: apply `../pipeline/search_schema.sql` and the
+batches `search-sync` writes with `npx wrangler d1 execute lmia-watch-search
+--local --file=...` (never `--remote` from a dev machine).
 
-## How the search page stays quick
-A plain visit is rendered on the server from the newest 500 records with
-precomputed counts, so it shows rows with no JavaScript and no dataset
-download. `search.js` then fetches the default scope once in the background
-(about 0.6 MB compressed) and answers every filter, sort and page change from
-memory; no filter change ever waits on the network. A deep link with filters
-renders first from the smallest slice that answers it. The long scope (since
-2023 Q4) loads only when asked, with a size notice and a CSV alternative above
-2 MB, and is then answered from memory too.
+## How the search page works
+The search page renders its first view on the server from the search
+database (rows, total, counts, a link to the next page), so it works with no
+JavaScript and a shared URL shows its filters. `search.js` then sends every
+filter, sort and page change to `GET /api/search`, typed text after a 300 ms
+pause, 50 rows a page by keyset. When the database cannot answer, the page
+shows the newest 500 records from `search/first.json` with a sentence saying
+search is unavailable, and the script keeps the rows on screen. Details:
+`../docs/hosted-search.md`, *The page*.
 
 ## JSON API
 The routes under `/api/` answer JSON, are capped at 60 requests a minute per
@@ -124,7 +128,7 @@ the user agent and the About page point at the corrections form.
 | `src/layout.tsx` | page shell, badges, formatting helpers, the "not published yet" page |
 | `src/pages/*.tsx` | one file per page; their copy, Methodology and Data included, is keys into `src/i18n.ts` |
 | `src/api.ts` | JSON endpoints: views over the static files, and the search route with its page-only check |
-| `src/search_db.ts` | the search API's parsing, planning, SQL and paging over the search database |
+| `src/search_db.ts` | the search's parsing, planning, SQL and paging over the search database, used by the API route and by the search page's first view (`src/pages/search.tsx`) |
 | `src/i18n.ts` | every UI string in English and French, the number, wage and quarter formats, and the French forms of the pipeline's indicator sentences; `test/i18n.test.ts` fails on a key with no French |
 | `src/support.ts`, `src/pages/support.tsx` | Support page: every cost, tier and support figure in one file (support received is updated each quarter), then the page; `DONATE_URL` in `wrangler.jsonc` turns on the donate button |
 | `public/styles.css`, `public/search.js`, `public/map.js` | the only stylesheet and the two client scripts; the scripts read their words from the page's `<script type="application/json" id="i18n">` block |

@@ -62,10 +62,13 @@ export const WORKERS_PAID_USD_PER_MONTH = 5;
 // invoice.
 export const WORKERS_USAGE_ALLOWANCE_CAD_PER_MONTH = 2.5;
 
-// Hosted search, CAD per month on top of the Workers Paid plan: database
-// storage and reads above what the paid plan includes once the full history
-// is loaded. Planning figure. Revisit after the database is loaded.
-export const HOSTED_SEARCH_CAD_PER_MONTH = 2;
+// Hosted search, CAD per month on top of the Workers Paid plan. Nothing: the
+// loaded database (about 360 MB), the nightly sync (tens of thousands of row
+// writes, a full reload about 7 million) and the search page's reads sit far
+// inside D1's included 5 GB, 50 million rows written and 25 billion rows read
+// a month (docs/hosted-search.md has the measurements). Revisit if the D1
+// usage report ever shows billed usage.
+export const HOSTED_SEARCH_CAD_PER_MONTH = 0;
 
 // R2 storage above the free allowance, USD per GB per month. Host's published
 // standard storage rate. Revisit with the pricing page.
@@ -210,6 +213,7 @@ export const TIERS: readonly Tier[] = [
     name: tierName("en", "hosted_search"),
     monthlyCost: HOSTED_SEARCH_CAD_PER_MONTH,
     unlocks: tierUnlocks("en", "hosted_search"),
+    inPlace: true,
   },
   {
     id: "storage",

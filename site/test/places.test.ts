@@ -82,7 +82,7 @@ describe("occupation pages", () => {
     expect(html).toContain("$16.50/h<span class=\"muted\"> (provincial figure)</span>");
     expect(html).toContain('<a href="/employers/emp-ad951ffc1e">Prairie Diner Ltd</a>');
     expect(html.match(/href="\/employers\//g)?.length).toBe(4);
-    expect(html).toContain('href="/search?noc=63200&date=since_2023q4"');
+    expect(html).toContain('href="/search?noc=63200"');
     expect(html).toContain("A past LMIA is not a job offer.");
     expect(html).toContain('href="https://www.jobbank.gc.ca/jobsearch/jobsearch?fn21=63200"');
     expect(html).toContain("earlier quarters are not counted here");
@@ -305,7 +305,7 @@ describe("place pages", () => {
     expect(html).toContain('<a href="/places/mb/winnipeg-cma">Winnipeg</a>');
     expect(html).toContain('<a href="/places/mb/winnipeg">Winnipeg</a>');
     expect(html).toContain('<a href="/occupations/63200">Cooks</a>');
-    expect(html).toContain('href="/search?province=MB&date=since_2023q4"');
+    expect(html).toContain('href="/search?province=MB"');
     expect(html).toContain('href="https://www.jobbank.gc.ca/jobsearch/jobsearch?locationstring=Manitoba"');
     // Stream mix for the newest quarters, as a share of positions: 10 of 20 in primary agriculture.
     expect(html).toContain("Primary Agriculture");
@@ -332,7 +332,7 @@ describe("place pages", () => {
     const html = await text("/places/mb/winnipeg");
     expect(html).toContain("<h1>Winnipeg, MB</h1>");
     expect(html).toContain('<a href="/places/mb/winnipeg-cma">Winnipeg</a>');
-    expect(html).toContain('href="/search?province=MB&q=Winnipeg&date=since_2023q4"');
+    expect(html).toContain('href="/search?province=MB&q=Winnipeg"');
     expect(html).toContain('href="https://www.jobbank.gc.ca/jobsearch/jobsearch?locationstring=Winnipeg%2C+MB"');
   });
 

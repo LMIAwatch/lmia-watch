@@ -105,8 +105,9 @@ export async function homePage(c: Context<AppEnv>): Promise<Response> {
         <div class="quick-links">
           <span class="muted">{t(lang, "home.quick")}</span>
           <a href="/search?status=pending">{t(lang, "home.quick_pending")}</a>
-          <a href="/search?status=approved">{t(lang, "home.quick_approved")}</a>
-          <a href="/search?status=refused">{t(lang, "home.quick_refused")}</a>
+          {/* Search covers every year; the last-quarter window is what these two name. */}
+          <a href="/search?status=approved&date=last_quarter">{t(lang, "home.quick_approved")}</a>
+          <a href="/search?status=refused&date=last_quarter">{t(lang, "home.quick_refused")}</a>
           <a href="/map">{t(lang, "nav.map")}</a>
         </div>
       </section>

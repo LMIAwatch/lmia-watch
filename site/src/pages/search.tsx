@@ -1,18 +1,27 @@
 import type { Context } from "hono";
-import { INDICATORS, PAGE_SIZE, PROVINCES, STATUSES, STREAMS } from "../constants";
-import { loadFacets, loadFirst, loadStats, type SearchRow } from "../data";
-import type { AppEnv } from "../env";
+import { searchDataDate } from "../api";
+import { INDICATORS, PAGE_SIZE as FIRST_PAGE_SIZE, PROVINCES, STREAMS } from "../constants";
+import { loadFacets, loadFirst, loadSearchCounts, loadStats, type SearchRow } from "../data";
+import type { AppEnv, Env } from "../env";
 import {
   clientStrings, indicatorLabel, numberLocale, provinceName, streamLabel, t, tj, tn, type Key, type Lang,
 } from "../i18n";
 import { Badge, Chip, ClientData, Layout, fmtInt, fmtWage, noDataPage, page, periodLabel } from "../layout";
+import {
+  PAGE_SIZE, STATUSES, YEAR_MIN, parseQuery, runSearch, type Facets, type SearchQuery, type SearchResult,
+} from "../search_db";
 import { pageSeo } from "../seo";
-import { isListOf, isNum } from "../valid";
 import { FeedLinks } from "./feeds";
 
-// A plain visit (no filters, newest first, an early page) is rendered here from
-// search/first.json, so it needs no JavaScript and no dataset download. Every
-// other view is filled in by search.js from the smallest slice that answers it.
+// The first view is rendered here, so the page works without JavaScript and a
+// shared URL shows the filters it names. With the search database it is the
+// search itself (runSearch, the same query the API runs): rows, total, facet
+// counts and a link to the next page. Without it (no binding, a failed query,
+// or a table the sync has not filled) it is the page as it was before hosted
+// search, the newest rows from search/first.json, with one sentence saying
+// so. search.js then answers every change through /api/search.
+
+// The fallback serves at most this many pages of search/first.json.
 const SSR_PAGES = 20;
 
 // Every string search.js draws, handed over in the page's JSON block.
@@ -26,12 +35,10 @@ export const SEARCH_CLIENT_KEYS: readonly Key[] = [
   "period.quarter", "period.range",
   "wage.range", "wage.single", "wage.unit.HOUR", "wage.unit.YEAR", "wage.unit.WEEK", "wage.unit.MONTH",
   "wage.unit.DAY", "wage.unit.BIWEEK", "wage.unit.WEEKLY", "wage.unit.BIWEEKLY", "wage.unit.SEMIMONTH",
-  "size.mb",
-  "search.records_one", "search.records_many", "search.so_far", "search.note_latest", "search.note_since",
-  "search.no_match", "search.showing", "search.page_of",
+  "search.records_one", "search.records_many", "search.records_capped", "search.total_capped", "search.note_all",
+  "search.no_match", "search.showing", "search.page_of", "search.page",
   "search.source_jobbank", "search.source_positive", "search.source_negative",
-  "search.gate_long", "search.gate_loading", "search.gate_load", "search.gate_csv", "search.gate_waiting",
-  "search.gate_progress",
+  "search.unavailable", "search.unavailable_kept",
 ];
 
 export function searchClientData(lang: Lang) {
@@ -87,112 +94,199 @@ export const SearchRowView = ({ r, lang }: { r: SearchRow; lang: Lang }) => (
   </tr>
 );
 
+const DEFAULT_QUERY: SearchQuery = {
+  q: "", status: [], province: [], stream: [], nocCode: null, nocText: "", wageMin: null, wageMax: null, yearFrom: null,
+  yearTo: null, date: "any", indicator: null, sort: "newest", cursor: null,
+};
+
+// The URL's filters as the API reads them. A cursor this site did not issue
+// (edited by hand, or cut short when the link was copied) gives the first
+// page of the same filters rather than an error page.
+export function readSearchUrl(url: URL, now: Date = new Date()): { query: SearchQuery; ignored: string[] } {
+  const parsed = parseQuery(url, now);
+  if (parsed.ok) return { query: parsed.query, ignored: parsed.ignored };
+  const clean = new URL(url);
+  clean.searchParams.delete("cursor");
+  const again = parseQuery(clean, now);
+  return again.ok ? { query: again.query, ignored: [...again.ignored, "cursor"] } : { query: DEFAULT_QUERY, ignored: ["cursor"] };
+}
+
+// The URL parameters of a query, in the order search.js writes them, so a
+// link carries exactly the filters the page applied: a value the API dropped
+// is not carried on.
+export function searchParamsOf(q: SearchQuery, ignored: readonly string[] = []): URLSearchParams {
+  const p = new URLSearchParams();
+  if (q.q && !ignored.includes("q")) p.set("q", q.q);
+  for (const s of q.status) p.append("status", s);
+  for (const pr of q.province) p.append("province", pr);
+  for (const s of q.stream) p.append("stream", s);
+  const noc = q.nocCode ?? q.nocText;
+  if (noc) p.set("noc", noc);
+  if (q.wageMin !== null) p.set("wage_min", String(q.wageMin));
+  if (q.wageMax !== null) p.set("wage_max", String(q.wageMax));
+  if (q.date !== "any") p.set("date", q.date);
+  if (q.yearFrom !== null) p.set("year_from", String(q.yearFrom));
+  if (q.yearTo !== null) p.set("year_to", String(q.yearTo));
+  if (q.indicator) p.set("indicator", q.indicator);
+  if (q.sort !== "newest") p.set("sort", q.sort);
+  return p;
+}
+
+function searchHref(base: URLSearchParams, extra: Record<string, string> = {}): string {
+  const p = new URLSearchParams(base);
+  for (const [k, v] of Object.entries(extra)) p.set(k, v);
+  const s = p.toString();
+  return s ? `/search?${s}` : "/search";
+}
+
+// The search for the URL, or null when the page must fall back. A first page
+// with no row is either a filter nothing matches or a table the sync has not
+// filled yet (a new database, or a full reload under way); one row read
+// tells them apart, and an empty table falls back like a missing one rather
+// than answering "no records" to every visitor.
+async function searchFirstView(env: Env, q: SearchQuery): Promise<SearchResult | null> {
+  if (!env.SEARCH) return null;
+  const counts = await loadSearchCounts(env);
+  const result = await runSearch(env, q, searchDataDate(counts), counts);
+  if (!result || q.cursor || result.rows.length) return result;
+  try {
+    return (await env.SEARCH.prepare("SELECT 1 AS one FROM search_rows LIMIT 1").first()) ? result : null;
+  } catch {
+    return null;
+  }
+}
+
+// What the results column shows, from the database or from the fallback.
+interface View {
+  mode: "db" | "static";
+  rows: SearchRow[] | null; // null: nothing to show on the server
+  emptyText: string;
+  count: string;
+  note: string;
+  facets: Facets | null;
+  range: string;
+  pageLabel: string;
+  prev: string | null;
+  next: string | null;
+  // Pagination buttons the server cannot fill stay enabled for search.js.
+  buttonsEnabled: boolean;
+  unavailable: boolean;
+  data: Record<string, string>;
+}
+
 export async function searchPage(c: Context<AppEnv>): Promise<Response> {
   const lang = c.get("lang");
   const stats = await loadStats(c.env);
   if (!stats) return noDataPage(c, "nav.search");
-  const facets = await loadFacets(c.env);
-  const q = (c.req.query("q") ?? "").slice(0, 100);
-  const noc = (c.req.query("noc") ?? "").slice(0, 60);
-  const wageMin = c.req.query("wage_min") ?? "";
-  const wageMax = c.req.query("wage_max") ?? "";
-  const date = c.req.query("date") ?? "any";
-  const indicator = c.req.query("indicator") ?? "";
-  const sort = c.req.query("sort") ?? "newest";
-  const pageNo = Math.max(1, Math.min(10000, Number(c.req.query("page") ?? 1) || 1));
-  const picked = (name: string) => c.req.queries(name) ?? [];
-  const plain =
-    !q && !noc && !wageMin && !wageMax && date === "any" && !indicator && sort === "newest" &&
-    picked("status").length === 0 && picked("province").length === 0 && picked("stream").length === 0;
+  const { query, ignored } = readSearchUrl(new URL(c.req.url));
+  const pageParam = Math.max(1, Math.min(10000, Number(c.req.query("page") ?? 1) || 1));
   const n = (v: number) => fmtInt(v, lang);
-  const latest = periodLabel(stats.esdc_latest_period, lang);
-  const from = periodLabel(stats.search_from_period, lang);
-  // The years of the long scope's per-year files. Without them search.js
-  // loads only that scope's postings files, so a malformed list costs the
-  // long scope its list rows, not the page.
-  const years: number[] = isListOf(stats.search_years, isNum) ? stats.search_years : [];
+  const result = await searchFirstView(c.env, query);
+  const cursorText = c.req.query("cursor") ?? "";
+  // A page number beside a cursor counts the database's pages of 50, which
+  // the fallback's pages of 25 do not match: it starts from its first page.
+  const view = result
+    ? databaseView(lang, query, ignored, result, pageParam, cursorText)
+    : await fallbackView(c.env, lang, stats.esdc_latest_period, query, cursorText ? 1 : pageParam);
 
-  let ssrRows: SearchRow[] | null = null;
-  let total = facets?.default.total ?? 0;
-  if (plain && pageNo <= SSR_PAGES) {
-    const first = await loadFirst(c.env);
-    if (first) {
-      ssrRows = first.slice((pageNo - 1) * PAGE_SIZE, pageNo * PAGE_SIZE);
-      if (!facets) total = first.length;
-    }
-  }
-  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const count = (kind: "status" | "prov", key: string) => facets?.default[kind][key] ?? 0;
-  const check = (name: string, value: string, label: unknown, countKey?: "status" | "prov") => (
+  const drop = new Set(ignored);
+  const textValue = (name: string, v: string | number | null) => (drop.has(name) || v === null ? "" : String(v));
+  // The year range offers every year from the first list to the data's year,
+  // and never past the last year the API accepts (a damaged date cannot
+  // make the list long).
+  const asOf = typeof stats.data_as_of === "string" ? stats.data_as_of : "";
+  const thisYear = new Date().getUTCFullYear();
+  const dataYear = /^\d{4}/.test(asOf) ? Math.min(Number(asOf.slice(0, 4)), thisYear + 1) : thisYear;
+  const lastYear = Math.max(dataYear, query.yearFrom ?? 0, query.yearTo ?? 0);
+  const years: number[] = [];
+  for (let y = lastYear; y >= YEAR_MIN; y--) years.push(y);
+
+  const count = (kind: "status" | "prov", key: string) => (view.facets ? n(view.facets[kind][key] ?? 0) : "");
+  const check = (name: string, value: string, label: unknown, checked: boolean, countKey?: "status" | "prov") => (
     <label class="check">
-      <input type="checkbox" name={name} value={value} checked={picked(name).includes(value)} />
+      <input type="checkbox" name={name} value={value} checked={checked} />
       {label}
-      {countKey ? <span class="mono muted" data-count={`${name}:${value}`}> {plain ? n(count(countKey, value)) : ""}</span> : null}
+      {countKey ? <span class="mono muted" data-count={`${name}:${value}`}> {count(countKey, value)}</span> : null}
     </label>
   );
+  const yearSelect = (name: "year_from" | "year_to", picked: number | null) => (
+    <select id={name} name={name}>
+      <option value="">{t(lang, "search.year_any")}</option>
+      {years.map((y) => (
+        <option value={String(y)} selected={picked === y}>{y}</option>
+      ))}
+    </select>
+  );
 
-  return page(
+  const res = await page(
     c,
     <Layout lang={lang} title={t(lang, "nav.search")} dataAsOf={stats.data_as_of} active="/search" seo={pageSeo("search", lang)}
       head={<FeedLinks lang={lang} />}>
       <form action="/search" method="get" class="search-page" id="search-form">
         <div class="search-form top-gap">
           <label for="q" class="visually-hidden">{t(lang, "search.button")}</label>
-          <input id="q" name="q" type="search" value={q} placeholder={t(lang, "search.placeholder")} maxlength={100} />
+          <input id="q" name="q" type="search" value={textValue("q", query.q)} placeholder={t(lang, "search.placeholder")} maxlength={100} />
           <button type="submit" class="btn btn-primary">{t(lang, "search.button")}</button>
         </div>
         <div class="search-layout">
           <aside class="filters" aria-label={t(lang, "search.filters")}>
             <fieldset>
               <legend>{t(lang, "col.status")}</legend>
-              {STATUSES.map((s) => check("status", s, <Badge status={s} lang={lang} />, "status"))}
+              {STATUSES.map((s) => check("status", s, <Badge status={s} lang={lang} />, query.status.includes(s), "status"))}
             </fieldset>
             <fieldset>
               <legend>{t(lang, "search.province")}</legend>
-              {PROVINCES.map((pr) => check("province", pr, provinceName(lang, pr), "prov"))}
+              {PROVINCES.map((pr) => check("province", pr, provinceName(lang, pr), query.province.includes(pr), "prov"))}
             </fieldset>
             <fieldset>
               <legend>{t(lang, "search.stream_legend")}</legend>
               <p class="muted small filter-hint">{t(lang, "search.stream_hint")}</p>
-              {STREAMS.map((s) => check("stream", s, streamLabel(lang, s)))}
+              {STREAMS.map((s) => check("stream", s, streamLabel(lang, s), query.stream.includes(s)))}
             </fieldset>
             <fieldset>
               <legend>{t(lang, "search.noc")}</legend>
               <label for="noc" class="visually-hidden">{t(lang, "search.noc_label")}</label>
-              <input id="noc" name="noc" type="text" value={noc} placeholder={t(lang, "search.noc_placeholder")} maxlength={60} />
+              <input id="noc" name="noc" type="text" value={textValue("noc", query.nocCode ?? query.nocText)}
+                placeholder={t(lang, "search.noc_placeholder")} maxlength={60} />
             </fieldset>
             <fieldset>
               <legend>{t(lang, "search.wage")}</legend>
               <div class="inline-fields">
                 <label for="wage_min">{t(lang, "search.min")}</label>
-                <input id="wage_min" name="wage_min" type="number" step="0.01" min="0" value={wageMin} />
+                <input id="wage_min" name="wage_min" type="number" step="0.01" min="0" value={textValue("wage_min", query.wageMin)} />
                 <label for="wage_max">{t(lang, "search.max")}</label>
-                <input id="wage_max" name="wage_max" type="number" step="0.01" min="0" value={wageMax} />
+                <input id="wage_max" name="wage_max" type="number" step="0.01" min="0" value={textValue("wage_max", query.wageMax)} />
               </div>
             </fieldset>
             <fieldset>
               <legend>{t(lang, "col.date")}</legend>
               {(
                 [
-                  ["any", t(lang, "search.date_any", { period: latest })],
+                  ["any", t(lang, "search.date_any", { year: YEAR_MIN })],
                   ["7d", t(lang, "search.date_7d")],
-                  ["last_quarter", t(lang, "search.date_last_quarter", { period: latest })],
-                  ["since_2023q4", t(lang, "search.date_long", { period: from, n: n(facets?.long.total ?? 0) })],
+                  ["last_quarter", t(lang, "search.date_last_quarter", { period: periodLabel(stats.esdc_latest_period, lang) })],
                 ] as const
               ).map(([v, label]) => (
                 <label class="check">
-                  <input type="radio" name="date" value={v} checked={date === v} /> {label}
+                  <input type="radio" name="date" value={v} checked={query.date === v} /> {label}
                 </label>
               ))}
+              <p class="muted small filter-hint">{t(lang, "search.year_hint")}</p>
+              <div class="inline-fields">
+                <label for="year_from">{t(lang, "search.year_from")}</label>
+                {yearSelect("year_from", query.yearFrom)}
+                <label for="year_to">{t(lang, "search.year_to")}</label>
+                {yearSelect("year_to", query.yearTo)}
+              </div>
             </fieldset>
             <fieldset>
               <legend>{t(lang, "col.indicators")}</legend>
               <label class="check">
-                <input type="radio" name="indicator" value="" checked={indicator === ""} /> {t(lang, "search.any_state")}
+                <input type="radio" name="indicator" value="" checked={!query.indicator} /> {t(lang, "search.any_state")}
               </label>
               {INDICATORS.map((i) => (
                 <label class="check">
-                  <input type="radio" name="indicator" value={i} checked={indicator === i} /> {indicatorLabel(lang, i)}
+                  <input type="radio" name="indicator" value={i} checked={query.indicator === i} /> {indicatorLabel(lang, i)}
                 </label>
               ))}
             </fieldset>
@@ -202,19 +296,11 @@ export async function searchPage(c: Context<AppEnv>): Promise<Response> {
             </p>
           </aside>
 
-          <div
-            class="results"
-            id="results"
-            data-latest={stats.esdc_latest_period}
-            data-from={stats.search_from_period}
-            data-years={years.join(",")}
-            data-today={stats.data_as_of ?? ""}
-            data-ssr={ssrRows ? "1" : "0"}
-          >
+          <div class="results" id="results" {...view.data}>
             <div class="results-head">
               <p id="results-count">
-                <strong>{ssrRows ? tn(lang, "search.records_one", "search.records_many", total, { n: n(total) }) : t(lang, "search.loading")}</strong>{" "}
-                <span class="muted" id="results-note">{ssrRows ? t(lang, "search.note_latest", { period: latest }) : ""}</span>
+                <strong>{view.count}</strong>{" "}
+                <span class="muted" id="results-note">{view.note}</span>
               </p>
               <div class="results-tools">
                 <span class="muted">{t(lang, "search.view")}</span>
@@ -222,13 +308,13 @@ export async function searchPage(c: Context<AppEnv>): Promise<Response> {
                 <a href="/map" class="btn">{t(lang, "nav.map")}</a>
                 <label for="sort" class="muted">{t(lang, "search.sort")}</label>
                 <select id="sort" name="sort">
-                  <option value="newest" selected={sort === "newest"}>{t(lang, "search.sort_newest")}</option>
-                  <option value="positions" selected={sort === "positions"}>{t(lang, "col.positions")}</option>
-                  <option value="name" selected={sort === "name"}>{t(lang, "search.sort_name")}</option>
+                  <option value="newest" selected={query.sort === "newest"}>{t(lang, "search.sort_newest")}</option>
+                  <option value="positions" selected={query.sort === "positions"}>{t(lang, "col.positions")}</option>
+                  <option value="name" selected={query.sort === "name"}>{t(lang, "search.sort_name")}</option>
                 </select>
               </div>
             </div>
-            <div id="load-gate" class="panel bordered" hidden></div>
+            {view.unavailable ? <p class="panel bordered" id="search-unavailable" role="status">{t(lang, "search.unavailable")}</p> : null}
             <div class="table-wrap bordered">
               <table class="restack">
                 <thead>
@@ -245,10 +331,10 @@ export async function searchPage(c: Context<AppEnv>): Promise<Response> {
                   </tr>
                 </thead>
                 <tbody id="results-body">
-                  {ssrRows ? (
-                    ssrRows.length ? ssrRows.map((r) => <SearchRowView r={r} lang={lang} />) : (
+                  {view.rows ? (
+                    view.rows.length ? view.rows.map((r) => <SearchRowView r={r} lang={lang} />) : (
                       <tr>
-                        <td colspan={9} class="muted">{t(lang, "common.no_records")}</td>
+                        <td colspan={9} class="muted">{view.emptyText}</td>
                       </tr>
                     )
                   ) : (
@@ -264,25 +350,17 @@ export async function searchPage(c: Context<AppEnv>): Promise<Response> {
               </table>
             </div>
             <nav aria-label={t(lang, "search.pagination")} class="pagination">
-              <span class="muted" id="page-range">
-                {ssrRows && total
-                  ? t(lang, "search.showing", {
-                    from: n((pageNo - 1) * PAGE_SIZE + 1),
-                    to: n(Math.min(total, pageNo * PAGE_SIZE)),
-                    total: n(total),
-                  })
-                  : ""}
-              </span>
+              <span class="muted" id="page-range">{view.range}</span>
               <span class="pages">
-                {ssrRows && pageNo > 1 ? <a href={`/search?page=${pageNo - 1}`} class="btn" id="page-prev">{t(lang, "search.prev")}</a> : <button type="button" class="btn" id="page-prev" disabled={!!ssrRows}>{t(lang, "search.prev")}</button>}
-                <span class="mono" id="page-label">{ssrRows ? t(lang, "search.page_of", { page: pageNo, pages }) : ""}</span>
-                {ssrRows && pageNo < pages ? <a href={`/search?page=${pageNo + 1}`} class="btn" id="page-next">{t(lang, "search.next")}</a> : <button type="button" class="btn" id="page-next" disabled={!!ssrRows}>{t(lang, "search.next")}</button>}
+                {view.prev ? <a href={view.prev} class="btn" id="page-prev">{t(lang, "search.prev")}</a> : <button type="button" class="btn" id="page-prev" disabled={!view.buttonsEnabled}>{t(lang, "search.prev")}</button>}
+                <span class="mono" id="page-label">{view.pageLabel}</span>
+                {view.next ? <a href={view.next} class="btn" id="page-next">{t(lang, "search.next")}</a> : <button type="button" class="btn" id="page-next" disabled={!view.buttonsEnabled}>{t(lang, "search.next")}</button>}
               </span>
               <button type="button" class="btn-link" id="csv-download">{t(lang, "search.csv")}</button>
             </nav>
             <p class="muted small">
               {tj(lang, "search.footnote", {
-                period: from,
+                year: YEAR_MIN,
                 downloads: <a href="/data#downloads">{t(lang, "common.downloads_link")}</a>,
               })}
             </p>
@@ -299,4 +377,93 @@ export async function searchPage(c: Context<AppEnv>): Promise<Response> {
       <script src="/search.js"></script>
     </Layout>,
   );
+  // The fallback is a passing state: a browser must not keep it for five
+  // minutes once the database answers again, as it would a normal page.
+  if (view.mode === "static") res.headers.set("Cache-Control", "no-store");
+  return res;
+}
+
+// The search's own answer. A later page knows its number only from the URL
+// (keyset pages carry no offset), so a cursor without one shows no range.
+function databaseView(lang: Lang, q: SearchQuery, ignored: string[], result: SearchResult, pageParam: number, cursorText: string): View {
+  const n = (v: number) => fmtInt(v, lang);
+  const total = result.total;
+  const shown = total === null ? "" : result.capped ? t(lang, "search.total_capped", { n: n(total) }) : n(total);
+  const pageNo = q.cursor ? (pageParam >= 2 ? pageParam : null) : 1;
+  const pages = total !== null && !result.capped ? Math.max(1, Math.ceil(total / PAGE_SIZE)) : null;
+  const base = searchParamsOf(q, ignored);
+  const from = pageNo ? (pageNo - 1) * PAGE_SIZE + 1 : 0;
+  return {
+    mode: "db",
+    rows: result.rows,
+    emptyText: t(lang, "search.no_match"),
+    count: total === null ? ""
+      : result.capped ? t(lang, "search.records_capped", { n: n(total) })
+      : tn(lang, "search.records_one", "search.records_many", total, { n: shown }),
+    note: t(lang, "search.note_all", { year: YEAR_MIN }),
+    facets: result.facets ?? null,
+    range: pageNo && total !== null && result.rows.length
+      ? t(lang, "search.showing", { from: n(from), to: n(from + result.rows.length - 1), total: shown })
+      : "",
+    pageLabel: pageNo ? (pages ? t(lang, "search.page_of", { page: pageNo, pages }) : t(lang, "search.page", { page: pageNo })) : "",
+    // Without a page number the way back is the browser's: only page 2
+    // knows its previous page is the first.
+    prev: pageNo === 2 ? searchHref(base) : null,
+    next: result.next ? searchHref(base, pageNo ? { cursor: result.next, page: String(pageNo + 1) } : { cursor: result.next }) : null,
+    buttonsEnabled: false,
+    unavailable: false,
+    data: {
+      "data-mode": "db",
+      "data-ssr": "1",
+      "data-since": String(YEAR_MIN),
+      "data-cursor": q.cursor ? cursorText : "",
+      "data-next": result.next ?? "",
+      "data-page": pageNo ? String(pageNo) : "",
+      "data-total": total === null ? "" : String(total),
+      "data-capped": result.capped ? "1" : "0",
+    },
+  };
+}
+
+// The page as it was before hosted search: the newest rows of
+// search/first.json by page number, counted from search/facets.json, whatever
+// the filters say (nothing on the server can filter without the database,
+// and the sentence above the table says what is shown). Filter counts appear
+// only for the unfiltered view, as before.
+async function fallbackView(env: Env, lang: Lang, latestPeriod: string, q: SearchQuery, pageNo: number): Promise<View> {
+  const n = (v: number) => fmtInt(v, lang);
+  const facets = await loadFacets(env);
+  let rows: SearchRow[] | null = null;
+  let total = facets?.default.total ?? 0;
+  if (pageNo <= SSR_PAGES) {
+    const first = await loadFirst(env);
+    if (first) {
+      rows = first.slice((pageNo - 1) * FIRST_PAGE_SIZE, pageNo * FIRST_PAGE_SIZE);
+      if (!facets) total = first.length;
+    }
+  }
+  const pages = Math.max(1, Math.ceil(total / FIRST_PAGE_SIZE));
+  const plain = !q.q && !q.nocCode && !q.nocText && q.wageMin === null && q.wageMax === null && q.date === "any" && !q.indicator &&
+    q.sort === "newest" && !q.status.length && !q.province.length && !q.stream.length && q.yearFrom === null && q.yearTo === null;
+  return {
+    mode: "static",
+    rows,
+    emptyText: t(lang, "common.no_records"),
+    count: rows ? tn(lang, "search.records_one", "search.records_many", total, { n: n(total) }) : t(lang, "search.loading"),
+    note: rows ? t(lang, "search.note_latest", { period: periodLabel(latestPeriod, lang) }) : "",
+    facets: plain ? { status: facets?.default.status ?? {}, prov: facets?.default.prov ?? {} } : null,
+    range: rows && total
+      ? t(lang, "search.showing", {
+        from: n((pageNo - 1) * FIRST_PAGE_SIZE + 1),
+        to: n(Math.min(total, pageNo * FIRST_PAGE_SIZE)),
+        total: n(total),
+      })
+      : "",
+    pageLabel: rows ? t(lang, "search.page_of", { page: pageNo, pages }) : "",
+    prev: rows && pageNo > 1 ? `/search?page=${pageNo - 1}` : null,
+    next: rows && pageNo < pages ? `/search?page=${pageNo + 1}` : null,
+    buttonsEnabled: !rows,
+    unavailable: !!rows,
+    data: { "data-mode": "static", "data-ssr": rows ? "1" : "0", "data-since": String(YEAR_MIN) },
+  };
 }

@@ -1,12 +1,14 @@
 /* Search page.
 
-   Interaction model: the server renders a plain visit; this script then
-   fetches the default scope once, in the background, and from then on every
-   filter, sort and page change is answered from memory with no request. A
-   deep link with filters renders first from the smallest slice that answers
-   it, then switches to the full default scope when that arrives. The long
-   scope (since 2023 Q4) is loaded only when asked, with a size notice above
-   a threshold, and is answered from memory afterwards too.
+   Interaction model: the server renders the first view, from the search
+   database when it answers (rows, total, filter counts, a link to the next
+   page), else from search/first.json with a sentence saying search is
+   unavailable. This script then answers every change through /api/search:
+   a filter, the sort or a page button fetches one page of 50 rows, typed
+   text after a pause. Pages are keyset pages with no page numbers in the
+   API, so Next sends the cursor of the last answer and Previous the cursor
+   kept for the page before. When the API cannot answer (503, a network
+   failure), the rows on screen stay and a sentence says why.
 
    Everything rendered from data uses textContent. Every word the script
    draws comes from the page's <script type="application/json" id="i18n">
@@ -16,32 +18,43 @@
   var results = document.getElementById("results");
   var form = document.getElementById("search-form");
   if (!results || !form) return;
-  var PAGE = 25;
-  var GATE_BYTES = 2 * 1024 * 1024;   // ask before loading more than this (raw JSON; roughly a quarter travels compressed)
-  var CSV_MAX_ROWS = 50000;           // beyond this, point at the server-side CSVs
-  var PROVINCES = ["AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT", "XX", "UN"];
+  var PAGE = 50;          // the API's page size (PAGE_SIZE in src/search_db.ts)
+  // A word found in many names costs the database a large read, so typed
+  // text is sent once the typing pauses, not on every key.
+  var TYPING_MS = 300;
+  var TEXT_FIELDS = /^(q|noc|wage_min|wage_max)$/;
+  // The parameters the API can name as ignored, and the value a radio or
+  // select returns to when its own is dropped.
+  var PARAMS = ["q", "status", "province", "stream", "noc", "wage_min", "wage_max", "date", "year_from", "year_to", "indicator", "sort"];
+  var RESET = { date: "any", indicator: "", sort: "newest" };
+  var CSV_COLUMNS = ["status", "employer", "employer_id", "job", "noc", "street", "city", "prov", "postal", "wage_min", "wage_max", "unit", "date", "period", "positions", "stream", "source"];
   var I18N = {};
   try { I18N = JSON.parse(document.getElementById("i18n").textContent) || {}; } catch (e) { I18N = {}; }
   var STRINGS = I18N.strings || {};
   var LANG = I18N.lang === "fr" ? "fr" : "en";
   var LOCALE = I18N.locale || "en-CA";
-  var today = results.getAttribute("data-today") || new Date().toISOString().slice(0, 10);
-  var WEEK_AGO = shiftDate(today, -7);
-  var QUARTER_AGO = shiftDate(today, -92);
-  var years = (results.getAttribute("data-years") || "").split(",").filter(Boolean);
-  var latestLabel = periodLabel(results.getAttribute("data-latest"));
-  var fromLabel = periodLabel(results.getAttribute("data-from"));
+  var SINCE = results.getAttribute("data-since") || "";
 
-  var facets = null;
-  var defaultRows = null;   // the whole default scope, once fetched
-  var defaultPromise = null;
-  var sliceRows = null;     // a deep link's slice, used until defaultRows arrives
-  var longRows = null;      // the long scope, once the visitor asked for it
-  var longLoading = false;
-  var current = [];
-  var viewSource = null;    // the rows and the filter key behind current
-  var viewKey = null;
-  var state = readState();
+  // live: the rows on screen answer the form (the server's database view, or
+  // an API answer). Otherwise they are the fallback's newest rows, and its
+  // page links stay plain links until the API answers.
+  var live = results.getAttribute("data-mode") === "db";
+  var state = readForm();
+  // The page on screen: its number when known, its cursor (null for the
+  // first page), the cursors of the pages before it, the next page's cursor,
+  // and the first page's total, which a later page does not always repeat.
+  var page = live ? (parseInt(results.getAttribute("data-page") || "", 10) || null) : 1;
+  var cursor = live ? (results.getAttribute("data-cursor") || null) : null;
+  var next = live ? (results.getAttribute("data-next") || null) : null;
+  var stack = live && cursor && page === 2 ? [null] : [];
+  var totalAttr = results.getAttribute("data-total") || "";
+  var total = live && /^\d+$/.test(totalAttr) ? parseInt(totalAttr, 10) : null;
+  var capped = results.getAttribute("data-capped") === "1";
+  var current = null;     // the rows of the last API answer, for the CSV
+  var shownKey = live ? keyOf(state, cursor) : null;
+  var pendingKey = null;
+  var seq = 0;
+  var inflight = null;
 
   // -- helpers --------------------------------------------------------------
 
@@ -58,29 +71,7 @@
   }
   function has(key) { return STRINGS[key] != null; }
   function decimal(text) { return LANG === "fr" ? text.replace(".", ",") : text; }
-  function fold(s) { return (s || "").toString().normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase(); }
-  // Plain ASCII text (most names) needs no Unicode normalisation, which is
-  // the expensive part of fold.
-  function quickFold(s) { var t = (s || "").toString(); return /[^\x00-\x7f]/.test(t) ? fold(t) : t.toLowerCase(); }
-  // Folded text kept on the row the first time a filter or a sort needs it:
-  // the long scope holds about 190,000 rows, and folding every name again on
-  // each change and in each sort comparison took most of a second.
-  function hay(r) {
-    if (r._hay === undefined) r._hay = quickFold(r.employer) + " " + quickFold(r.city) + " " + quickFold(r.postal) + " " + quickFold(r.job);
-    return r._hay;
-  }
-  function nameKey(r) {
-    if (r._name === undefined) r._name = quickFold(r.employer);
-    return r._name;
-  }
-  function shiftDate(iso, days) {
-    var d = new Date(iso + "T00:00:00Z");
-    if (isNaN(d.getTime())) return "";
-    d.setUTCDate(d.getUTCDate() + days);
-    return d.toISOString().slice(0, 10);
-  }
   function fmt(n) { return (n || 0).toLocaleString(LOCALE); }
-  function mb(bytes) { return tx("size.mb", { n: decimal((bytes / 1048576).toFixed(1)) }); }
   function periodLabel(p) {
     var m = /^(\d{4})Q(\d)(?:-Q(\d))?$/.exec(p || "");
     if (!m) return p || "";
@@ -92,106 +83,54 @@
     var a = r.wage_min != null ? decimal(r.wage_min.toFixed(2)) : null, b = r.wage_max != null ? decimal(r.wage_max.toFixed(2)) : null;
     return a && b && a !== b ? tx("wage.range", { min: a, max: b, unit: u }) : tx("wage.single", { amount: a || b, unit: u });
   }
-  function fetchJson(path) {
-    return fetch("/data/" + path).then(function (r) { return r.ok ? r.json() : []; }).catch(function () { return []; });
-  }
 
   // -- state from the form and the URL ---------------------------------------
 
-  function readState() {
+  function readForm() {
     var fd = new FormData(form);
-    var params = new URLSearchParams(location.search);
-    var q = (fd.get("q") || "").toString().trim();
-    var noc = (fd.get("noc") || "").toString().trim().toLowerCase();
+    var text = function (name) { return (fd.get(name) || "").toString().trim(); };
+    var all = function (name) { return fd.getAll(name).map(String); };
     return {
-      q: q,
-      qFold: quickFold(q),
-      status: fd.getAll("status"),
-      province: fd.getAll("province"),
-      stream: fd.getAll("stream"),
-      noc: noc,
-      nocFold: quickFold(noc),
-      wageMin: parseFloat(fd.get("wage_min")), wageMax: parseFloat(fd.get("wage_max")),
-      date: (fd.get("date") || "any").toString(),
-      indicator: (fd.get("indicator") || "").toString(),
-      sort: (fd.get("sort") || "newest").toString(),
-      page: Math.max(1, parseInt(params.get("page") || "1", 10) || 1),
+      q: text("q"), status: all("status"), province: all("province"), stream: all("stream"), noc: text("noc"),
+      wage_min: text("wage_min"), wage_max: text("wage_max"), date: text("date") || "any",
+      year_from: text("year_from"), year_to: text("year_to"), indicator: text("indicator"), sort: text("sort") || "newest",
     };
   }
+  // The filters as URL parameters, in the order the server writes its links
+  // (searchParamsOf in src/pages/search.tsx), so the API and the address bar
+  // see the same thing.
+  function filterParams(s) {
+    var p = new URLSearchParams();
+    if (s.q) p.set("q", s.q);
+    s.status.forEach(function (v) { p.append("status", v); });
+    s.province.forEach(function (v) { p.append("province", v); });
+    s.stream.forEach(function (v) { p.append("stream", v); });
+    if (s.noc) p.set("noc", s.noc);
+    if (s.wage_min) p.set("wage_min", s.wage_min);
+    if (s.wage_max) p.set("wage_max", s.wage_max);
+    if (s.date !== "any") p.set("date", s.date);
+    if (s.year_from) p.set("year_from", s.year_from);
+    if (s.year_to) p.set("year_to", s.year_to);
+    if (s.indicator) p.set("indicator", s.indicator);
+    if (s.sort !== "newest") p.set("sort", s.sort);
+    return p;
+  }
+  function keyOf(s, c) {
+    var p = filterParams(s);
+    if (c) p.set("cursor", c);
+    return p.toString();
+  }
+  // The page number travels with the cursor only for display: the cursor
+  // alone says where the page starts.
   function writeUrl() {
+    var p = filterParams(state);
+    if (cursor) {
+      p.set("cursor", cursor);
+      if (page) p.set("page", String(page));
+    }
     var url = new URL(location.href);
-    url.search = "";
-    if (state.q) url.searchParams.set("q", state.q);
-    state.status.forEach(function (s) { url.searchParams.append("status", s); });
-    state.province.forEach(function (p) { url.searchParams.append("province", p); });
-    state.stream.forEach(function (s) { url.searchParams.append("stream", s); });
-    if (state.noc) url.searchParams.set("noc", state.noc);
-    if (!isNaN(state.wageMin)) url.searchParams.set("wage_min", String(state.wageMin));
-    if (!isNaN(state.wageMax)) url.searchParams.set("wage_max", String(state.wageMax));
-    if (state.date !== "any") url.searchParams.set("date", state.date);
-    if (state.indicator) url.searchParams.set("indicator", state.indicator);
-    if (state.sort !== "newest") url.searchParams.set("sort", state.sort);
-    if (state.page > 1) url.searchParams.set("page", String(state.page));
+    url.search = p.toString();
     history.replaceState(null, "", url.toString());
-  }
-  function hasTextFilters() {
-    return !!(state.q || state.noc || !isNaN(state.wageMin) || !isNaN(state.wageMax) || state.indicator || state.stream.length);
-  }
-
-  // -- which rows answer the view -------------------------------------------
-
-  function sliceFiles() {
-    var files = [];
-    if (hasTextFilters() || (!state.status.length && !state.province.length)) return ["search/latest/all.json"];
-    if (state.status.length && state.province.length) {
-      state.province.forEach(function (p) { state.status.forEach(function (s) { files.push("search/latest/prov/" + p + "/" + s + ".json"); }); });
-    } else if (state.province.length) {
-      state.province.forEach(function (p) { files.push("search/latest/prov/" + p + ".json"); });
-    } else {
-      state.status.forEach(function (s) { files.push("search/latest/status/" + s + ".json"); });
-    }
-    return files;
-  }
-  function longFiles() {
-    var files = [];
-    PROVINCES.forEach(function (p) {
-      files.push("search/long/" + p + "/postings.json");
-      years.forEach(function (y) { files.push("search/long/" + p + "/" + y + ".json"); });
-    });
-    return files.filter(function (f) { return !facets || facets.files[f]; });
-  }
-  function planBytes(files) {
-    var total = 0, rows = 0;
-    files.forEach(function (f) { var i = facets && facets.files[f]; if (i) { total += i.bytes; rows += i.rows; } });
-    return { bytes: total, rows: rows };
-  }
-
-  function passes(r, skip) {
-    if (skip !== "status") {
-      if (state.status.length ? state.status.indexOf(r.status) < 0 : r.status === "lapsed") return false;
-    }
-    if (skip !== "province" && state.province.length && state.province.indexOf(r.prov || "UN") < 0) return false;
-    if (state.stream.length && state.stream.indexOf(r.stream) < 0) return false;
-    if (state.q && hay(r).indexOf(state.qFold) < 0) return false;
-    if (state.noc) {
-      var code = (r.noc || "").toLowerCase();
-      if (code.indexOf(state.noc) !== 0 && quickFold(r.job).indexOf(state.nocFold) < 0) return false;
-    }
-    if (!isNaN(state.wageMin) && !(r.wage_min != null && r.wage_min >= state.wageMin)) return false;
-    if (!isNaN(state.wageMax) && !(r.wage_max != null && r.wage_max <= state.wageMax)) return false;
-    if (state.date === "7d") {
-      if (r.kind !== "posting" || !r.date || r.date < WEEK_AGO) return false;
-    } else if (state.date === "last_quarter") {
-      if (r.kind === "posting" && (!r.date || r.date < QUARTER_AGO)) return false;
-    }
-    if (state.indicator && (r.ind || []).indexOf(state.indicator) < 0) return false;
-    return true;
-  }
-  function sortRows(rows) {
-    if (state.sort === "positions") rows.sort(function (a, b) { return (b.positions || 0) - (a.positions || 0) || (b.sort_date > a.sort_date ? 1 : -1); });
-    else if (state.sort === "name") rows.sort(function (a, b) { return nameKey(a) < nameKey(b) ? -1 : 1; });
-    else rows.sort(function (a, b) { return b.sort_date > a.sort_date ? 1 : b.sort_date < a.sort_date ? -1 : nameKey(a) < nameKey(b) ? -1 : 1; });
-    return rows;
   }
 
   // -- rendering -------------------------------------------------------------
@@ -270,172 +209,161 @@
       el.textContent = n == null ? " 0" : " " + fmt(n);
     });
   }
-  function facetCounts(rows, complete) {
-    var byStatus = {}, byProv = {};
-    rows.forEach(function (r) {
-      if (passes(r, "status")) byStatus[r.status] = (byStatus[r.status] || 0) + 1;
-      if (passes(r, "province")) { var p = r.prov || "UN"; byProv[p] = (byProv[p] || 0) + 1; }
-    });
-    // A slice cannot count the dimension it was cut on; facets.json can.
-    if (!complete && facets && state.date !== "since_2023q4") {
-      var sp = facets.default.status_prov;
-      if (state.status.length) {
-        byStatus = {};
-        Object.keys(sp).forEach(function (k) {
-          var parts = k.split("|");
-          if (!state.province.length || state.province.indexOf(parts[1]) >= 0) byStatus[parts[0]] = (byStatus[parts[0]] || 0) + sp[k];
-        });
-      }
-      if (state.province.length) {
-        byProv = {};
-        Object.keys(sp).forEach(function (k) {
-          var parts = k.split("|");
-          if (state.status.length ? state.status.indexOf(parts[0]) >= 0 : parts[0] !== "lapsed") byProv[parts[1]] = (byProv[parts[1]] || 0) + sp[k];
-        });
-      }
-    }
-    setCounts(byStatus, byProv);
+  // The API stops counting at 10,000 and says so with capped.
+  function totalText() {
+    if (total == null) return "";
+    return capped ? tx("search.total_capped", { n: fmt(total) }) : fmt(total);
   }
-  // The server renders each control as a link (a page it can serve) or as a
-  // plain button (a page only this script can draw). Both get the handler,
-  // once; a link becomes a button first.
-  function swapToButtons() {
+  function renderCount() {
+    var count = document.getElementById("results-count");
+    count.textContent = "";
+    var strong = document.createElement("strong");
+    strong.textContent = total == null ? ""
+      : capped ? tx("search.records_capped", { n: fmt(total) })
+      : txn("search.records_one", "search.records_many", total, { n: fmt(total) });
+    count.appendChild(strong);
+    count.appendChild(document.createTextNode(" "));
+    var note = document.createElement("span");
+    note.className = "muted"; note.id = "results-note";
+    note.textContent = tx("search.note_all", { year: SINCE });
+    count.appendChild(note);
+  }
+  function renderPaging() {
+    var shown = current ? current.length : 0;
+    var from = page ? (page - 1) * PAGE + 1 : 0;
+    document.getElementById("page-range").textContent = page && total != null && shown
+      ? tx("search.showing", { from: fmt(from), to: fmt(from + shown - 1), total: totalText() })
+      : "";
+    var pages = total != null && !capped ? Math.max(1, Math.ceil(total / PAGE)) : 0;
+    document.getElementById("page-label").textContent = !page ? ""
+      : pages ? tx("search.page_of", { page: page, pages: pages }) : tx("search.page", { page: page });
+    wireButtons();
+  }
+  // The server renders each page control as a link (a page it can serve) or
+  // as a plain button. Once the rows answer the form, both become buttons
+  // that page through the API, each wired once.
+  function wireButtons() {
     ["page-prev", "page-next"].forEach(function (id) {
       var el = document.getElementById(id);
-      if (!el || el.getAttribute("data-wired")) return;
+      if (!el) return;
       var b = el;
       if (el.tagName === "A") {
         b = document.createElement("button");
         b.type = "button"; b.className = "btn"; b.id = id; b.textContent = el.textContent;
         el.replaceWith(b);
       }
-      b.setAttribute("data-wired", "1");
-      b.addEventListener("click", id === "page-prev" ? function () { state.page -= 1; render(); } : function () { state.page += 1; render(); });
+      if (!b.getAttribute("data-wired")) {
+        b.setAttribute("data-wired", "1");
+        b.addEventListener("click", id === "page-prev" ? back : forward);
+      }
     });
+    document.getElementById("page-prev").disabled = !stack.length;
+    document.getElementById("page-next").disabled = !next;
+  }
+  // One sentence above the table while the API cannot answer: the fallback's
+  // own (the newest rows are on screen) until an answer has replaced them,
+  // then one saying the rows predate the change.
+  function unavailable(on) {
+    var note = document.getElementById("search-unavailable");
+    if (!on) { if (note) note.remove(); return; }
+    if (!note) {
+      note = document.createElement("p");
+      note.id = "search-unavailable"; note.className = "panel bordered"; note.setAttribute("role", "status");
+      results.insertBefore(note, results.querySelector(".table-wrap"));
+    }
+    note.textContent = live ? tx("search.unavailable_kept") : tx("search.unavailable");
+  }
+  // A parameter the API dropped is cleared from its control, so the form
+  // shows the filters the rows answer. A text field the visitor has typed
+  // on since the request left keeps what it holds now.
+  function clearIgnored(names, sent) {
+    names.forEach(function (name) {
+      if (PARAMS.indexOf(name) < 0) return;
+      form.querySelectorAll('[name="' + name + '"]').forEach(function (el) {
+        if (el.type === "checkbox") el.checked = false;
+        else if (el.type === "radio") el.checked = el.value === RESET[name];
+        else if (el.value.trim() === String(sent[name] || "")) el.value = RESET[name] || "";
+      });
+    });
+    state = readForm();
   }
 
-  // Pick the rows in memory that answer the view, then draw.
-  function render(partialNote) {
-    var source, complete;
-    if (state.date === "since_2023q4") {
-      if (!longRows) { gateLong(); return; }
-      source = longRows; complete = true;
-    } else if (defaultRows) {
-      source = defaultRows; complete = true;
-    } else if (sliceRows) {
-      source = sliceRows; complete = false;
-    } else {
-      return; // nothing in memory yet; the server-rendered rows stay on screen
+  // -- requests --------------------------------------------------------------
+
+  // target: the page to show, as { cursor, page, stack }. Only the newest
+  // request counts; an older one still on its way is cancelled or ignored.
+  function load(target) {
+    var sent = state;
+    var key = keyOf(sent, target.cursor);
+    if (key === shownKey || key === pendingKey) return;
+    seq += 1;
+    var mine = seq;
+    if (inflight) inflight.abort();
+    inflight = typeof AbortController === "function" ? new AbortController() : null;
+    pendingKey = key;
+    // A plain same-origin fetch: the browser marks it Sec-Fetch-Site
+    // same-origin, which is what the API's page-only check accepts.
+    fetch("/api/search?" + key, inflight ? { signal: inflight.signal } : {})
+      .then(function (res) {
+        // A cursor the API refuses (the data changed under an old address):
+        // the first page of the same filters.
+        if (res.status === 400 && target.cursor) return { retry: true };
+        if (!res.ok) throw new Error("search " + res.status);
+        return res.json();
+      })
+      .then(function (body) {
+        if (mine !== seq) return;
+        pendingKey = null;
+        if (body && body.retry) { load({ cursor: null, page: 1, stack: [] }); return; }
+        if (!body || !Array.isArray(body.rows)) throw new Error("search answer");
+        show(body, target, sent);
+      })
+      .catch(function (e) {
+        if (mine !== seq || (e && e.name === "AbortError")) return;
+        pendingKey = null;
+        unavailable(true);
+      });
+  }
+  function show(body, target, sent) {
+    cursor = target.cursor; page = target.page; stack = target.stack;
+    next = typeof body.next === "string" && body.next ? body.next : null;
+    if (!cursor || typeof body.total === "number") {
+      total = typeof body.total === "number" ? body.total : null;
+      capped = !!body.capped;
     }
-    hideGate();
-    // A page change reuses the filtered, sorted rows; only a new filter, sort
-    // or data set filters again.
-    var key = JSON.stringify([state.q, state.status, state.province, state.stream, state.noc, state.wageMin,
-      state.wageMax, state.date, state.indicator, state.sort]);
-    var fresh = source !== viewSource || key !== viewKey;
-    var rows = fresh ? sortRows(source.filter(function (r) { return passes(r, null); })) : current;
-    viewSource = source; viewKey = key;
-    current = rows;
-    var total = rows.length;
-    var pages = Math.max(1, Math.ceil(total / PAGE));
-    if (state.page > pages) state.page = pages;
-    var start = (state.page - 1) * PAGE;
-    renderRows(rows.slice(start, start + PAGE));
-    var count = document.getElementById("results-count");
-    count.textContent = "";
-    var strong = document.createElement("strong");
-    var records = txn("search.records_one", "search.records_many", total, { n: fmt(total) });
-    strong.textContent = partialNote ? tx("search.so_far", { count: records }) : records;
-    count.appendChild(strong);
-    var note = document.createElement("span");
-    note.className = "muted";
-    note.textContent = " " + (state.date === "since_2023q4"
-      ? tx("search.note_since", { period: fromLabel })
-      : tx("search.note_latest", { period: latestLabel }));
-    count.appendChild(note);
-    document.getElementById("page-range").textContent = total
-      ? tx("search.showing", { from: fmt(start + 1), to: fmt(Math.min(total, start + PAGE)), total: fmt(total) })
-      : "";
-    document.getElementById("page-label").textContent = tx("search.page_of", { page: state.page, pages: pages });
-    swapToButtons();
-    document.getElementById("page-prev").disabled = state.page <= 1;
-    document.getElementById("page-next").disabled = state.page >= pages;
-    if (fresh) facetCounts(source, complete);
+    live = true;
+    current = body.rows;
+    if (Array.isArray(body.ignored) && body.ignored.length) clearIgnored(body.ignored, sent);
+    shownKey = keyOf(state, cursor);
+    if (body.facets) setCounts(body.facets.status || {}, body.facets.prov || {});
+    renderRows(body.rows);
+    renderCount();
+    renderPaging();
+    unavailable(false);
     writeUrl();
   }
-
-  // -- loading ---------------------------------------------------------------
-
-  // The default scope is fetched once; while it is on its way a deep link's
-  // slice gives the visitor rows within a fraction of the time.
-  function ensureDefault() {
-    if (defaultPromise) return defaultPromise;
-    defaultPromise = fetchJson("search/latest/all.json").then(function (rows) {
-      defaultRows = rows;
-      sliceRows = null;
-      if (state.date !== "since_2023q4") render();
-    });
-    return defaultPromise;
+  function forward() {
+    if (next) load({ cursor: next, page: page ? page + 1 : null, stack: stack.concat([cursor]) });
   }
-  function loadSliceThenDefault() {
-    var files = sliceFiles();
-    if (files.length === 1 && files[0] === "search/latest/all.json") { ensureDefault(); return; }
-    Promise.all(files.map(fetchJson)).then(function (parts) {
-      if (!defaultRows) { sliceRows = [].concat.apply([], parts); render(); }
-    });
-    ensureDefault();
-  }
-  function hideGate() { var g = document.getElementById("load-gate"); if (g) { g.hidden = true; } }
-  function gateLong() {
-    if (longLoading) return;
-    var files = longFiles();
-    var est = planBytes(files);
-    var gate = document.getElementById("load-gate");
-    gate.textContent = "";
-    gate.hidden = false;
-    var msg = document.createElement("p");
-    msg.textContent = est.bytes > GATE_BYTES
-      ? tx("search.gate_long", { rows: fmt(est.rows), files: fmt(files.length), size: mb(est.bytes) })
-      : tx("search.gate_loading", { rows: fmt(est.rows) });
-    gate.appendChild(msg);
-    if (est.bytes > GATE_BYTES) {
-      var load = document.createElement("button");
-      load.type = "button"; load.className = "btn btn-primary"; load.textContent = tx("search.gate_load", { rows: fmt(est.rows) });
-      load.addEventListener("click", function () { loadLong(files); });
-      var csv = document.createElement("a");
-      csv.href = "/data#downloads"; csv.className = "btn"; csv.textContent = tx("search.gate_csv");
-      gate.appendChild(load); gate.appendChild(document.createTextNode(" ")); gate.appendChild(csv);
-      document.getElementById("results-count").textContent = tx("search.gate_waiting");
-    } else {
-      loadLong(files);
-    }
-  }
-  function loadLong(files) {
-    if (longLoading) return; // a second click while the files arrive
-    longLoading = true;
-    var acc = [], i = 0;
-    var msg = document.getElementById("load-gate");
-    function step() {
-      if (i >= files.length) {
-        longRows = acc; longLoading = false; hideGate(); render(); return;
-      }
-      fetchJson(files[i]).then(function (rows) {
-        i += 1;
-        acc = acc.concat(rows);
-        msg.textContent = tx("search.gate_progress", { done: fmt(i), files: fmt(files.length), rows: fmt(acc.length) });
-        step();
-      });
-    }
-    step();
+  function back() {
+    if (stack.length) load({ cursor: stack[stack.length - 1], page: page ? page - 1 : null, stack: stack.slice(0, -1) });
   }
 
   // -- CSV -------------------------------------------------------------------
 
+  // The rows on screen. Rows the server drew are fetched again as data; the
+  // fallback's rows cannot be, so the downloads page has them instead.
   function csv() {
-    if (current.length > CSV_MAX_ROWS) { location.href = "/data#downloads"; return; }
-    var cols = ["status", "employer", "employer_id", "job", "noc", "street", "city", "prov", "postal", "wage_min", "wage_max", "unit", "date", "period", "positions", "stream", "source"];
+    if (current) { save(current); return; }
+    if (!live) { location.href = "/data#downloads"; return; }
+    fetch("/api/search?" + keyOf(state, cursor))
+      .then(function (r) { if (!r.ok) throw new Error("search " + r.status); return r.json(); })
+      .then(function (body) { if (!body || !Array.isArray(body.rows)) throw new Error("search answer"); save(body.rows); })
+      .catch(function () { location.href = "/data#downloads"; });
+  }
+  function save(rows) {
     var esc = function (v) { var s = v == null ? "" : String(v); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-    var lines = [cols.join(",")].concat(current.map(function (r) { return cols.map(function (c) { return esc(r[c]); }).join(","); }));
+    var lines = [CSV_COLUMNS.join(",")].concat(rows.map(function (r) { return CSV_COLUMNS.map(function (c) { return esc(r[c]); }).join(","); }));
     var blob = new Blob([lines.join("\r\n") + "\r\n"], { type: "text/csv;charset=utf-8" });
     var a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -445,29 +373,26 @@
 
   // -- wiring ----------------------------------------------------------------
 
-  var debounce = null;
-  function onChange(resetPage) {
-    state = readState();
-    if (resetPage !== false) state.page = 1;
-    if (state.date === "since_2023q4" && !longRows) { gateLong(); return; }
-    render();
+  var typing = null;
+  // Any new filter or sort starts again from the first page.
+  function onFilters() {
+    clearTimeout(typing);
+    state = readForm();
+    load({ cursor: null, page: 1, stack: [] });
   }
-  form.addEventListener("submit", function (e) { e.preventDefault(); onChange(); });
-  form.addEventListener("change", function (e) {
-    if (e.target && e.target.id === "sort") { state = readState(); state.page = 1; render(); return; }
-    onChange();
-  });
+  form.addEventListener("submit", function (e) { e.preventDefault(); onFilters(); });
+  // A text field's own change (on leaving it) usually repeats what its pause
+  // already sent; load() skips a request that is on screen or on its way.
+  form.addEventListener("change", onFilters);
   form.addEventListener("input", function (e) {
-    if (!e.target || !/^(q|noc|wage_min|wage_max)$/.test(e.target.name || "")) return;
-    clearTimeout(debounce);
-    debounce = setTimeout(onChange, 150);
+    if (!e.target || !TEXT_FIELDS.test(e.target.name || "")) return;
+    clearTimeout(typing);
+    typing = setTimeout(onFilters, TYPING_MS);
   });
   document.getElementById("csv-download").addEventListener("click", csv);
 
-  fetchJson("search/facets.json").then(function (f) {
-    facets = f && f.files ? f : null;
-    if (state.date === "since_2023q4") { gateLong(); ensureDefault(); return; }
-    var plain = !hasTextFilters() && !state.status.length && !state.province.length && state.sort === "newest";
-    if (plain) ensureDefault(); else loadSliceThenDefault();
-  });
+  if (live) wireButtons();
+  // Nothing on screen (neither the database nor the fallback file answered
+  // the server): the API may answer now.
+  else if (results.getAttribute("data-ssr") === "0") load({ cursor: null, page: 1, stack: [] });
 })();

@@ -554,7 +554,7 @@ export async function occupationPage(c: Context<AppEnv>): Promise<Response> {
 
       <EmployerSection lang={lang} employers={o.employers} showOccupation={false} />
 
-      <p class="top-gap"><a href={`/search?noc=${o.noc}&date=since_2023q4`} class="btn">{t(lang, "occ.search", { noc: o.noc })}</a></p>
+      <p class="top-gap"><a href={`/search?noc=${o.noc}`} class="btn">{t(lang, "occ.search", { noc: o.noc })}</a></p>
       <JobSeekerNote lang={lang} href={jobBankSearch(lang, { fn21: o.noc })} what={title} />
       <SourcesNote lang={lang} />
     </Layout>,

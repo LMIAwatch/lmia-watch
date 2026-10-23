@@ -19,9 +19,10 @@ site/design/wireframes/   the page structure the site implements
 .github/workflows/nightly.yml   the one scheduled run that refreshes data and deploys
 ```
 
-The site runs on free tiers by design: the data ships as static assets with
-the Worker, the browser filters the search and map pages, a database holds
-only what visitors submit, and object storage holds the downloads.
+The data ships as static assets with the Worker, the browser filters the
+map page, a database of its own answers the search page over every record
+since 2014 (the static files are its fallback), another holds only what
+visitors submit, and object storage holds the downloads.
 
 ## Quick start
 ```

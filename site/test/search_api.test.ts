@@ -3,8 +3,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { SearchCounts } from "../src/data";
 import { app } from "../src/index";
 import {
-  buildCount, buildProbes, buildSelect, choosePlan, countDriver, countsFor, decodeCursor, encodeCursor, ftsQuery, parseQuery, runSearch,
-  type Plan, type SearchQuery, type SearchTrace,
+  LATEST_PERIOD_SQL, buildCount, buildProbes, buildSelect, choosePlan, countDriver, countsFor, decodeCursor, encodeCursor, ftsQuery,
+  lastQuarterFrom, parseQuery, runSearch, type Plan, type SearchQuery, type SearchTrace,
 } from "../src/search_db";
 import { fakeAssets, testEnv } from "./assets";
 
@@ -14,6 +14,8 @@ import { fakeAssets, testEnv } from "./assets";
 
 const DATA_DATE = "2026-10-22";
 const NOW = new Date("2026-10-22T12:00:00Z");
+// The newest list period in the seed below, which date=last_quarter keeps.
+const LATEST_PERIOD = "2026Q1";
 
 interface Seed {
   kind: "esdc" | "posting";
@@ -130,7 +132,7 @@ async function insert(rows: Seed[]): Promise<void> {
 }
 
 // counts.json as export_static.write_search_counts writes it, from the seed.
-function countsOf(rows: Seed[], dataAsOf: string | null = DATA_DATE): SearchCounts {
+function countsOf(rows: Seed[], dataAsOf: string | null = DATA_DATE, latestPeriod: string | null = LATEST_PERIOD): SearchCounts {
   const dims = ["status", "prov", "stream", "year", "ind"] as const;
   const lists: Record<string, (string | number | null)[]> = { status: [], prov: [], stream: [], year: [], ind: [] };
   const cells = new Map<string, number[]>();
@@ -147,7 +149,7 @@ function countsOf(rows: Seed[], dataAsOf: string | null = DATA_DATE): SearchCoun
     cells.set(k, cell);
   }
   return {
-    data_as_of: dataAsOf, total: rows.length, dims: [...dims], cells: [...cells.values()],
+    data_as_of: dataAsOf, latest_period: latestPeriod, total: rows.length, dims: [...dims], cells: [...cells.values()],
     values: lists as unknown as SearchCounts["values"],
   };
 }
@@ -212,7 +214,8 @@ function passes(r: Seed, q: SearchQuery, skip: "status" | "prov" | null = null):
   if (q.wageMin !== null && !(r.wage_min !== null && r.wage_min >= q.wageMin)) return false;
   if (q.wageMax !== null && !(r.wage_max !== null && r.wage_max <= q.wageMax)) return false;
   if (q.date === "7d" && !(r.kind === "posting" && r.date !== null && r.date >= shift(DATA_DATE, -7))) return false;
-  if (q.date === "last_quarter" && r.kind === "posting" && !(r.date !== null && r.date >= shift(DATA_DATE, -92))) return false;
+  if (q.date === "last_quarter" &&
+    !(r.kind === "posting" ? r.date !== null && r.date >= shift(DATA_DATE, -92) : r.period === LATEST_PERIOD)) return false;
   if (q.yearFrom !== null && r.year < q.yearFrom) return false;
   if (q.yearTo !== null && r.year > q.yearTo) return false;
   if (q.indicator && !r.ind.split(",").includes(q.indicator)) return false;
@@ -403,6 +406,73 @@ describe("filters and sorts", () => {
     expect(two.body.rows).toEqual([]);
     const ob = await api("q=o'brien");
     expect(ob.body.rows[0].ind).toEqual(["high_volume", "repeat_applicant"]);
+  });
+});
+
+describe("the last-quarter window", () => {
+  const keysOf = (body: any) => body.rows.map(keyOfRow);
+
+  it("keeps postings of the last 92 days and the list rows of the latest period only", async () => {
+    const { body } = await api("date=last_quarter&sort=name");
+    const rows = body.rows as { kind: string; date: string | null; period: string | null }[];
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.filter((r) => r.kind === "esdc").every((r) => r.period === LATEST_PERIOD)).toBe(true);
+    expect(rows.filter((r) => r.kind === "posting").every((r) => (r.date ?? "") >= "2026-07-22")).toBe(true);
+    // A list row of an older period, and a posting from before the window, stay out.
+    expect(keysOf(body)).not.toContain("e:2");
+    expect(keysOf(body)).not.toContain("p:9003");
+    expect(keysOf(body)).toContain("e:1");
+    expect(keysOf(body)).toContain("p:9001");
+    // Not answered from counts.json alone: the counts know no posting date.
+    expect(body.facets).toBeUndefined();
+    expect(body.total).toBe(expected(query("date=last_quarter")).length);
+  });
+
+  it("binds the period as a value", () => {
+    const built = buildSelect(query("date=last_quarter"), { dataDate: DATA_DATE, latestPeriod: LATEST_PERIOD });
+    expect(built.params).toContain(LATEST_PERIOD);
+    expect(built.params).toContain("2026-07-22");
+    expect(built.sql).not.toContain(LATEST_PERIOD);
+    expect(built.sql).toContain("((+kind = 'posting' AND +date >= ?) OR (+kind <> 'posting' AND +period = ?))");
+  });
+
+  it("finds the period in the table when counts.json is missing or damaged", async () => {
+    const q = query("date=last_quarter");
+    const trace: SearchTrace = { statements: 0, rowsRead: 0, sql: [] };
+    const res = await runSearch(env, q, DATA_DATE, null, { trace });
+    expect(trace.sql[0]).toBe(LATEST_PERIOD_SQL);
+    expect(res!.rows.map(keyOfRow)).toEqual(expected(q).slice(0, 50));
+    for (const latest_period of ["2026Q5", "2026-Q1", 7, "'; DROP TABLE search_rows; --", ""]) {
+      const damaged = testEnv(assetsWith({ "search/counts.json": { ...COUNTS, latest_period } }));
+      const { status, body } = await api("date=last_quarter", damaged);
+      expect(status, String(latest_period)).toBe(200);
+      expect(keysOf(body), String(latest_period)).toEqual(expected(q).slice(0, 50));
+      // The whole file reads as missing: a plain request gets no counts from it.
+      expect((await api("", damaged)).body.facets, String(latest_period)).toBeUndefined();
+    }
+  });
+
+  it("counts from the window's earliest sort date through an index, with the same total", async () => {
+    // 92 days before 2026-10-22 is 2026-07-22; the 2026Q1 rows sort on 2026-03-31, the earlier of the two.
+    expect(lastQuarterFrom(DATA_DATE, LATEST_PERIOD)).toBe("2026-03-31");
+    expect(lastQuarterFrom(DATA_DATE, "2026Q3")).toBe("2026-07-22");
+    expect(lastQuarterFrom(DATA_DATE, "2017Q1-Q2")).toBe("2017-06-30");
+    expect(lastQuarterFrom(DATA_DATE, null)).toBe("2026-07-22");
+    for (const qs of ["date=last_quarter", "date=last_quarter&status=approved", "date=last_quarter&province=BC"]) {
+      const q = query(qs);
+      const driver = qs.includes("status") ? "status" : qs.includes("province") ? "prov" : null;
+      const built = buildCount(q, { driver, dataDate: DATA_DATE, latestPeriod: LATEST_PERIOD });
+      const plan = await env.SEARCH.prepare(`EXPLAIN QUERY PLAN ${built.sql}`).bind(...built.params).all<{ detail: string }>();
+      expect(plan.results.map((r) => r.detail).join(" / "), qs).toMatch(/USING (COVERING )?INDEX search_rows_(newest|status_newest|prov_newest) \(.*sort_date>\?\)/);
+      const n = await env.SEARCH.prepare(built.sql).bind(...built.params).first<number>("n");
+      expect(n, qs).toBe(expected(q).length);
+    }
+  });
+
+  it("keeps postings only when no list period is known", async () => {
+    const res = await runSearch(env, query("date=last_quarter"), DATA_DATE, countsOf(SEEDS, DATA_DATE, null));
+    expect(res!.rows.length).toBeGreaterThan(0);
+    expect(res!.rows.every((r) => r.kind === "posting")).toBe(true);
   });
 });
 

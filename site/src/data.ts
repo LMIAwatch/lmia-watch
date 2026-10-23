@@ -35,8 +35,9 @@ export interface Stats {
   esdc_latest_period: string;
   esdc_latest_published: string | null;
   rules_version: string | null;
+  // The start of the map's longer period (the name is older than hosted
+  // search, which covers every year).
   search_from_period: string;
-  search_years: number[];
   counts: {
     pending: number;
     approved_records: number;
@@ -187,11 +188,12 @@ export async function loadStats(env: Env): Promise<Stats | null> {
   return isObj(stats) && isObj(stats.counts) ? stats : null;
 }
 
-// The Worker reads the default scope's total, its status, province and
-// status-by-province counts, and the long scope's total (search.js reads the
-// rest of the file in the browser). A file that fails reads as missing: the
-// search page then counts from its first rows, the home page leaves out the
-// pending-by-province bars.
+// The search page's fallback reads the default scope's total and its status
+// and province counts, the home page its status-by-province counts; the file
+// is also published as is (/api/search/facets), so its whole shape, the long
+// scope's block included, is checked. A file that fails reads as missing: the
+// search page's fallback then counts from its first rows, the home page
+// leaves out the pending-by-province bars.
 const isCounts = (v: unknown): boolean => isObj(v) && Object.values(v).every(isNum);
 
 export async function loadFacets(env: Env): Promise<Facets | null> {
@@ -209,6 +211,9 @@ export async function loadFacets(env: Env): Promise<Facets | null> {
 // the five lists, then its row count.
 export interface SearchCounts {
   data_as_of: string | null;
+  // The latest ESDC period (meta esdc_latest_period, '2026Q1'), whose list
+  // rows date=last_quarter keeps; null before any list is loaded.
+  latest_period: string | null;
   total: number;
   dims: ["status", "prov", "stream", "year", "ind"];
   values: {
@@ -228,12 +233,17 @@ const MAX_COUNT_CELLS = 100_000;
 const isCount = (v: unknown): v is number => isNum(v) && Number.isInteger(v) && v >= 0;
 
 // The search API sums these cells for its totals, so a file that fails any
-// check reads as missing and the API counts in D1 instead: every field has
-// its type, every cell points at listed values, and the cells add up to the
-// total.
+// check reads as missing and the API counts in D1 instead (and finds the
+// latest period there): every field has its type, the latest period is a
+// period as ESDC's lists name it (a year "2015", a quarter "2026Q1" or a
+// run of quarters "2017Q1-Q2"), every cell points at listed values, and the
+// cells add up to the total.
+const PERIOD_RE = /^\d{4}(Q[1-4](-Q[1-4])?)?$/;
+
 export async function loadSearchCounts(env: Env): Promise<SearchCounts | null> {
   const doc = await loadJson<SearchCounts>(env, "search/counts.json");
   if (!isObj(doc) || !isCount(doc.total) || !isStrOrNull(doc.data_as_of)) return null;
+  if (!(doc.latest_period === null || (isStr(doc.latest_period) && PERIOD_RE.test(doc.latest_period)))) return null;
   if (!Array.isArray(doc.dims) || doc.dims.join(",") !== COUNT_DIMS.join(",")) return null;
   const v = doc.values;
   if (!isObj(v) || !isListOf(v.status, isStr) || !isListOf(v.prov, isStrOrNull) || !isListOf(v.stream, isStrOrNull) ||

@@ -1,30 +1,30 @@
 """Static JSON export: the files the site serves as assets.
 
-Why static: a read-heavy public dataset fits the free tiers only if page views
-cost nothing per row. The site therefore ships the data as JSON files beside
-the Worker (static assets are free to serve), the search and map pages filter
-in the browser, and the profile page reads one small shard. The database stays
-on the operator's side.
+Why static: a read-heavy public dataset costs nothing per row when page views
+read files. The site therefore ships the data as JSON files beside the Worker
+(static assets are free to serve), the map page filters in the browser, and
+the profile page reads one small shard. The database stays on the operator's
+side. The search page queries the hosted search database (search_db.py fills
+it), and the files below are its fallback when that database cannot answer.
 
-Why so many slices: the browser should download only what the current view
-needs. A plain visit is rendered on the server from `search/first.json`; a
-filter fetches the smallest slice that answers it; the long scope is split by
-province and year so no file exceeds the 25 MiB asset limit, and
-`search/facets.json` carries every file's row count and size so the page can
-say what a view costs before loading it.
+Search files: the search page renders from the database, so the export writes
+only what still has a reader. `search/first.json` is the page's fallback (the
+newest rows, rendered on the server); `search/facets.json` gives the fallback
+and the home page their counts; `search/counts.json` gives the search API its
+totals; `search/latest/status/pending.json` is what /api/pending serves. The
+browser-side slices of earlier versions (the default scope by status and
+province, the long scope by province and year) are no longer written.
 
 Output tree (under data/out/static):
   stats.json                         counts, breakdowns, recent lists, resources, runs
-  search/first.json                  newest FIRST_ROWS rows of the default scope
-  search/facets.json                 counts by status and province for both scopes, plus file sizes
+  search/first.json                  newest FIRST_ROWS rows of the default scope (pending and approved
+                                     postings plus the latest quarter)
+  search/facets.json                 counts by status and province for the default scope and since
+                                     SEARCH_FROM_PERIOD, plus the sizes of the search files written
   search/counts.json                 the hosted search database's rows counted by status, province,
-                                     stream, year and indicators, for the search API's totals
-  search/latest/all.json             the default scope: pending and approved postings plus the latest quarter
-  search/latest/status/<s>.json      the default scope, one status
-  search/latest/prov/<P>.json        the default scope, one province
-  search/latest/prov/<P>/<s>.json    the default scope, one province and one status
-  search/long/<P>/postings.json      the long scope: that province's postings
-  search/long/<P>/<YEAR>.json        the long scope: that province's list rows for one year
+                                     stream, year and indicators, for the search API's totals, with
+                                     the data's date and the latest ESDC period (date=last_quarter)
+  search/latest/status/pending.json  the pending postings, newest first, for /api/pending
   clusters/latest.json, clusters/since_2023q4.json   per postal area counts
   areas/<FSA>.json                   rows for one postal area, latest scope, capped
   profiles/<abc>.json                employer profiles keyed by id, sharded on id characters 5 to 7, with the
@@ -193,21 +193,24 @@ def search_latest(conn: sqlite3.Connection, latest: str, ind: dict[str, list[str
 
 
 def search_province(conn: sqlite3.Connection, prov: str, ind: dict[str, list[str]]) -> tuple[list[dict], dict[str, list[dict]]]:
-    """Postings for the province, and list rows grouped by the period's year."""
+    """Postings for the province, and list rows since SEARCH_FROM_PERIOD
+    grouped by the period's year (the map's longer period and its counts)."""
     where = "province IS NULL" if prov == UNKNOWN_PROVINCE else "province = ?"
     params: tuple = () if prov == UNKNOWN_PROVINCE else (prov,)
-    postings = _sort_rows([posting_row(p, ind) for p in conn.execute(
-        POSTING_SQL + f" WHERE {SEARCHED_POSTINGS} AND {where}", params)])
+    postings = [posting_row(p, ind) for p in conn.execute(POSTING_SQL + f" WHERE {SEARCHED_POSTINGS} AND {where}", params)]
     by_year: dict[str, list[dict]] = defaultdict(list)
     for r in conn.execute(ESDC_SQL + f" WHERE {where} AND period >= ?", (*params, SEARCH_FROM_PERIOD)):
         by_year[r["period"][:4]].append(esdc_row(r, ind))
-    for rows in by_year.values():
-        _sort_rows(rows)
     return postings, by_year
 
 
 def write_search(conn: sqlite3.Connection, out: Path, latest: str, ind: dict[str, list[str]]) -> tuple[list[dict], list[dict], dict]:
-    """Write every search slice and facets.json; return (latest rows, long rows, counts)."""
+    """Write the search files that still have a reader (see the module
+    docstring) and facets.json; return (latest rows, long rows, counts).
+
+    The latest and long rows are still built in full: the map's cluster files
+    and the area files are made from them, and facets.json counts them.
+    """
     files: dict[str, dict] = {}
 
     def dump(rel: str, rows: list[dict]) -> None:
@@ -215,23 +218,10 @@ def write_search(conn: sqlite3.Connection, out: Path, latest: str, ind: dict[str
 
     latest_rows = search_latest(conn, latest, ind)
     dump("search/first.json", latest_rows[:FIRST_ROWS])
-    dump("search/latest/all.json", latest_rows)
-    by_status: dict[str, list[dict]] = defaultdict(list)
-    by_prov: dict[str, list[dict]] = defaultdict(list)
-    for row in latest_rows:
-        by_status[row["status"]].append(row)
-        by_prov[_prov(row)].append(row)
-    for s, rows in by_status.items():
-        dump(f"search/latest/status/{s}.json", rows)
-    status_prov: Counter = Counter()
-    for p, rows in by_prov.items():
-        dump(f"search/latest/prov/{p}.json", rows)
-        sub: dict[str, list[dict]] = defaultdict(list)
-        for row in rows:
-            sub[row["status"]].append(row)
-            status_prov[f"{row['status']}|{p}"] += 1
-        for s, rows2 in sub.items():
-            dump(f"search/latest/prov/{p}/{s}.json", rows2)
+    # Written even when empty: /api/pending answers 503 for a missing file,
+    # and a night with no pending posting is not a missing export.
+    dump("search/latest/status/pending.json", [r for r in latest_rows if r["status"] == "pending"])
+    status_prov: Counter = Counter(f"{r['status']}|{_prov(r)}" for r in latest_rows)
     default = {
         "total": len(latest_rows),
         "status": dict(Counter(r["status"] for r in latest_rows)),
@@ -247,10 +237,8 @@ def write_search(conn: sqlite3.Connection, out: Path, latest: str, ind: dict[str
     for prov in PROVINCES + [UNKNOWN_PROVINCE]:
         postings, by_year = search_province(conn, prov, ind)
         if postings:
-            dump(f"search/long/{prov}/postings.json", postings)
             long_prov_year[f"{prov}|postings"] += len(postings)
         for year, rows in sorted(by_year.items()):
-            dump(f"search/long/{prov}/{year}.json", rows)
             long_prov_year[f"{prov}|{year}"] += len(rows)
         for row in postings + [r for rows in by_year.values() for r in rows]:
             long_rows.append(row)
@@ -277,9 +265,15 @@ def _none_last(value: object) -> tuple:
     return (value is None, value if value is not None else 0)
 
 
-def write_search_counts(conn: sqlite3.Connection, out: Path, data_as_of: str | None) -> dict[str, int]:
+def write_search_counts(conn: sqlite3.Connection, out: Path, data_as_of: str | None,
+                        latest_period: str | None = None) -> dict[str, int]:
     """search/counts.json: the hosted search database's rows counted by status,
-    province, stream, year and triggered indicators.
+    province, stream, year and triggered indicators, with the data's date and
+    the latest ESDC period.
+
+    The API counts its date windows from data_as_of, and date=last_quarter
+    keeps the list rows of latest_period (meta esdc_latest_period), so the
+    filter names the quarter the search page's control names.
 
     Why: a total is the expensive part of a search on D1, since counting the
     rows that match a filter reads every one of them. The search API sums the
@@ -306,6 +300,7 @@ def write_search_counts(conn: sqlite3.Connection, out: Path, data_as_of: str | N
     rows = sorted([position[d][key[i]] for i, d in enumerate(SEARCH_COUNT_DIMS)] + [n] for key, n in cells.items())
     doc = {
         "data_as_of": data_as_of,
+        "latest_period": latest_period or None,
         "total": sum(cells.values()),
         "dims": list(SEARCH_COUNT_DIMS),
         "values": values,
@@ -360,16 +355,16 @@ def write_stats(conn: sqlite3.Connection, out: Path, latest: str, ind: dict[str,
     resources.sort(key=lambda r: (r["dataset"], period_sort_key(r["period"])), reverse=True)
     runs = [dict(r) for r in conn.execute(
         "SELECT run_at, source, detail, rows_new, ok FROM sources_log ORDER BY id DESC LIMIT 20")]
-    first_year = int(SEARCH_FROM_PERIOD[:4])
-    last_year = int(latest[:4]) if latest[:4].isdigit() else first_year
     stats = {
         "data_as_of": meta.get("data_as_of"),
         "jobbank_last_run": meta.get("jobbank_last_run"),
         "esdc_latest_period": latest,
         "esdc_latest_published": meta.get("esdc_latest_published"),
         "rules_version": meta.get("rules_version"),
+        # The start of the map's longer period (clusters/since_2023q4.json).
+        # The name is older than hosted search, which covers every year; the
+        # list of the long scope's file years went with those files.
         "search_from_period": SEARCH_FROM_PERIOD,
-        "search_years": list(range(first_year, max(first_year, last_year) + 1)),
         "counts": counts,
         "by_stream": by_stream,
         "by_province": by_province,
@@ -709,7 +704,7 @@ def _write_static(conn: sqlite3.Connection, out: Path) -> dict[str, int]:
     # counts in D1 without them), so they are a section too.
     failed: set[str] = set()
     sections = (
-        ("search_counts", lambda: write_search_counts(conn, out, meta.get("data_as_of"))),
+        ("search_counts", lambda: write_search_counts(conn, out, meta.get("data_as_of"), latest)),
         ("feeds", lambda: write_feeds(conn, out)),
         ("releases", lambda: releases.write_all(conn, out)),
         ("trends", lambda: trends.write_all(conn, out)),
