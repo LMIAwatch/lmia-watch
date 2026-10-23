@@ -1,7 +1,8 @@
 # Alerts for maintenance items
 
-The site tells its operator when it needs a hand, through two channels that
-need no new account.
+The site tells its operator when it needs a hand, through three channels that
+need no new account. Most faults of the nightly run heal by themselves first
+(see *What the run fixes by itself*); the alerts are for what is left.
 
 ## 1. The Worker's daily check
 
@@ -11,14 +12,20 @@ Every day at 06:00 UTC (after the nightly run's window) a cron trigger runs
 - `stats.json` (the data date on every page),
 - the upload time of `lmia.sqlite.gz` in R2 (the backup),
 - `status.json` in R2 (when the run finished, which stages succeeded, and
-  the outcomes of the X post, the Bluesky post and the Zenodo deposit).
+  the outcomes of the X post, the Bluesky post, the Zenodo deposit, the
+  search database sync, the audience roll-up and any rollback).
 
 It emails when the data is more than two and a half days old, the backup or
 the status is missing or older than 36 hours, a stage or a workflow step
 (restore, deploy, save) failed, the checks held back the night's data, the
-status file cannot be read, X or Bluesky refused the post, or the Zenodo
-deposit failed. One email a day at most, repeated while an item remains. Nothing
-is sent on a healthy day.
+status file cannot be read, X or Bluesky refused the post, the Zenodo
+deposit, the search database sync or the audience roll-up failed, or the run
+rolled back a deploy. One email a day at most, repeated while an item
+remains. Nothing is sent on a healthy day.
+
+The check runs at the same time as the first retry (below), so on a morning
+after a failed midnight run the email can name a fault that the retry then
+fixes. The next day's check is quiet if it did.
 
 ### One-time setup (dashboard, since the project token cannot do it)
 
@@ -40,11 +47,65 @@ quietly.
 
 ## 2. GitHub's failed-workflow email
 
-The nightly workflow's last step fails the run when a stage failed, the X or
-Bluesky post was refused, or the Zenodo deposit failed, after everything else
-has been saved and recorded. GitHub
-then emails the account that owns the repository, provided its notification
+The nightly workflow's last step fails the run when any item below needs
+attention, after everything else has been saved and recorded. GitHub then
+emails the account that owns the repository, provided its notification
 settings keep "Actions: failed workflows" on (the default).
+
+## 3. The run-attention issue
+
+The same last step keeps one open issue titled "Nightly run needs attention",
+labelled `run-attention`:
+
+- the first run with items opens it, listing them with a link to the run;
+- each later run that still has items replaces the list and adds a comment
+  with its own items and link;
+- the first run with none closes it with a comment naming that run.
+
+The label is created by the workflow, so there is nothing to set up. The
+repository is public, so the issue is too; it holds only what the run's log
+already shows. A fault talking to GitHub leaves the issue as it was and is
+noted in the step's log; the run still fails, so the email still goes out.
+
+## What the run fixes by itself
+
+**Same-day retry.** Besides midnight UTC, the workflow is scheduled at 06:00
+and 12:00 UTC. A first job (`gate`) reads `status.json` from R2: when it shows
+a run that finished today with `ok: true` and a deploy that succeeded, the
+retry stops there (the run shows the refresh job as skipped). Otherwise the
+whole refresh runs again. Job Bank is crawled again only when the earlier
+pass did not complete: the pipeline refuses a second pass within 20 hours of
+a complete one. A manual run always goes ahead.
+
+**Rollback after a broken deploy.** Before each deploy the run records the
+Worker version serving traffic. After the deploy it fetches the home,
+search and data pages and one employer profile, and fetches again 30 seconds
+later any page that failed. When a page answers 500 to 599 both times, the
+run rolls the Worker back to the recorded version (`wrangler rollback`),
+which puts the previous data back with it. The run status then reads
+`smoke: broken` and `deploy_rolled_back: true`, the posts and the public files
+are held back, the database is still saved, and the next retry deploys again.
+When the edge answers 403 or a challenge page (the dashboard's rules can
+refuse a cloud address), or the pages answer in some other unexpected way,
+the status reads `smoke: unverifiable` and nothing else happens.
+
+**Restore from the weekly snapshot.** When both nightly backups are missing
+or damaged, the run lists `backups/weekly/` in R2 and starts from the newest
+`db-slot-<n>.sqlite.gz`. `restore.json` and the run status record source
+`weekly` and the snapshot's upload time. This is an attention item: the Job
+Bank observations made after that snapshot are lost. When a nightly backup
+could not be downloaded at all, or the listing fails, the run stops instead,
+since a good backup may still be there; the next run tries again. A first run
+(nothing in R2 anywhere) still starts from an empty database.
+
+**Expiry checks.** On the first of each month (UTC) the run asks Cloudflare for
+the status and expiry date of the deploy token and of the analytics token, and
+for the domain's expiry date and auto-renew setting. They are recorded under
+`checks` in the run status. A token or the domain inside 30 days of expiry,
+or a token that is not active, is an attention item. A check the token is not
+allowed to make reads `unknown` and raises nothing: the deploy token has no
+registrar permission, so the domain check reads `unknown` until that token is
+also given read access to the account's registrar domains.
 
 ## What each item means
 
@@ -57,3 +118,10 @@ settings keep "Actions: failed workflows" on (the default).
 | X post refused | Credits exhausted, keys revoked, or X down | X developer console: credits and app keys |
 | Bluesky post refused | App password revoked, the handle changed without the `BSKY_HANDLE` secret, or Bluesky down | `docs/bluesky-account.md`: make a new app password, update the secrets |
 | Zenodo deposit failed | Token revoked or expired, Zenodo down, or a field refused | The run log quotes Zenodo's answer; the next night tries again (`docs/zenodo.md`) |
+| Search database sync failed | Wrangler could not apply a batch, or the count read back disagreed | Nothing, usually: the next run sends the changes again (`docs/hosted-search.md`) |
+| Audience roll-up failed | The analytics token was revoked, or the SQL API or R2 failed | Check the `CLOUDFLARE_ANALYTICS_TOKEN` secret; the next run catches up |
+| Deploy rolled back | The new Worker answered with server errors | The step "Check the live site" names the pages and codes; the Worker's logs (Workers & Pages, `lmia-watch`, Logs) say why. A code fault needs a fix on `main`; a passing fault clears at the next retry |
+| Deploy broken, not rolled back | As above, and no version was recorded before the deploy or the rollback failed | Roll back from the dashboard (Workers & Pages, `lmia-watch`, Deployments) or with `npx wrangler rollback` from `site/` |
+| Restored from the weekly snapshot | Both nightly backups were missing or damaged | Find out what removed or damaged them; nothing to restore by hand |
+| Expiry check: a token expires or is not active | The token was made with an end date, or was disabled | Make a new token with the same permissions and replace the repository secret |
+| Expiry check: the domain expires | The registration is close to its end | Check auto-renew and the payment method in the dashboard's Registrar section |

@@ -4,7 +4,9 @@ import { loadStats } from "./data";
 // A daily check, run by the cron trigger, that emails the operator when the
 // site needs a hand: data that stopped refreshing, a backup that stopped
 // arriving, a refresh whose stages failed, a daily post that X or Bluesky
-// refused, or a Zenodo deposit that failed.
+// refused, a Zenodo deposit, search database sync or audience roll-up that
+// failed, or a deploy the run rolled back because the site answered with
+// server errors after it.
 // It reads only what the nightly run leaves behind (the stats file, the
 // backup's timestamp, status.json in R2), so a run that never happened is
 // caught as well as one that failed. Sending goes through Cloudflare's email
@@ -21,6 +23,9 @@ export type RunStatus = {
   x_post?: string;
   bluesky_post?: string;
   zenodo_deposit?: string;
+  search_sync?: string;
+  views_rollup?: string;
+  deploy_rolled_back?: boolean;
   stages?: { source: string; ok: boolean; detail?: string }[];
 };
 
@@ -49,6 +54,11 @@ export function readStatus(raw: unknown): { status: RunStatus | null; problem: s
   if (typeof r.x_post === "string") status.x_post = r.x_post;
   if (typeof r.bluesky_post === "string") status.bluesky_post = r.bluesky_post;
   if (typeof r.zenodo_deposit === "string") status.zenodo_deposit = r.zenodo_deposit;
+  if (typeof r.search_sync === "string") status.search_sync = r.search_sync;
+  if (typeof r.views_rollup === "string") status.views_rollup = r.views_rollup;
+  // Only a real true counts: a rollback alert from a field of the wrong type
+  // would send the operator after a deploy that never happened.
+  if (typeof r.deploy_rolled_back === "boolean") status.deploy_rolled_back = r.deploy_rolled_back;
   if (Array.isArray(r.stages)) {
     status.stages = r.stages.map((s) => {
       if (!s || typeof s !== "object") return { source: "unknown", ok: false, detail: "unreadable stage entry" };
@@ -103,6 +113,15 @@ export function collectAlerts(i: Inputs): string[] {
     }
     if (i.status.zenodo_deposit === "failed") {
       out.push("The Zenodo deposit of the new ESDC quarter failed. The next run tries again; check the ZENODO_TOKEN secret and the run log.");
+    }
+    if (i.status.search_sync === "failed") {
+      out.push("The search database sync failed. The next run sends the same changes again; check the run log.");
+    }
+    if (i.status.views_rollup === "failed") {
+      out.push("The audience roll-up failed. The next run catches up; check the CLOUDFLARE_ANALYTICS_TOKEN secret and the run log.");
+    }
+    if (i.status.deploy_rolled_back === true) {
+      out.push("The site answered with server errors after the last deploy, so the run rolled the Worker back to the version before it. The site shows the previous data until a later run deploys again; check the run log.");
     }
   }
   return out;

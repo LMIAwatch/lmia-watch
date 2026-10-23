@@ -1,26 +1,46 @@
-# Triggers: a scheduled run at midnight UTC, and a manual run (the Actions tab,
-# repository writers only) for re-running a night on the newest code; a re-run
-# of an old run keeps its old commit. The pipeline refuses a second Job Bank
-# pass within 20 hours, so a manual run cannot crawl twice in a day. There is
-# no push trigger, and nothing on the site can start a run. Code on main ships
-# with the next run, because this job deploys the Worker from the checked-out
-# tree after the data stage.
+# Triggers: a scheduled run at midnight UTC, two retry schedules at 06:00 and
+# 12:00 UTC, and a manual run (the Actions tab, repository writers only) for
+# re-running a night on the newest code; a re-run of an old run keeps its old
+# commit. The pipeline refuses a second Job Bank pass within 20 hours of a
+# complete one, so neither a retry nor a manual run crawls twice in a day.
+# There is no push trigger, and nothing on the site can start a run. Code on
+# main ships with the next run, because this job deploys the Worker from the
+# checked-out tree after the data stage.
+#
+# The retry rule (job "gate"): the midnight schedule and a manual run always
+# go on to the refresh. At 06:00 and 12:00 the gate downloads status.json from
+# R2 and skips the refresh only when it shows a run that finished today (UTC)
+# with ok true and the deploy step's outcome success; anything else, a status
+# it cannot download or read included, runs the refresh again. So a GitHub
+# delay, a runner fault or a Cloudflare API error is retried the same day with
+# no one involved, and a clean day costs two gate jobs of a minute each.
 #
 # Steps: restore the SQLite file from R2, run every pipeline stage (the
 # pipeline itself skips Job Bank if it already ran within the last 20 hours),
 # check the database and the export, send the changed rows to the search
-# database (D1 lmia-watch-search), deploy the Worker with that data as its
-# assets, post the daily digest to X and to Bluesky when their secrets exist,
-# deposit a new ESDC quarter on Zenodo when its token exists, save the
-# database and the public files back to R2, keep the audience counts of the
-# finished days in R2 when the analytics token exists, and write the run
-# status.
+# database (D1 lmia-watch-search), record the Worker version serving traffic,
+# deploy the Worker with that data as its assets, check the live site and roll
+# the Worker back when the deploy broke it, post the daily digest to X and to
+# Bluesky when their secrets exist, deposit a new ESDC quarter on Zenodo when
+# its token exists, save the database and the public files back to R2, keep
+# the audience counts of the finished days in R2 when the analytics token
+# exists, run the monthly expiry checks on the first of a month, write the run
+# status, and report the items needing attention (failed run, one GitHub
+# issue).
 #
-# What a failure does (lmia_pipeline/nightly.py holds the checks):
+# What a failure does (lmia_pipeline/nightly.py and resilience.py hold the
+# checks):
 # - A backup that exists but cannot be downloaded or used stops the run before
 #   the pipeline, so an empty database never rebuilds the site and never
 #   replaces the backup. A damaged newest backup falls back to the previous
-#   one; only when neither exists does the run start from nothing.
+#   one; when both nightly files are missing or damaged, to the newest weekly
+#   snapshot (an attention item, since the days after it are lost); only when
+#   nothing exists anywhere does the run start from nothing.
+# - A deploy after which the site answers 500 to 599 twice is rolled back to
+#   the version recorded before it (deploy_rolled_back: true, an attention
+#   item); the database is still saved, and the next retry deploys again. An
+#   answer from the edge (403, a challenge page) proves nothing and changes
+#   nothing.
 # - A stage that fails is recorded and the run goes on; the export is checked
 #   before it is deployed, so broken or empty data is never published and the
 #   site keeps its last good deploy.
@@ -33,6 +53,10 @@
 # - An audience roll-up that fails is reported (views_rollup: failed) and
 #   caught up the next night; it never stops the run, and a summary that
 #   could not be downloaded is never replaced.
+# - A fault in the retry gate, the version record, the smoke test, the expiry
+#   checks or the issue update never stops the run: the gate then runs the
+#   refresh, a missing version means no rollback tonight, and each outcome is
+#   in status.json.
 #
 # Secrets on the project account: CLOUDFLARE_API_TOKEN (Workers + R2 + D1),
 # CLOUDFLARE_ACCOUNT_ID. Optional: X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN,
@@ -57,20 +81,90 @@ name: nightly
 on:
   schedule:
     - cron: "0 0 * * *"
+    # Retries, which the gate job skips when today's run finished clean.
+    # The midnight entry above must stay exactly "0 0 * * *": the gate
+    # tells the schedules apart by that string.
+    - cron: "0 6 * * *"
+    - cron: "0 12 * * *"
   workflow_dispatch:
 
-# contents: write only so the last step can record the run date; GitHub pauses
-# a schedule after 60 days without repository activity.
+# contents: write only so a step can record the run date; GitHub pauses a
+# schedule after 60 days without repository activity. issues: write for the
+# one run-attention issue the last step opens, updates and closes.
 permissions:
   contents: write
+  issues: write
 
 # Never let two runs overlap, even if one is delayed past the next schedule.
+# A retry queued behind a long run waits for it, then its gate reads the
+# status that run wrote.
 concurrency:
   group: nightly
   cancel-in-progress: false
 
 jobs:
+  # Decides whether this trigger has anything to do (the retry rule in the
+  # header). Every step that could fail is allowed to: a gate that cannot
+  # decide leaves skip unset, and the refresh runs. The download uses the
+  # site's pinned Wrangler like every other R2 read.
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      skip: ${{ steps.decide.outputs.skip }}
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      RETRY: ${{ github.event_name == 'schedule' && github.event.schedule != '0 0 * * *' }}
+      WRANGLER: ${{ github.workspace }}/site/node_modules/.bin/wrangler
+      BUCKET: lmia-watch-data
+    steps:
+      - name: Midnight or manual run, so the refresh goes ahead
+        if: ${{ env.RETRY != 'true' }}
+        run: echo "Not a retry trigger; the refresh runs."
+      - uses: actions/checkout@v4
+        if: ${{ env.RETRY == 'true' }}
+        continue-on-error: true
+      - uses: actions/setup-python@v5
+        if: ${{ env.RETRY == 'true' }}
+        continue-on-error: true
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v4
+        if: ${{ env.RETRY == 'true' }}
+        continue-on-error: true
+        with:
+          node-version: "22"
+      - name: Install the site's tools
+        if: ${{ env.RETRY == 'true' }}
+        continue-on-error: true
+        working-directory: site
+        run: npm ci
+      # nightly.py needs nothing beyond the standard library for the gate,
+      # so the pipeline is not installed here.
+      - name: Read today's run status from R2
+        id: decide
+        if: ${{ env.RETRY == 'true' }}
+        continue-on-error: true
+        env:
+          PYTHONPATH: ${{ github.workspace }}/pipeline
+        run: |
+          mkdir -p data/gate
+          if ! "$WRANGLER" r2 object get --remote "$BUCKET/status.json" --file data/gate/status.json > data/gate/get.log 2>&1; then
+            echo "status.json could not be downloaded, so the refresh runs:"
+            cat data/gate/get.log
+            rm -f data/gate/status.json
+          fi
+          python -m lmia_pipeline.nightly gate --status data/gate/status.json --today "$(date -u +%Y-%m-%d)"
+
   refresh:
+    needs: gate
+    # Runs unless the gate found today's run already clean. !cancelled()
+    # rather than the implied success(), so a gate job that failed outright
+    # skips nothing.
+    if: ${{ !cancelled() && needs.gate.outputs.skip != 'true' }}
     runs-on: ubuntu-latest
     # GitHub ends a hosted job at six hours whatever this says, and a job
     # ended that way skips the deploy, the backup and the status file. The
@@ -132,6 +226,11 @@ jobs:
       # local simulated bucket on the runner, which is thrown away with the job.
       # Each download is tried three times; "does not exist" ends the tries,
       # since that is an answer, not an outage. The restore command decides.
+      # When R2 answered that both nightly files are missing or they are both
+      # damaged, the command itself lists backups/weekly/ through the R2 REST
+      # API (Wrangler has no listing command) with CLOUDFLARE_API_TOKEN from
+      # the job's environment, downloads the newest db-slot snapshot the same
+      # way, and records source "weekly" and its upload time in restore.json.
       - name: Restore the database from R2
         id: restore
         run: |
@@ -150,7 +249,8 @@ jobs:
           }
           fetch lmia.sqlite.gz
           fetch lmia.sqlite.prev.gz
-          python -m lmia_pipeline.nightly restore --dir data/restore --db data/lmia.sqlite --out data/out/restore.json
+          python -m lmia_pipeline.nightly restore --dir data/restore --db data/lmia.sqlite --out data/out/restore.json \
+            --bucket "$BUCKET"
 
       # 150 posting pages a night, at Job Bank's pace with an 8-second gap between
       # requests: well inside the Job Bank stage's four-hour cap, and fewer
@@ -212,6 +312,22 @@ jobs:
           cp -r data/out/static site/public/data
           tar -czf data/out/static.tar.gz -C data/out static
 
+      # The version serving traffic before tonight's deploy, kept so a deploy
+      # that breaks the site can be put back. deployments status names the
+      # version carrying the traffic; versions list would also show a version
+      # uploaded without being deployed. live-version passes on only a
+      # well-formed version id. A failure here means no rollback tonight and
+      # nothing more.
+      - name: Record the live Worker version
+        id: version
+        if: ${{ !cancelled() && steps.bundle.outcome == 'success' }}
+        continue-on-error: true
+        working-directory: site
+        run: |
+          mkdir -p ../data/out/deploy
+          "$WRANGLER" deployments status --json > ../data/out/deploy/before.json 2> ../data/out/deploy/before.log || cat ../data/out/deploy/before.log
+          python -m lmia_pipeline.nightly live-version --file ../data/out/deploy/before.json --out ../data/out/deploy/version_before.txt
+
       # A failed deploy leaves the live site on its previous version. The
       # asset upload (thousands of small files) meets a transient API error
       # now and then after Wrangler's own retries, so the whole deploy is
@@ -229,15 +345,70 @@ jobs:
           done
           exit 1
 
+      # After a deploy that worked: the home, search and data pages and one
+      # employer profile (the first of stats.json's top_approvals), fetched
+      # from outside with the pipeline's user agent, each page that fails
+      # fetched again 30 seconds later. "ok": every page 200, and home and
+      # data show tonight's data date. "broken": a page answered 500 to 599
+      # both times. "unverifiable": anything else, above all a 403 or a
+      # challenge page from the edge (the dashboard's rules may refuse a cloud
+      # address), which is never a reason to roll back. The verdict lands in
+      # the run status as smoke.
+      - name: Check the live site
+        id: smoke
+        if: ${{ !cancelled() && steps.deploy.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          mkdir -p data/out/deploy
+          data_date=$(python -c 'import json, sys; print(json.load(open(sys.argv[1])).get("data_as_of") or "")' data/out/static/stats.json || true)
+          python -m lmia_pipeline.nightly smoke --base-url "${LMIAWATCH_SITE_URL:-https://lmiawatch.ca}" \
+            --data-date "$data_date" --stats data/out/static/stats.json --out data/out/deploy/smoke.json
+
+      # Only when the Worker itself answered with server errors. A rollback
+      # puts the version recorded above, with its own copy of the data, back
+      # on all the traffic; bound resources (D1, R2) are not touched. The
+      # database is still saved below, and the next retry trigger deploys
+      # again because the run is not ok. The outcome reads "failed" until the
+      # rollback has gone through. The id comes through the environment and
+      # was checked as a version id, so it cannot change the command.
+      - name: Roll the Worker back when the deploy broke the site
+        id: rollback
+        if: ${{ !cancelled() && steps.smoke.outputs.verdict == 'broken' }}
+        continue-on-error: true
+        working-directory: site
+        env:
+          VERSION_ID: ${{ steps.version.outputs.version_id }}
+        run: |
+          out=../data/out/deploy
+          echo "failed" > "$out/rollback.txt"
+          if [ -z "$VERSION_ID" ]; then
+            echo "no version recorded" > "$out/rollback.txt"
+            echo "No version was recorded before the deploy, so there is none to roll back to."
+            exit 1
+          fi
+          for attempt in 1 2 3; do
+            if "$WRANGLER" rollback "$VERSION_ID" --message "Nightly smoke test failed after the deploy" --yes; then
+              echo "rolled back" > "$out/rollback.txt"
+              exit 0
+            fi
+            echo "rollback attempt $attempt failed; trying again in 30 seconds"
+            sleep 30
+          done
+          exit 1
+
       # After the deploy, so the link shows the postings the digest counts, and
       # before the R2 save, so the recorded post date travels with the database.
       # Opt-in (X_POST_ENABLED) because every post costs credits. Skips without
       # the X secrets and never fails the run: the post is optional, the save is
       # not. A refused post exits 1 so this step shows red while the run goes
       # on, and LAST_RUN.md records the outcome. The pipeline refuses a second
-      # post for the same Job Bank pass, so a re-run cannot post twice.
+      # post for the same Job Bank pass, so a re-run cannot post twice. Not
+      # after a deploy the smoke test found broken (rolled back or not): the
+      # post would point at data the site does not show, and the retry that
+      # deploys again posts then.
       - name: Post the daily digest to X (only when X_POST_ENABLED is true)
-        if: ${{ !cancelled() && vars.X_POST_ENABLED == 'true' && steps.deploy.outcome == 'success' }}
+        if: ${{ !cancelled() && vars.X_POST_ENABLED == 'true' && steps.deploy.outcome == 'success' && steps.smoke.outputs.verdict != 'broken' }}
         continue-on-error: true
         env:
           X_API_KEY: ${{ secrets.X_API_KEY }}
@@ -260,7 +431,7 @@ jobs:
       # platform posts a pass at most once whatever the other did.
       - name: Post the daily digest to Bluesky (only when BSKY_POST_ENABLED is true)
         id: bluesky
-        if: ${{ !cancelled() && vars.BSKY_POST_ENABLED == 'true' && steps.deploy.outcome == 'success' }}
+        if: ${{ !cancelled() && vars.BSKY_POST_ENABLED == 'true' && steps.deploy.outcome == 'success' && steps.smoke.outputs.verdict != 'broken' }}
         continue-on-error: true
         timeout-minutes: 10
         env:
@@ -283,9 +454,10 @@ jobs:
       # tried again the next night; it never stops the save. Before any draft
       # the step asks Zenodo what it already holds, so a version whose publish
       # answer or database save was lost is adopted, never published twice.
+      # Not after a broken deploy, for the same reason as the posts.
       - name: Deposit a new ESDC quarter on Zenodo (only when ZENODO_TOKEN is set)
         id: zenodo
-        if: ${{ !cancelled() && steps.deploy.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.deploy.outcome == 'success' && steps.smoke.outputs.verdict != 'broken' }}
         continue-on-error: true
         timeout-minutes: 30
         env:
@@ -346,10 +518,10 @@ jobs:
           echo "Snapshot saved to slot $slot."
 
       # The downloads and the bundle match what was deployed, so they are saved
-      # only after a deploy that worked.
+      # only after a deploy that worked and was not found broken.
       - name: Save the public files to R2
         id: save_files
-        if: ${{ !cancelled() && steps.deploy.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.deploy.outcome == 'success' && steps.smoke.outputs.verdict != 'broken' }}
         run: |
           "$WRANGLER" r2 object put --remote "$BUCKET/static.tar.gz" --file data/out/static.tar.gz
           for f in data/out/csv/*.csv; do
@@ -429,12 +601,34 @@ jobs:
           path: data/raw/cache
           key: raw-cache-${{ github.run_id }}
 
-      # What the daily check in the Worker reads: when the run finished, which
-      # stages and steps succeeded, what the checks found, and the outcomes of
-      # the X post, the Bluesky post, the Zenodo deposit, the search database
-      # sync and the audience roll-up. Written whatever happened above. The
-      # Bluesky, Zenodo, search-sync and roll-up steps write "failed" before
-      # they start, so a step stopped by its time limit still reads as failed.
+      # On the first of a month (UTC), whichever run gets there: the status
+      # and expiry date of the deploy token and of the analytics token (when
+      # set), through the API's token verify call, and the domain's
+      # registration (expiry date, auto-renew) through the registrar API. A
+      # date inside 30 days, or a token that is not active, is an attention
+      # item; an answer the token has no permission for, or no answer, is
+      # "unknown" and nothing more. Every other day it writes "not due". The
+      # results go to the run status as checks; no token is ever printed.
+      - name: Monthly expiry checks (the first of a month)
+        id: checks
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          CLOUDFLARE_ANALYTICS_TOKEN: ${{ secrets.CLOUDFLARE_ANALYTICS_TOKEN }}
+        run: |
+          mkdir -p data/out
+          python -m lmia_pipeline.nightly checks --today "$(date -u +%Y-%m-%d)" --out data/out/checks.json
+
+      # What the daily check in the Worker and the next retry's gate read: when
+      # the run finished, which stages and steps succeeded (every step's
+      # outcome under steps), what the checks found, the outcomes of the X
+      # post, the Bluesky post, the Zenodo deposit, the search database sync
+      # and the audience roll-up, where the database came from (restore), the
+      # smoke test and any rollback, and the expiry checks. Written whatever
+      # happened above. The Bluesky, Zenodo, search-sync, roll-up and rollback
+      # steps write "failed" before they start, so a step stopped by its time
+      # limit still reads as failed.
       - name: Write the run status
         if: ${{ always() }}
         run: |
@@ -443,7 +637,11 @@ jobs:
             --outcome data/out/social/last_outcome.txt \
             --bluesky-outcome data/out/social/bluesky_outcome.txt \
             --zenodo-outcome data/out/zenodo/last_outcome.txt \
-            --search-outcome data/out/search/last_outcome.txt             --views-outcome data/out/views/last_outcome.txt \
+            --search-outcome data/out/search/last_outcome.txt \
+            --views-outcome data/out/views/last_outcome.txt \
+            --restore data/out/restore.json --smoke data/out/deploy/smoke.json \
+            --rollback-outcome data/out/deploy/rollback.txt --version-before data/out/deploy/version_before.txt \
+            --checks data/out/checks.json \
             --step "restore=${{ steps.restore.outcome }}" --step "pipeline=${{ steps.pipeline.outcome }}" \
             --step "verify=${{ steps.verify.outcome }}" --step "deploy=${{ steps.deploy.outcome }}" \
             --step "save_db=${{ steps.save_db.outcome }}" --step "save_files=${{ steps.save_files.outcome }}" \
@@ -458,9 +656,10 @@ jobs:
           fi
 
       # main may have moved while the job ran (a code change pushed during the
-      # night), so the record is put on top of it before the push.
+      # night), so the record is put on top of it before the push. A deploy
+      # the smoke test found broken is not a successful refresh.
       - name: Record the run so the schedule stays enabled
-        if: ${{ !cancelled() && steps.deploy.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.deploy.outcome == 'success' && steps.smoke.outputs.verdict != 'broken' }}
         continue-on-error: true
         run: |
           date -u +"Last successful refresh: %Y-%m-%d %H:%M UTC" > LAST_RUN.md
@@ -497,29 +696,42 @@ jobs:
 
       # Last, after everything is saved and recorded: fail the run when an item
       # needs attention, so GitHub's failed-workflow email reaches the operator
-      # as well as the Worker's own daily check.
+      # as well as the Worker's own daily check. The items (attention_items in
+      # lmia_pipeline/resilience.py) also go to one open issue labelled
+      # run-attention: the first run with items opens it, each later run
+      # replaces its text and adds a comment, and the first run with none
+      # closes it with a comment naming that run. The issue calls run with
+      # set +e and never change the exit code, so a GitHub API fault costs the
+      # issue, never the email. The label is created (or left as it is) each
+      # time, so nothing has to be set up by hand. PYTHONPATH lets the helper
+      # run even if the pipeline install failed.
       - name: Items needing attention
         if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          LABEL: run-attention
+          PYTHONPATH: ${{ github.workspace }}/pipeline
         run: |
-          python - <<'PY'
-          import json, pathlib, sys
-          p = pathlib.Path("data/out/status.json")
-          if not p.exists():
-              print("ATTENTION: no run status was written")
-              sys.exit(1)
-          s = json.loads(p.read_text())
-          items = [f"{x.get('source')}: {x.get('detail', '')}" for x in s.get("stages", []) if not x.get("ok")]
-          if s.get("x_post") in ("failed", "no credentials"):
-              items.append(f"X post: {s['x_post']}")
-          if s.get("bluesky_post") in ("failed", "no credentials"):
-              items.append(f"Bluesky post: {s['bluesky_post']}")
-          if s.get("zenodo_deposit") == "failed":
-              items.append("Zenodo deposit: failed (tried again next run)")
-          if s.get("search_sync") == "failed":
-              items.append("Search database sync: failed (sent again next run)")
-          if s.get("views_rollup") == "failed":
-              items.append("Audience roll-up: failed (caught up next run)")
-          for i in items:
-              print("ATTENTION:", i)
-          sys.exit(1 if items else 0)
-          PY
+          set +e
+          out=data/out/attention
+          python -m lmia_pipeline.nightly attention --status data/out/status.json --run-url "$RUN_URL" --out-dir "$out"
+          code=$?
+          soft() {
+            if ! gh "$@" --repo "$GITHUB_REPOSITORY" > /dev/null; then
+              echo "::warning::gh $1 $2 failed; the run-attention issue was not updated"
+            fi
+          }
+          soft label create "$LABEL" --color B60205 --description "Opened by the nightly run while an item needs attention" --force
+          open=$(gh issue list --repo "$GITHUB_REPOSITORY" --label "$LABEL" --state open --limit 1 --json number --jq '.[0].number // empty')
+          if [ -s "$out/items.txt" ]; then
+            if [ -n "$open" ]; then
+              soft issue edit "$open" --body-file "$out/body.md"
+              soft issue comment "$open" --body-file "$out/comment.md"
+            else
+              soft issue create --title "$(cat "$out/title.txt")" --label "$LABEL" --body-file "$out/body.md"
+            fi
+          elif [ "$code" = "0" ] && [ -n "$open" ]; then
+            soft issue close "$open" --reason completed --comment "$(cat "$out/close.md")"
+          fi
+          exit $code

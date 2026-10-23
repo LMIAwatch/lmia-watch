@@ -24,7 +24,8 @@
   ],
   // The daily check (src/watchdog.ts): 06:00 UTC, after the nightly run has had
   // its window. It emails the operator through the email binding when the data,
-  // the backup, a stage, a daily post or the Zenodo deposit needs attention. ALERT_EMAIL is a secret;
+  // the backup, a stage, a daily post, the Zenodo deposit, the search sync, the
+  // audience roll-up or a rolled-back deploy needs attention. ALERT_EMAIL is a secret;
   // the destination must be verified in the zone's Email Routing.
   "triggers": { "crons": ["0 6 * * *"] },
   // Aggregate counts of the responses the Worker serves (src/views.ts): route,

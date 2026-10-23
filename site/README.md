@@ -49,9 +49,12 @@ address (`src/limits.ts`), and their answers may be cached for five minutes
 The pipeline writes `data/out/static/` (see the pipeline README for the file
 layout). The scheduled workflow copies it to `site/public/data/` and runs
 `wrangler deploy`; only files whose content changed are uploaded. That run is
-the only deploy path: it fires once a day at midnight UTC, cannot be started by
-hand or by a push, and nothing on the site can trigger it. Code merged to
-`main` goes live with the next run.
+the only deploy path: it fires once a day at midnight UTC (retried at 06:00
+and 12:00 UTC when that run did not finish clean), cannot be started by a
+push, and nothing on the site can trigger it. Code merged to `main` goes live
+with the next run. After each deploy the run checks the live site and rolls
+the Worker back to the previous version when it answers with server errors
+(`../docs/alerts.md`).
 
 The forms insert into `employer_responses` and `corrections` with
 `published = 0`; nothing a visitor submits appears until the operator sets

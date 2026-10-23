@@ -188,8 +188,8 @@ changes again. `nothing to send` means no row changed, which also passed the
 count check; `not run` means the checks before it failed, so no sync was
 attempted.
 
-The Worker's daily check does not yet email on this field; the workflow's
-failure email covers it.
+The Worker's daily check emails on this field too, and the workflow's
+run-attention issue lists it (`docs/alerts.md`).
 
 ## The API
 

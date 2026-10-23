@@ -4,7 +4,8 @@ Public records of Labour Market Impact Assessment (LMIA) activity in Canada: whi
 employers are applying to hire temporary foreign workers, where, when, and which
 applications were approved or refused. Every row links to the government record it
 came from. The site rebuilds itself once a day, at midnight UTC, from the
-sources; that scheduled run is the only way anything on it changes.
+sources (retried at 06:00 and 12:00 UTC when that run did not finish clean);
+the scheduled run is the only way anything on it changes.
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23488706.svg)](https://doi.org/10.5281/zenodo.23488706)
 

@@ -47,6 +47,38 @@ describe("daily check", () => {
     expect(all).toHaveLength(3);
   });
 
+  it("flags a failed search sync, a failed roll-up and a rolled-back deploy, and nothing else they report", () => {
+    const with_ = (extra: object) => collectAlerts({ ...healthy, status: { ...healthy.status, ...extra } });
+    expect(with_({ search_sync: "failed" })).toEqual([
+      "The search database sync failed. The next run sends the same changes again; check the run log.",
+    ]);
+    expect(with_({ views_rollup: "failed" })).toEqual([
+      "The audience roll-up failed. The next run catches up; check the CLOUDFLARE_ANALYTICS_TOKEN secret and the run log.",
+    ]);
+    expect(with_({ deploy_rolled_back: true })).toEqual([
+      "The site answered with server errors after the last deploy, so the run rolled the Worker back to the version before it. The site shows the previous data until a later run deploys again; check the run log.",
+    ]);
+    for (const quiet of ["synced", "nothing to send", "not run"]) {
+      expect(with_({ search_sync: quiet }), quiet).toEqual([]);
+    }
+    for (const quiet of ["rolled up", "no data", "no token", "not run"]) {
+      expect(with_({ views_rollup: quiet }), quiet).toEqual([]);
+    }
+    expect(with_({ deploy_rolled_back: false })).toEqual([]);
+    expect(with_({ search_sync: "failed", views_rollup: "failed", deploy_rolled_back: true })).toHaveLength(3);
+  });
+
+  it("reads the resilience fields from status.json and drops them when they have the wrong type", () => {
+    const fields = { search_sync: "failed", views_rollup: "rolled up", deploy_rolled_back: true };
+    const read = readStatus({ ...healthy.status, ...fields, smoke: "broken", checks: { due: false } });
+    expect(read).toEqual({ status: { ...healthy.status, ...fields }, problem: null });
+    expect(collectAlerts({ ...healthy, status: read.status })).toHaveLength(2);
+    // "true" as text, or a number, is not a rollback.
+    const odd = readStatus({ ...healthy.status, search_sync: 0, views_rollup: ["failed"], deploy_rolled_back: "true" });
+    expect(odd).toEqual({ status: healthy.status, problem: null });
+    expect(collectAlerts({ ...healthy, status: odd.status })).toEqual([]);
+  });
+
   it("reads the new status fields and ignores them when they have the wrong type", () => {
     const read = readStatus({ ...healthy.status, bluesky_post: "posted", zenodo_deposit: "failed" });
     expect(read).toEqual({ status: { ...healthy.status, bluesky_post: "posted", zenodo_deposit: "failed" }, problem: null });

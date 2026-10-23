@@ -5,9 +5,11 @@ publishes broken or empty data, never replaces a good backup with a worse
 one, and always leaves a status file the site's daily check can read.
 
   restore   pick the database to start from: the backup, else the previous
-            backup when the newest is damaged, else (only when neither
-            exists) an empty one. Exits 1 when a backup exists but cannot be
-            used, so the run stops before it rebuilds from nothing.
+            backup when the newest is damaged, else the newest weekly
+            snapshot when both nightly files are missing or damaged, else
+            (only when nothing exists anywhere) an empty one. Exits 1 when a
+            backup exists but cannot be used, so the run stops before it
+            rebuilds from nothing.
   verify    check tonight's database and export; writes db_ok and export_ok
             for the save and deploy steps (to $GITHUB_OUTPUT when set).
   status    write status.json from the run's log rows, the workflow steps'
@@ -15,9 +17,21 @@ one, and always leaves a status file the site's daily check can read.
   pack      write the backup the save step uploads: a copy of the database
             without its secondary indexes, checked and gzipped. Exits 1 when
             the copy fails its check or the file is above the upload cap.
+  gate      for a retry trigger: skip=true when today's run already
+            finished clean (resilience.gate).
+  live-version
+            the Worker version serving traffic, from Wrangler's JSON, kept
+            for a rollback.
+  smoke     fetch the live site after a deploy: verdict ok, broken or
+            unverifiable (resilience.smoke).
+  checks    the monthly expiry checks of the tokens and the domain.
+  attention list the items needing attention and write the GitHub issue's
+            texts; exits 1 when there are any.
 
-The R2 transfers stay in the workflow; these commands read the files it
-leaves. verify and status always exit 0: what they find is in their output.
+The R2 transfers stay in the workflow, apart from the weekly snapshot's
+listing and download, which Wrangler has no command for; these commands read
+the files the workflow leaves. verify, status, gate, live-version, smoke and
+checks report what they find in their output and never stop the run.
 """
 
 from __future__ import annotations
@@ -31,11 +45,11 @@ import re
 import shutil
 import sqlite3
 import sys
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from . import config
+from . import config, resilience
 
 log = logging.getLogger("lmia_pipeline.nightly")
 
@@ -147,9 +161,25 @@ def _download(folder: Path, key: str) -> tuple[str, str]:
     return "failed", f"download failed (exit {code or 'unknown'}): {tail}" if tail else f"download failed (exit {code or 'unknown'})"
 
 
-def restore(folder: Path, db: Path) -> tuple[bool, str, str, dict[str, int]]:
+def _drop_sidecars(db: Path) -> None:
+    for suffix in ("-wal", "-shm"):
+        Path(f"{db}{suffix}").unlink(missing_ok=True)
+
+
+def restore(folder: Path, db: Path, weekly: resilience.R2Rest | None = None) -> tuple[bool, str, str, dict[str, int]]:
     """Choose the starting database. Returns (go on, source, message, table
-    counts), source being 'backup', 'previous' or 'none' (a first run)."""
+    counts), source being 'backup', 'previous', 'weekly' or 'none' (a first
+    run). restore_record has the same decision with the weekly snapshot's
+    key and upload time."""
+    ok, record = restore_record(folder, db, weekly)
+    return ok, record["source"], record["message"], record["counts"]
+
+
+def restore_record(folder: Path, db: Path, weekly: resilience.R2Rest | None = None) -> tuple[bool, dict[str, Any]]:
+    """(go on, the restore record written to restore.json).
+
+    weekly reads the bucket's weekly snapshots; None (no token on a dev
+    machine) leaves the decision as it was before they were a source."""
     tried: list[str] = []
     states = {}
     for key, source in ((BACKUP, "backup"), (PREVIOUS, "previous")):
@@ -163,19 +193,69 @@ def restore(folder: Path, db: Path) -> tuple[bool, str, str, dict[str, int]]:
         if why is None:
             problems, counts = check_db(db)
             if not problems:
-                return True, source, f"restored from {key}", counts
+                return True, {"source": source, "message": f"restored from {key}", "counts": counts}
             why = problems[0]
             db.unlink(missing_ok=True)
+        states[key] = "unusable"
         tried.append(f"{key}: {why}")
-    for suffix in ("-wal", "-shm"):
-        Path(f"{db}{suffix}").unlink(missing_ok=True)
-    if states.get(BACKUP) == "missing" and states.get(PREVIOUS) == "missing":
+    _drop_sidecars(db)
+    both_missing = states.get(BACKUP) == "missing" and states.get(PREVIOUS) == "missing"
+    # Only when R2 answered for both files. A download that failed may hide a
+    # good backup, and a week-old snapshot saved over it would lose the days
+    # between, so an outage still stops the run.
+    answered = all(states.get(k) in ("missing", "unusable") for k in (BACKUP, PREVIOUS))
+    if weekly is not None and answered:
+        return _restore_weekly(folder, db, weekly, tried, both_missing)
+    if both_missing:
         db.unlink(missing_ok=True)
-        return True, "none", "no backup in R2: first run, starting from an empty database", {}
+        return True, {"source": "none", "message": "no backup in R2: first run, starting from an empty database", "counts": {}}
     # A backup exists (or may exist) but none could be used. Starting from an
     # empty database would rebuild the site from nothing and then replace the
     # backup with it, so the run stops here instead.
-    return False, "none", "; ".join(tried) or "no backup could be used", {}
+    return False, {"source": "none", "message": "; ".join(tried) or "no backup could be used", "counts": {}}
+
+
+WEEKLY_FILE = "weekly.sqlite.gz"
+
+
+def _restore_weekly(folder: Path, db: Path, weekly: resilience.R2Rest, tried: list[str],
+                    both_missing: bool) -> tuple[bool, dict[str, Any]]:
+    def stop() -> tuple[bool, dict[str, Any]]:
+        _drop_sidecars(db)
+        return False, {"source": "none", "message": "; ".join(tried) or "no backup could be used", "counts": {}}
+
+    try:
+        newest = weekly.newest_weekly()
+    except resilience.R2Error as exc:
+        # Unknown whether a snapshot exists, so neither a fresh start nor a
+        # restore: the run stops and the next one asks again.
+        tried.append(f"weekly snapshots: {exc}")
+        return stop()
+    if newest is None:
+        if both_missing:
+            db.unlink(missing_ok=True)
+            return True, {"source": "none", "counts": {},
+                          "message": "no backup and no weekly snapshot in R2: first run, starting from an empty database"}
+        tried.append("weekly snapshots: none in R2")
+        return stop()
+    key, uploaded = newest
+    dest = folder / WEEKLY_FILE
+    try:
+        weekly.download(key, dest)
+    except resilience.R2Error as exc:
+        tried.append(f"{key}: {exc}")
+        return stop()
+    why = _gunzip(dest, db)
+    if why is None:
+        problems, counts = check_db(db)
+        if not problems:
+            before = "; ".join(tried) if tried else "both nightly backups are missing"
+            return True, {"source": "weekly", "counts": counts, "weekly_key": key, "weekly_uploaded": uploaded,
+                          "message": f"restored from the weekly snapshot {key} (uploaded {uploaded}); {before}"[:600]}
+        why = problems[0]
+        db.unlink(missing_ok=True)
+    tried.append(f"{key}: {why}")
+    return stop()
 
 
 # -- export -----------------------------------------------------------------
@@ -254,6 +334,8 @@ def run_status(
     db: Path, started: str | None, verify_result: dict[str, Any] | None, outcome: str | None,
     steps: dict[str, str], now: datetime | None = None, *, bluesky: str | None = None,
     zenodo: str | None = None, search: str | None = None, views: str | None = None,
+    restore_info: dict[str, Any] | None = None, smoke: dict[str, Any] | None = None,
+    rollback: str | None = None, version_before: str | None = None, checks: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """status.json for the site's daily check. Every input may be missing: the
     status then says what is missing rather than failing to be written.
@@ -264,7 +346,14 @@ def run_status(
     "no data", "no token" or "failed") wrote; "not run" when the step did
     not run. They are reported beside the stages, not as stages, so a
     refused post, a failed deposit, sync or roll-up alerts without marking
-    the data refresh failed."""
+    the data refresh failed.
+
+    The resilience fields: steps (every workflow step's outcome, which the
+    retry gate reads), restore (where the database came from), smoke (the
+    check of the live site after the deploy), rollback and deploy_rolled_back
+    (what was done about a broken deploy) and checks (the monthly expiry
+    checks). A broken deploy marks the run not ok whether or not it was
+    rolled back, so a retry trigger the same day deploys again."""
     stages: list[dict[str, Any]] = []
     for name, result in steps.items():
         if result == "failure":
@@ -291,15 +380,35 @@ def run_status(
     if verify_result and verify_result.get("problems"):
         stages.append({"source": "checks", "ok": False, "detail": "; ".join(verify_result["problems"])[:200]})
     stamp = (now or datetime.now(timezone.utc)).isoformat(timespec="seconds")
+    verdict = smoke.get("verdict") if isinstance(smoke, dict) else None
+    verdict = verdict if verdict in resilience.VERDICTS else "not run"
+    if verdict == "broken":
+        rolled = rollback or "not run"
+    else:
+        rolled = "not needed"
+    restored: dict[str, Any] = {"source": "not run"}
+    if isinstance(restore_info, dict):
+        restored = {"source": str(restore_info.get("source") or "unknown")}
+        for key in ("weekly_key", "weekly_uploaded"):
+            if restore_info.get(key):
+                restored[key] = str(restore_info[key])
     return {
         "run_at": stamp,
         "stages": stages,
+        "steps": dict(steps),
         "x_post": outcome or "not run",
         "bluesky_post": bluesky or "not run",
         "zenodo_deposit": zenodo or "not run",
         "search_sync": search or "not run",
         "views_rollup": views or "not run",
-        "ok": all(s["ok"] for s in stages),
+        "restore": restored,
+        "smoke": verdict,
+        "smoke_detail": str(smoke.get("detail") or "")[:300] if isinstance(smoke, dict) else "",
+        "version_before": version_before if version_before and resilience.UUID_RE.match(version_before) else None,
+        "rollback": rolled,
+        "deploy_rolled_back": rolled == "rolled back",
+        "checks": checks if isinstance(checks, dict) else {"due": None, "items": [], "detail": "the checks did not run"},
+        "ok": all(s["ok"] for s in stages) and verdict != "broken",
     }
 
 
@@ -400,6 +509,44 @@ def _write_json(path: Path, data: Any) -> None:
     path.write_text(json.dumps(data, indent=1), encoding="utf-8")
 
 
+def _read_json(path: str | None) -> Any:
+    """A JSON file the workflow left, or None when it is missing or unreadable."""
+    try:
+        text = _read(path)
+        return json.loads(text) if text else None
+    except (OSError, ValueError):
+        return None
+
+
+def _output(**pairs: str) -> None:
+    """Step outputs for the workflow's conditions, when run inside one."""
+    target = os.environ.get("GITHUB_OUTPUT")
+    if not target:
+        return
+    with open(target, "a", encoding="utf-8") as fh:
+        for name, value in pairs.items():
+            fh.write(f"{name}={value}\n")
+
+
+def _session() -> Any:
+    import requests
+    return requests.Session()
+
+
+def _weekly_source(bucket: str) -> resilience.R2Rest | None:
+    """The weekly snapshots, readable when the run's token is in the
+    environment (always in the workflow; seldom on a dev machine)."""
+    token = (os.environ.get("CLOUDFLARE_API_TOKEN") or "").strip()
+    account = (os.environ.get("CLOUDFLARE_ACCOUNT_ID") or "").strip()
+    if not token or not account:
+        return None
+    try:
+        return resilience.R2Rest(_session(), account, token, bucket)
+    except Exception as exc:
+        log.warning("restore: the weekly snapshots cannot be read (%s)", type(exc).__name__)
+        return None
+
+
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     parser = argparse.ArgumentParser(prog="lmia_pipeline.nightly")
@@ -408,6 +555,8 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--dir", required=True, help="folder holding the downloads and their .exit and .log files")
     r.add_argument("--db", required=True)
     r.add_argument("--out", required=True, help="where to write the restore record (source, counts)")
+    r.add_argument("--bucket", default=os.environ.get("BUCKET") or "lmia-watch-data",
+                   help="the R2 bucket holding backups/weekly/ (default $BUCKET, else lmia-watch-data)")
     v = sub.add_parser("verify")
     v.add_argument("--db", required=True)
     v.add_argument("--static", required=True)
@@ -423,6 +572,11 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--zenodo-outcome", default=None, help="the Zenodo deposit's outcome file")
     s.add_argument("--search-outcome", default=None, help="the search database sync's outcome file")
     s.add_argument("--views-outcome", default=None, help="the audience roll-up's outcome file")
+    s.add_argument("--restore", default=None, help="the restore record")
+    s.add_argument("--smoke", default=None, help="the smoke test's result file")
+    s.add_argument("--rollback-outcome", default=None, help="the rollback step's outcome file")
+    s.add_argument("--version-before", default=None, help="the file holding the version live before the deploy")
+    s.add_argument("--checks", default=None, help="the expiry checks' result file")
     s.add_argument("--step", action="append", default=[], help="name=outcome of a workflow step")
     s.add_argument("--out", required=True)
     pk = sub.add_parser("pack")
@@ -430,6 +584,29 @@ def main(argv: list[str] | None = None) -> int:
     pk.add_argument("--out", required=True, help="the gzip file to write")
     pk.add_argument("--max-mib", type=float, default=MAX_UPLOAD_MIB,
                     help=f"fail when the gzip is larger than this (default {MAX_UPLOAD_MIB}, Wrangler's upload cap)")
+    g = sub.add_parser("gate", help="skip=true when today's run already finished clean")
+    g.add_argument("--status", required=True, help="status.json as downloaded from R2 (may be missing)")
+    g.add_argument("--today", required=True, help="today's UTC date, YYYY-MM-DD")
+    lv = sub.add_parser("live-version", help="the Worker version serving traffic, from Wrangler's JSON")
+    lv.add_argument("--file", required=True, help="the output of `wrangler deployments status --json`")
+    lv.add_argument("--out", default=None, help="write the version id here as well")
+    sm = sub.add_parser("smoke", help="check the live site after a deploy")
+    sm.add_argument("--base-url", required=True)
+    sm.add_argument("--data-date", default=None, help="the data date the home and data pages must show")
+    sm.add_argument("--stats", default=None, help="stats.json: the data date when --data-date is not given, "
+                                                   "and the employer whose profile is fetched")
+    sm.add_argument("--out", required=True)
+    sm.add_argument("--settle", type=float, default=resilience.SMOKE_SETTLE_S,
+                    help="seconds to wait before the first request")
+    ck = sub.add_parser("checks", help="the monthly expiry checks (the first day of a month, UTC)")
+    ck.add_argument("--today", required=True, help="today's UTC date, YYYY-MM-DD")
+    ck.add_argument("--domain", default=resilience.domain_of(config.SITE_URL),
+                    help="the domain whose registrar record is read (default: the site's host)")
+    ck.add_argument("--out", required=True)
+    at = sub.add_parser("attention", help="list the items needing attention; exit 1 when there are any")
+    at.add_argument("--status", required=True)
+    at.add_argument("--run-url", required=True)
+    at.add_argument("--out-dir", required=True, help="where the issue's texts are written")
     args = parser.parse_args(argv)
 
     if args.command == "pack":
@@ -438,9 +615,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if ok else 1
 
     if args.command == "restore":
-        ok, source, message, counts = restore(Path(args.dir), Path(args.db))
-        _write_json(Path(args.out), {"source": source, "message": message, "counts": counts})
-        (log.info if ok else log.error)("restore: %s", message)
+        ok, record = restore_record(Path(args.dir), Path(args.db), _weekly_source(args.bucket))
+        _write_json(Path(args.out), record)
+        (log.info if ok else log.error)("restore: %s", record["message"])
         return 0 if ok else 1
 
     if args.command == "verify":
@@ -461,6 +638,17 @@ def main(argv: list[str] | None = None) -> int:
         log.info("verify: db_ok=%s export_ok=%s", result["db_ok"], result["export_ok"])
         return 0
 
+    if args.command == "gate":
+        return _gate(args)
+    if args.command == "live-version":
+        return _live_version(args)
+    if args.command == "smoke":
+        return _smoke(args)
+    if args.command == "checks":
+        return _checks(args)
+    if args.command == "attention":
+        return _attention(args)
+
     verify_result = None
     try:
         verify_result = json.loads(_read(args.verify) or "null")
@@ -469,10 +657,89 @@ def main(argv: list[str] | None = None) -> int:
     steps = dict(item.split("=", 1) for item in args.step if "=" in item)
     status = run_status(Path(args.db), _read(args.started_file), verify_result, _read(args.outcome), steps,
                         bluesky=_read(args.bluesky_outcome), zenodo=_read(args.zenodo_outcome),
-                        search=_read(args.search_outcome), views=_read(args.views_outcome))
+                        search=_read(args.search_outcome), views=_read(args.views_outcome),
+                        restore_info=_read_json(args.restore), smoke=_read_json(args.smoke),
+                        rollback=_read(args.rollback_outcome), version_before=_read(args.version_before),
+                        checks=_read_json(args.checks))
     _write_json(Path(args.out), status)
     print(json.dumps(status, indent=1))
     return 0
+
+
+def _gate(args: argparse.Namespace) -> int:
+    # Any fault here runs the refresh: a needless run costs minutes, a
+    # wrongly skipped one costs the day.
+    try:
+        skip, reason = resilience.gate(_read_json(args.status), date.fromisoformat(args.today))
+    except Exception as exc:
+        skip, reason = False, f"the gate could not decide ({type(exc).__name__}), so the refresh runs"
+    log.info("gate: %s", reason)
+    _output(skip="true" if skip else "false")
+    return 0
+
+
+def _live_version(args: argparse.Namespace) -> int:
+    version = resilience.live_version(_read(args.file) or "")
+    if version is None:
+        log.warning("live-version: no version id in %s, so a broken deploy cannot be rolled back tonight", args.file)
+        return 1
+    if args.out:
+        Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.out).write_text(version + "\n", encoding="utf-8")
+    _output(version_id=version)
+    log.info("live-version: %s", version)
+    return 0
+
+
+def _smoke(args: argparse.Namespace) -> int:
+    stats = _read_json(args.stats)
+    data_date = args.data_date or (stats.get("data_as_of") if isinstance(stats, dict) else None)
+    data_date = data_date if isinstance(data_date, str) and data_date.strip() else None
+    http = _session()
+    try:
+        result = resilience.smoke(http, args.base_url, data_date, resilience.smoke_paths(stats), settle=args.settle)
+    finally:
+        http.close()
+    _write_json(Path(args.out), result)
+    _output(verdict=result["verdict"])
+    (log.error if result["verdict"] == "broken" else log.info)("smoke: %s: %s", result["verdict"], result["detail"])
+    return 1 if result["verdict"] == "broken" else 0
+
+
+def _checks(args: argparse.Namespace) -> int:
+    today = date.fromisoformat(args.today)
+    http = _session() if resilience.checks_due(today) else None
+    try:
+        result = resilience.run_checks(today, os.environ, http, domain=args.domain)
+    finally:
+        if http is not None:
+            http.close()
+    _write_json(Path(args.out), result)
+    if not result["due"]:
+        log.info("checks: not due (they run on the first day of a month)")
+        return 0
+    for name in ("deploy_token", "analytics_token", "domain"):
+        entry = result.get(name) or {}
+        log.info("checks: %s: %s%s", name, entry.get("state"), f" ({entry['detail']})" if entry.get("detail") else "")
+    for item in result["items"]:
+        log.warning("checks: %s", item)
+    return 0
+
+
+def _attention(args: argparse.Namespace) -> int:
+    status = _read_json(args.status)
+    items = resilience.attention_items(status)
+    run_at = status.get("run_at") if isinstance(status, dict) else None
+    day = run_at[:10] if isinstance(run_at, str) and len(run_at) >= 10 else datetime.now(timezone.utc).date().isoformat()
+    texts = resilience.issue_texts(items, args.run_url, day)
+    out = Path(args.out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "items.txt").write_text("".join(f"{i}\n" for i in items), encoding="utf-8")
+    for name, file in (("title", "title.txt"), ("body", "body.md"), ("comment", "comment.md"), ("close", "close.md")):
+        (out / file).write_text(texts[name], encoding="utf-8")
+    for item in items:
+        print("ATTENTION:", item)
+    return 1 if items else 0
 
 
 if __name__ == "__main__":
