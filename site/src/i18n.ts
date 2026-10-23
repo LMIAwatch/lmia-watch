@@ -377,24 +377,26 @@ const STRINGS = {
   "employer.refused_lmias": { en: "Refused LMIAs", fr: "EIMT refusées" },
   "employer.positions_paren_one": { en: "({n} position)", fr: "({n} poste)" },
   "employer.positions_paren_many": { en: "({n} positions)", fr: "({n} postes)" },
-  // Many ESDC files, positive and negative, give positions but no LMIA count,
-  // so a summed LMIA count covers fewer rows than the records table shows.
-  // Each note names its count, since a profile can carry both.
+  // Many ESDC files, positive and negative, give positions but no LMIA count.
+  // Every row on ESDC's lists is at least one LMIA, so such a row counts as
+  // one and the summary shows a floor ("at least"). Each note names its
+  // count, since a profile can carry both.
+  "employer.at_least": { en: "at least {n}", fr: "au moins {n}" },
   "employer.lmias_note_one": {
-    en: "The approved LMIA count leaves out {n} row from a file that carries no LMIA count.",
-    fr: "Le nombre d'EIMT approuvées laisse de côté {n} inscription tirée d'un fichier qui n'indique aucun nombre d'EIMT.",
+    en: "The approved count includes {n} row from a file that carries no LMIA count, counted as one LMIA, so the true count can be higher.",
+    fr: "Le nombre d'EIMT approuvées compte comme une EIMT {n} inscription tirée d'un fichier qui n'indique aucun nombre d'EIMT; le nombre réel peut être plus élevé.",
   },
   "employer.lmias_note_many": {
-    en: "The approved LMIA count leaves out {n} rows from files that carry no LMIA count.",
-    fr: "Le nombre d'EIMT approuvées laisse de côté {n} inscriptions tirées de fichiers qui n'indiquent aucun nombre d'EIMT.",
+    en: "The approved count includes {n} rows from files that carry no LMIA count, each counted as one LMIA, so the true count can be higher.",
+    fr: "Le nombre d'EIMT approuvées compte comme une EIMT chacune des {n} inscriptions tirées de fichiers qui n'indiquent aucun nombre d'EIMT; le nombre réel peut être plus élevé.",
   },
   "employer.refused_lmias_note_one": {
-    en: "The refused LMIA count leaves out {n} row from a file that carries no LMIA count.",
-    fr: "Le nombre d'EIMT refusées laisse de côté {n} inscription tirée d'un fichier qui n'indique aucun nombre d'EIMT.",
+    en: "The refused count includes {n} row from a file that carries no LMIA count, counted as one LMIA, so the true count can be higher.",
+    fr: "Le nombre d'EIMT refusées compte comme une EIMT {n} inscription tirée d'un fichier qui n'indique aucun nombre d'EIMT; le nombre réel peut être plus élevé.",
   },
   "employer.refused_lmias_note_many": {
-    en: "The refused LMIA count leaves out {n} rows from files that carry no LMIA count.",
-    fr: "Le nombre d'EIMT refusées laisse de côté {n} inscriptions tirées de fichiers qui n'indiquent aucun nombre d'EIMT.",
+    en: "The refused count includes {n} rows from files that carry no LMIA count, each counted as one LMIA, so the true count can be higher.",
+    fr: "Le nombre d'EIMT refusées compte comme une EIMT chacune des {n} inscriptions tirées de fichiers qui n'indiquent aucun nombre d'EIMT; le nombre réel peut être plus élevé.",
   },
   "employer.findings_count": { en: "Non-compliance findings", fr: "Constats de non-conformité" },
   "employer.response": { en: "Employer response", fr: "Réponse de l'employeur" },

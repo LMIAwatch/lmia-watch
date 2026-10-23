@@ -27,15 +27,18 @@ describe("LMIA count notes on the employer page", () => {
     expect(lmiaGap([refused], "negative")).toBe(1);
   });
 
-  it("explains why each count is short of the rows listed", async () => {
+  it("counts a row without an LMIA count as one and shows the floor", async () => {
     const res = await get("/employers/emp-a000000009");
     expect(res.status).toBe(200);
     const html = await res.text();
-    expect(html).toContain('<dd class="mono">3 <span class="muted">(45 positions)</span></dd>');
-    expect(html).toContain('<dd class="mono">0 <span class="muted">(4 positions)</span></dd>');
+    // 3 counted plus 2 rows without a count; 0 counted plus 1 row, so never a 0 beside positions.
+    expect(html).toContain('<dd class="mono">at least 5 <span class="muted">(45 positions)</span></dd>');
+    expect(html).toContain('<dd class="mono">at least 1 <span class="muted">(4 positions)</span></dd>');
+    expect(html).not.toContain('<dd class="mono">0 <span class="muted">');
     expect(html).toContain(
-      '<p class="muted small" id="lmia-count-note">The approved LMIA count leaves out 2 rows from files that carry no LMIA count. ' +
-        "The refused LMIA count leaves out 1 row from a file that carries no LMIA count.</p>",
+      '<p class="muted small" id="lmia-count-note">The approved count includes 2 rows from files that carry no LMIA count, ' +
+        "each counted as one LMIA, so the true count can be higher. The refused count includes 1 row from a file that carries " +
+        "no LMIA count, counted as one LMIA, so the true count can be higher.</p>",
     );
     expect(html).not.toContain(EM_DASH);
   });
@@ -44,25 +47,30 @@ describe("LMIA count notes on the employer page", () => {
     for (const id of ["emp-a000000005", "emp-a000000001", "emp-a000000008"]) {
       const html = await (await get(`/employers/${id}`)).text();
       expect(html, id).not.toContain("lmia-count-note");
-      expect(html, id).not.toContain("leaves out");
+      expect(html, id).not.toContain("at least");
     }
   });
 
   it("has singular and plural forms in both languages", async () => {
     const note = (lang: "en" | "fr", one: "employer.lmias_note_one" | "employer.refused_lmias_note_one", count: number) =>
       nbsp(tn(lang, one, one.replace("_one", "_many") as typeof one, count, { n: count }));
-    expect(note("en", "employer.lmias_note_one", 1)).toBe("The approved LMIA count leaves out 1 row from a file that carries no LMIA count.");
-    expect(note("en", "employer.refused_lmias_note_one", 3)).toBe("The refused LMIA count leaves out 3 rows from files that carry no LMIA count.");
+    expect(note("en", "employer.lmias_note_one", 1)).toBe(
+      "The approved count includes 1 row from a file that carries no LMIA count, counted as one LMIA, so the true count can be higher.",
+    );
+    expect(note("en", "employer.refused_lmias_note_one", 3)).toBe(
+      "The refused count includes 3 rows from files that carry no LMIA count, each counted as one LMIA, so the true count can be higher.",
+    );
     expect(note("fr", "employer.lmias_note_one", 1)).toBe(
-      "Le nombre d’EIMT approuvées laisse de côté 1 inscription tirée d’un fichier qui n’indique aucun nombre d’EIMT.",
+      "Le nombre d’EIMT approuvées compte comme une EIMT 1 inscription tirée d’un fichier qui n’indique aucun nombre d’EIMT; le nombre réel peut être plus élevé.",
     );
 
     const fr = nbsp(await (await get("/employers/emp-a000000009?lang=fr")).text());
+    expect(fr).toContain('<dd class="mono">au moins 5 <span class="muted">(45 postes)</span></dd>');
     expect(fr).toContain(
-      "Le nombre d’EIMT approuvées laisse de côté 2 inscriptions tirées de fichiers qui n’indiquent aucun nombre d’EIMT. " +
-        "Le nombre d’EIMT refusées laisse de côté 1 inscription tirée d’un fichier qui n’indique aucun nombre d’EIMT.",
+      "Le nombre d’EIMT approuvées compte comme une EIMT chacune des 2 inscriptions tirées de fichiers qui n’indiquent aucun nombre d’EIMT; le nombre réel peut être plus élevé. " +
+        "Le nombre d’EIMT refusées compte comme une EIMT 1 inscription tirée d’un fichier qui n’indique aucun nombre d’EIMT; le nombre réel peut être plus élevé.",
     );
-    expect(fr).not.toContain("leaves out");
+    expect(fr).not.toContain("includes");
   });
 
   it("writes one position in the singular", async () => {

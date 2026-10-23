@@ -315,10 +315,11 @@ export async function employerPage(c: Context<AppEnv>): Promise<Response> {
   const n = (v: number | null | undefined) => fmtInt(v, lang);
   const positions = (v: number) => tn(lang, "employer.positions_paren_one", "employer.positions_paren_many", v, { n: n(v) });
   // approved_lmias and refused_lmias sum the rows' LMIA counts, and many ESDC
-  // files give positions only, so without a note a count reads short of the
-  // rows listed below.
+  // files give positions only. Every listed row is at least one LMIA, so a row
+  // without a count adds one and the figure reads as a floor.
   const gapApproved = lmiaGap(esdc, "positive");
   const gapRefused = lmiaGap(esdc, "negative");
+  const lmiaCount = (lmias: number, gap: number) => (gap ? t(lang, "employer.at_least", { n: n(lmias + gap) }) : n(lmias));
 
   const events: { date: string; text: string; kind: string }[] = [];
   for (const r of registry) {
@@ -478,9 +479,9 @@ export async function employerPage(c: Context<AppEnv>): Promise<Response> {
             <dt>{t(lang, "employer.positions_requested")}</dt>
             <dd class="mono">{n(postings.filter((p) => p.flag_current === "requested").reduce((s, p) => s + (p.vacancies ?? 0), 0))}</dd>
             <dt>{t(lang, "employer.approved_lmias")}</dt>
-            <dd class="mono">{n(employer.approved_lmias)} <span class="muted">{positions(employer.approved_positions)}</span></dd>
+            <dd class="mono">{lmiaCount(employer.approved_lmias, gapApproved)} <span class="muted">{positions(employer.approved_positions)}</span></dd>
             <dt>{t(lang, "employer.refused_lmias")}</dt>
-            <dd class="mono">{n(employer.refused_lmias)} <span class="muted">{positions(employer.refused_positions)}</span></dd>
+            <dd class="mono">{lmiaCount(employer.refused_lmias, gapRefused)} <span class="muted">{positions(employer.refused_positions)}</span></dd>
             <dt>{t(lang, "employer.findings_count")}</dt><dd class="mono">{n(employer.finding_count)}</dd>
             <dt>{t(lang, "employer.response")}</dt>
             <dd>
