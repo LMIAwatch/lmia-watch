@@ -1,10 +1,15 @@
-"""Indicator rules, version 0.2.
+"""Indicator rules, version 0.3.
 
 Each rule is a mechanical test over the records and writes a state plus a
 plain sentence. A triggered indicator says a pattern is present. It says
 nothing about intent, and the Methodology page lists each rule's known false
 positives. Rows are rewritten only when the state or basis changed, so the
 export can ship just the deltas.
+
+0.3 (2026-10-22): the low-wage rule reads ESDC's published refusal-to-process
+lists (sources/program.py) for every quarter whose two lists are stored, and
+keeps its reconstruction from the Labour Force Survey for earlier quarters;
+the basis sentence names which one it used.
 """
 
 from __future__ import annotations
@@ -20,8 +25,9 @@ from .db import log_run, now_iso
 from .normalize import (
     POSTAL_RE, PROVINCE_NAMES, PRUID_PROVINCE, period_quarters, period_sort_key, period_start_date,
 )
+from .sources import program
 
-RULES_VERSION = "0.2"
+RULES_VERSION = "0.3"
 INDICATORS = [
     "newly_incorporated",
     "repeat_applicant",
@@ -50,6 +56,13 @@ class Area:
     er_name: str | None
     cma_uid: str | None
     cma_name: str | None
+
+
+@dataclass
+class CmaList:
+    start: str                   # ISO date the list took effect
+    rates: dict[str, float]      # 2021 Census CMA code -> unemployment rate, percent
+    threshold: float             # the rate at which ESDC stops processing, as the page states it
 
 
 @dataclass
@@ -167,6 +180,7 @@ def compute(conn: sqlite3.Connection, *, now: str | None = None) -> int:
     for r in conn.execute("SELECT cma_uid, ref_month, rate, cma_name FROM lfs_unemployment ORDER BY ref_month"):
         rates[(r["cma_uid"], r["ref_month"])] = float(r["rate"])
         cma_names[r["cma_uid"]] = r["cma_name"]
+    cma_lists = load_cma_lists(conn)
 
     postings: dict[str, list[sqlite3.Row]] = defaultdict(list)
     for r in conn.execute(
@@ -191,7 +205,7 @@ def compute(conn: sqlite3.Connection, *, now: str | None = None) -> int:
             "refused_then_reposted": _refused_then_reposted(refusals.get(eid), posting_dates.get(eid)),
             "wage_at_floor": _wage_at_floor(postings.get(eid), wage_tables, areas),
             "low_wage_high_unemployment": _low_wage_high_unemployment(
-                eid in low_wage, low_wage_rows.get(eid), areas, rates, cma_names
+                eid in low_wage, low_wage_rows.get(eid), areas, rates, cma_names, cma_lists
             ),
         }
         for name, (state, basis) in results.items():
@@ -375,9 +389,65 @@ def _reference_month(year: int, q: int) -> str:
     return f"{year - 1}-12" if q == 1 else f"{year}-{3 * (q - 1):02d}"
 
 
+def _windows(year: int, q: int) -> tuple[str, str]:
+    """The two windows that could have applied to a decision in the quarter: the
+    one before the window in force when it began, and that window."""
+    index = _quarter_index(year, q) - 1
+    return _reference_month(index // 4, index % 4 + 1), _reference_month(year, q)
+
+
+def window_month(start: str) -> str | None:
+    """The window a published list carries, from the date it took effect.
+
+    ESDC's rates are Statistics Canada's three-month averages ending the month
+    before a list takes effect (the list of 2026-10-09 carries the averages
+    ending 2026-09), which is the window the reconstruction reads for the
+    same quarter.
+    """
+    d = _d(start)
+    if d is None:
+        return None
+    return f"{d.year}-{d.month - 1:02d}" if d.month > 1 else f"{d.year - 1}-12"
+
+
+def load_cma_lists(conn: sqlite3.Connection) -> dict[str, CmaList]:
+    """ESDC's published refusal-to-process lists, keyed by the window they carry."""
+    out: dict[str, CmaList] = {}
+    for ed in program.editions(conn, program.CMA):
+        month = window_month(ed["period"])
+        if month is None:
+            continue
+        out[month] = CmaList(
+            ed["period"],
+            {f["key"]: float(f["value"]) for f in ed["figures"]},
+            float(ed["threshold"]) if ed["threshold"] is not None else UNEMPLOYMENT_THRESHOLD,
+        )
+    return out
+
+
+def quarter_bases(lists: dict[str, CmaList], last: tuple[int, int]) -> list[dict]:
+    """The basis the rule uses for each quarter from LOW_WAGE_FROM to `last`.
+
+    A quarter is judged on the published lists when both lists that could
+    have applied to it are stored, and on the Labour Force Survey otherwise.
+    """
+    out: list[dict] = []
+    for index in range(_quarter_index(*LOW_WAGE_FROM), _quarter_index(*last) + 1):
+        year, q = index // 4, index % 4 + 1
+        before, month = _windows(year, q)
+        if before in lists and month in lists:
+            out.append({"quarter": f"{year}Q{q}", "basis": "lists",
+                        "lists": [lists[before].start, lists[month].start]})
+        else:
+            out.append({"quarter": f"{year}Q{q}", "basis": "lfs", "months": [before, month]})
+    return out
+
+
 def _low_wage_high_unemployment(any_low_wage: bool, rows: list[tuple[str, str | None]] | None,
                                 areas: dict[str, Area], rates: dict[tuple[str, str], float],
-                                cma_names: dict[str, str]) -> tuple[str, str]:
+                                cma_names: dict[str, str],
+                                lists: dict[str, CmaList] | None = None) -> tuple[str, str]:
+    lists = lists or {}
     if not any_low_wage:
         return "not_applicable", "No low-wage stream records."
     start = _quarter_index(*LOW_WAGE_FROM)
@@ -389,24 +459,42 @@ def _low_wage_high_unemployment(any_low_wage: bool, rows: list[tuple[str, str | 
             in_scope.append((period, quarters[0][0], quarters[0][1], postal))
     if not in_scope:
         return "not_applicable", f"No low-wage approvals from {start_label} on."
-    if not rates:
+    if not rates and not lists:
         return "not_evaluated", "Regional unemployment table not yet loaded."
     placed = 0
-    best: tuple[tuple[int, float], str, Area, str, float, str, float] | None = None
+    on_lists = 0
+    best: tuple[tuple[int, float], str, Area, str, str, float, str, float] | None = None
     for period, year, q, postal in in_scope:
         fsa = postal.strip().upper()[:3] if postal else None
         area = areas.get(fsa) if fsa else None
         if area is None or not area.er_uid:
             continue
+        # The positive list gives the decision quarter, not the submission
+        # date, so the rate must have been at the threshold in the window in
+        # force when the quarter began and in the one before it. Both are read
+        # from ESDC's refusal-to-process lists when both are stored, else from
+        # the LFS table, so one quarter never mixes the two.
+        month_before, month = _windows(year, q)
+        listed_before, listed = lists.get(month_before), lists.get(month)
+        from_lists = listed_before is not None and listed is not None
         if not area.cma_uid:
             placed += 1
+            on_lists += from_lists
             continue
-        # The list gives the decision quarter, not the submission date, so the
-        # rate must have been at the threshold in the window in force when the
-        # quarter began and in the one before it.
-        index = _quarter_index(year, q) - 1
-        month_before = _reference_month(index // 4, index % 4 + 1)
-        month = _reference_month(year, q)
+        if from_lists:
+            # An area a list leaves out has no rate in force: ESDC processes
+            # its applications, so the row is placed and not at the threshold.
+            placed += 1
+            on_lists += 1
+            rate_before = listed_before.rates.get(area.cma_uid)
+            rate = listed.rates.get(area.cma_uid)
+            if rate is None or rate_before is None:
+                continue
+            if rate >= listed.threshold and rate_before >= listed_before.threshold:
+                key = (_quarter_index(year, q), min(rate, rate_before))
+                if best is None or key > best[0]:
+                    best = (key, period, area, "lists", listed_before.start, rate_before, listed.start, rate)
+            continue
         rate_before = rates.get((area.cma_uid, month_before))
         rate = rates.get((area.cma_uid, month))
         if rate is None or rate_before is None:
@@ -415,14 +503,25 @@ def _low_wage_high_unemployment(any_low_wage: bool, rows: list[tuple[str, str | 
         if rate >= UNEMPLOYMENT_THRESHOLD and rate_before >= UNEMPLOYMENT_THRESHOLD:
             key = (_quarter_index(year, q), min(rate, rate_before))
             if best is None or key > best[0]:
-                best = (key, period, area, month_before, rate_before, month, rate)
+                best = (key, period, area, "lfs", month_before, rate_before, month, rate)
     if best is not None:
-        _, period, area, month_before, rate_before, month, rate = best
+        _, period, area, basis, when_before, rate_before, when, rate = best
         name = cma_names.get(area.cma_uid or "") or area.cma_name or area.cma_uid
+        if basis == "lists":
+            return "triggered", (
+                f"Low Wage stream approval in {period}; ESDC's refusal-to-process lists gave the {name} CMA "
+                f"{rate_before:.1f} percent from {when_before} and {rate:.1f} percent from {when}."
+            )
         return "triggered", (
             f"Low Wage stream approval in {period}; the {name} CMA unemployment rate was {rate_before:.1f} percent "
-            f"for the three months ending {month_before} and {rate:.1f} percent for the three months ending "
-            f"{month} (Statistics Canada LFS)."
+            f"for the three months ending {when_before} and {rate:.1f} percent for the three months ending "
+            f"{when} (Statistics Canada LFS)."
+        )
+    if placed and on_lists:
+        return "not_triggered", (
+            f"{placed} low-wage positive-list row(s) from {start_label} on; none in a census metropolitan area "
+            f"at or above 6 percent in both periods checked: {on_lists} against ESDC's published "
+            f"refusal-to-process lists, {placed - on_lists} against Statistics Canada LFS rates."
         )
     if placed:
         return "not_triggered", (

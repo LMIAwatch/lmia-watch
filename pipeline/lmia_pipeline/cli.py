@@ -15,11 +15,12 @@ from typing import Any, Callable
 from . import bluesky, config, export, export_static, indicators, migrate, search_db, social, status, views_rollup, zenodo
 from .db import connect, hours_since, log_run
 from .http import PoliteClient
-from .sources import esdc, geography, ircc, jobbank, lfs, registry_bc, registry_federal, registry_quebec, wages
-from .sources import vacancies
+from .sources import esdc, geography, ircc, jobbank, lfs, program, registry_bc, registry_federal, registry_quebec
+from .sources import vacancies, wages
 
 log = logging.getLogger("lmia_pipeline")
-STAGES = ["esdc", "ircc", "jobbank", "registry", "wages", "lfs", "vacancies", "geography", "indicators", "export"]
+STAGES = ["esdc", "ircc", "jobbank", "registry", "wages", "lfs", "vacancies", "program", "geography", "indicators",
+          "export"]
 
 # Job Bank is crawled once a day and no more. A re-run of a failed night, or a
 # run started by hand, must not send a second pass; the guard is in the
@@ -248,6 +249,14 @@ def _command(conn: sqlite3.Connection, args: argparse.Namespace) -> int:
         ok &= _stage(conn, "lfs", lambda: lfs.run(conn, client), "rows loaded")
     if "vacancies" in stages:
         ok &= _stage(conn, "vacancies", lambda: vacancies.run(conn, client), "rows loaded")
+    # The program's own pages on canada.ca: processing times, the low-wage
+    # refusal list by CMA, the wage thresholds. One stage per page, so a page
+    # whose layout changed fails alone and leaves its stored editions as they
+    # were; before the indicators, which read the CMA lists.
+    if "program" in stages:
+        ok &= _stage(conn, "program_times", lambda: program.run_times(conn, client), "editions added")
+        ok &= _stage(conn, "program_cma", lambda: program.run_cma(conn, client), "editions added")
+        ok &= _stage(conn, "program_thresholds", lambda: program.run_thresholds(conn, client), "editions added")
     if "geography" in stages:
         # The boundary service answers some requests with HTTP 500 and the
         # next attempt succeeds, so this client retries more before giving up.

@@ -47,6 +47,12 @@ const SOURCES: [Key, Key, Key, Key][] = [
     "methodology.sources.boundaries.cadence",
     "methodology.sources.none",
   ],
+  [
+    "methodology.sources.program.source",
+    "methodology.sources.program.fields",
+    "methodology.sources.program.cadence",
+    "methodology.sources.program.lag",
+  ],
 ];
 
 const STATUS_ROWS: [string, Key, Key][] = [

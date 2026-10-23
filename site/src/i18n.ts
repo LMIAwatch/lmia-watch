@@ -620,6 +620,22 @@ const STRINGS = {
     en: "Loaded once; boundaries are fixed for a census",
     fr: "Chargés une seule fois; les limites sont fixes pour un recensement",
   },
+  "methodology.sources.program.source": {
+    en: "ESDC program pages on canada.ca: LMIA processing times, refusal to process (low-wage positions by census metropolitan area), hourly wage thresholds",
+    fr: "Pages de programme d'EDSC sur canada.ca : délais de traitement des EIMT, refus de traitement (postes à bas salaire par région métropolitaine de recensement), seuils salariaux horaires",
+  },
+  "methodology.sources.program.fields": {
+    en: "Average business days by stream for a month; unemployment rate by census metropolitan area with the dates each list is in force; hourly threshold by province and territory with its effective date",
+    fr: "Jours ouvrables moyens par volet pour un mois; taux de chômage par région métropolitaine de recensement avec les dates d'application de chaque liste; seuil horaire par province et territoire avec sa date d'entrée en vigueur",
+  },
+  "methodology.sources.program.cadence": {
+    en: "Monthly, quarterly and yearly as ESDC updates them; read nightly",
+    fr: "Mensuelle, trimestrielle et annuelle selon les mises à jour d'EDSC; relevées chaque nuit",
+  },
+  "methodology.sources.program.lag": {
+    en: "Processing times describe the month before; the lists are used by the low-wage stream indicator",
+    fr: "Les délais de traitement portent sur le mois précédent; les listes servent à l'indicateur du volet des postes à bas salaire",
+  },
   "methodology.status_note": {
     en: "Each posting or list row is one record. An employer's status is the most recent record's status.",
     fr: "Chaque offre ou inscription de liste constitue un dossier. Le statut d'un employeur est celui de son dossier le plus récent.",
@@ -698,12 +714,12 @@ const STRINGS = {
     fr: "Professions dont la répartition des salaires est étroite; une offre dont la fourchette commence au plancher mais qui paie davantage; un secteur postal à cheval sur deux régions économiques et rattaché à l'autre",
   },
   "methodology.ind.low_wage_high_unemployment.rule": {
-    en: "A positive-list row from 2025 Q1 on is in the Low Wage stream, and its census metropolitan area's unemployment rate was 6 percent or higher in both three-month periods that could have applied: the one in force when the decision quarter began and the one before it. Since 2024-09-26 ESDC refuses to process low-wage applications in such areas outside exempt positions",
-    fr: "Une inscription sur la liste positive depuis le T1 2025 relève du volet des postes à bas salaire, et le taux de chômage de sa région métropolitaine de recensement était d'au moins 6 % pendant les deux périodes de trois mois qui pouvaient s'appliquer : celle en vigueur au début du trimestre de la décision et la précédente. Depuis le 2024-09-26, EDSC refuse de traiter les demandes à bas salaire dans ces régions, sauf pour les postes exemptés",
+    en: "A positive-list row from 2025 Q1 on is in the Low Wage stream, and its census metropolitan area's unemployment rate was 6 percent or higher in both three-month periods that could have applied: the one in force when the decision quarter began and the one before it. For a quarter whose two lists this site has read from ESDC's refusal-to-process page (see Program conditions), the rates are the ones ESDC published; for earlier quarters they are reconstructed from Statistics Canada's Labour Force Survey, the series ESDC draws them from. Each profile's basis sentence names which was used. Since 2024-09-26 ESDC refuses to process low-wage applications in such areas outside exempt positions",
+    fr: "Une inscription sur la liste positive depuis le T1 2025 relève du volet des postes à bas salaire, et le taux de chômage de sa région métropolitaine de recensement était d'au moins 6 % pendant les deux périodes de trois mois qui pouvaient s'appliquer : celle en vigueur au début du trimestre de la décision et la précédente. Pour un trimestre dont ce site a relevé les deux listes sur la page des refus de traitement d'EDSC (voir Conditions du programme), les taux sont ceux qu'EDSC a publiés; pour les trimestres antérieurs, ils sont reconstitués à partir de l'Enquête sur la population active de Statistique Canada, la série dont EDSC les tire. La phrase de fondement de chaque profil indique laquelle a servi. Depuis le 2024-09-26, EDSC refuse de traiter les demandes à bas salaire dans ces régions, sauf pour les postes exemptés",
   },
   "methodology.ind.low_wage_high_unemployment.data": {
-    en: "ESDC positive lists, Statistics Canada Labour Force Survey, 2021 Census boundaries",
-    fr: "Listes positives d'EDSC, Enquête sur la population active de Statistique Canada, limites du Recensement de 2021",
+    en: "ESDC positive lists, ESDC's refusal-to-process lists (canada.ca), Statistics Canada Labour Force Survey, 2021 Census boundaries",
+    fr: "Listes positives d'EDSC, listes des refus de traitement d'EDSC (canada.ca), Enquête sur la population active de Statistique Canada, limites du Recensement de 2021",
   },
   "methodology.ind.low_wage_high_unemployment.fp": {
     en: "Exempt positions: primary agriculture, construction, food manufacturing including fish processing, hospitals, nursing and residential care, in-home caregivers in a private household, permanent residence only, and stays of 120 days or less; an application submitted before 2024-09-26 and decided later; a postal area that straddles a metropolitan boundary",
@@ -932,6 +948,10 @@ const STRINGS = {
   "data.src.lfs": { en: "Labour Force Survey table 14-10-0459-01", fr: "tableau 14-10-0459-01 de l'Enquête sur la population active" },
   "data.src.boundaries": { en: "2021 Census boundary files", fr: "fichiers des limites du Recensement de 2021" },
   "data.src.statcan_licence": { en: "Statistics Canada Open Licence", fr: "Licence ouverte de Statistique Canada" },
+  "data.program_text": {
+    en: "The {program} page reads three ESDC pages on canada.ca each night (LMIA processing times, the low-wage refusal-to-process list by census metropolitan area, and the provincial and territorial wage thresholds), reproduced under the {terms}; the low-wage stream indicator reads the lists.",
+    fr: "La page {program} relève chaque nuit trois pages d'EDSC sur canada.ca (délais de traitement des EIMT, liste des refus de traitement à bas salaire par région métropolitaine de recensement et seuils salariaux provinciaux et territoriaux), reproduites conformément aux {terms}; l'indicateur du volet des postes à bas salaire lit les listes.",
+  },
   "data.crawl_text": {
     en: "The nightly check sends one request at a time to Job Bank under a named user agent with a contact address. The run stops if Job Bank returns errors.",
     fr: "La vérification de nuit envoie une requête à la fois au Guichet-Emplois sous un agent utilisateur nommé, avec une adresse de contact. L'exécution s'arrête si le Guichet-Emplois renvoie des erreurs.",
@@ -1192,6 +1212,16 @@ const STRINGS = {
   "basis.low_wage_none_high": {
     en: "{n} low-wage positive-list row(s) from {start} on; none in a census metropolitan area at or above 6 percent in both three-month periods checked.",
     fr: "{n} inscription(s) sur la liste positive dans le volet des postes à bas salaire depuis le {start}; aucune dans une région métropolitaine de recensement à 6 % ou plus pendant les deux périodes de trois mois vérifiées.",
+  },
+  // Rules 0.3: a quarter whose two refusal-to-process lists are stored is
+  // judged on the rates ESDC published, and the sentence says so.
+  "basis.low_wage_lists_high": {
+    en: "Low Wage stream approval in {period}; ESDC's refusal-to-process lists gave the {cma} CMA {rate} percent from {start} and {rate2} percent from {start2}.",
+    fr: "Approbation dans le volet des postes à bas salaire, {period}; les listes de refus de traitement d'EDSC donnaient {rate} % à compter du {start} et {rate2} % à compter du {start2}, région métropolitaine de recensement : {cma}.",
+  },
+  "basis.low_wage_lists_none": {
+    en: "{n} low-wage positive-list row(s) from {start} on; none in a census metropolitan area at or above 6 percent in both periods checked: {lists} against ESDC's published refusal-to-process lists, {lfs} against Statistics Canada LFS rates.",
+    fr: "{n} inscription(s) sur la liste positive dans le volet des postes à bas salaire depuis le {start}; aucune dans une région métropolitaine de recensement à 6 % ou plus pendant les deux périodes vérifiées : {lists} selon les listes de refus de traitement publiées par EDSC, {lfs} selon les taux de l'EPA de Statistique Canada.",
   },
   "basis.no_registry": { en: "No registry match yet.", fr: "Aucune correspondance au registre pour l'instant." },
   "basis.nothing_to_compare": {
@@ -2011,6 +2041,14 @@ const STRINGS = {
     en: "Nothing recomputed; new files under trends/",
     fr: "Aucun recalcul; nouveaux fichiers sous trends/",
   },
+  "data.change_program": {
+    en: "New Program conditions page: LMIA processing times by stream, the census metropolitan areas where low-wage LMIAs are not processed, and the provincial and territorial wage thresholds, read nightly from canada.ca with every edition kept. Indicator rules v{rules}: the low-wage stream indicator reads ESDC's published lists for each quarter they cover and keeps Statistics Canada's rates for earlier quarters.",
+    fr: "Nouvelle page Conditions du programme : délais de traitement des EIMT par volet, régions métropolitaines de recensement où les EIMT à bas salaire ne sont pas traitées et seuils salariaux provinciaux et territoriaux, relevés chaque nuit sur canada.ca, chaque édition étant conservée. Règles des indicateurs v{rules} : l'indicateur du volet des postes à bas salaire lit les listes publiées par EDSC pour chaque trimestre qu'elles couvrent et conserve les taux de Statistique Canada pour les trimestres antérieurs.",
+  },
+  "data.recomputed_program": {
+    en: "Low-wage stream indicator; new file program/index.json",
+    fr: "Indicateur du volet des postes à bas salaire; nouveau fichier program/index.json",
+  },
 
   // --- trends ---
   "nav.trends": { en: "Trends", fr: "Tendances" },
@@ -2108,6 +2146,11 @@ const STRINGS = {
     en: "Occupation series break at {from}: from that file ESDC codes occupations in NOC 2021 instead of NOC 2011, and the two do not match code for code. The counts on this page do not depend on the occupation code.",
     fr: "Les séries par profession sont rompues au {from} : à partir de ce fichier, EDSC code les professions selon la CNP 2021 plutôt que la CNP 2011, et les deux ne se correspondent pas code pour code. Les chiffres de cette page ne dépendent pas du code de profession.",
   },
+  "trends.note_program": {
+    en: "The quarterly lists of census metropolitan areas where low-wage LMIAs are not processed are a series rather than single rule changes, so they are not marked on the charts; the {program} page has every list read, with the wage thresholds and the processing times.",
+    fr: "Les listes trimestrielles des régions métropolitaines de recensement où les EIMT à bas salaire ne sont pas traitées forment une série plutôt que des changements de règles ponctuels; elles ne sont donc pas marquées sur les graphiques. La page {program} présente chaque liste relevée, avec les seuils salariaux et les délais de traitement.",
+  },
+  "trends.program_link": { en: "Program conditions", fr: "Conditions du programme" },
   "trends.note_refused_missing": {
     en: "ESDC published no negative list for {periods}, so the refusals for it are left blank rather than shown as zero.",
     fr: "EDSC n'a publié aucune liste négative pour {periods} : les refus correspondants sont donc laissés en blanc plutôt qu'à zéro.",
@@ -2181,7 +2224,27 @@ const STRINGS = {
     en: "The High Wage stream's threshold raised to 20 percent above the provincial or territorial median hourly wage, so positions paid between the old and the new threshold count as Low Wage.",
     fr: "Le seuil du volet des postes à haut salaire passe à 20 % au-dessus du salaire horaire médian de la province ou du territoire : les postes payés entre l'ancien et le nouveau seuil relèvent donc du volet des postes à bas salaire.",
   },
+  "trends.mark.lowwage_2026": {
+    en: "Low-wage stream: job advertisements must run for at least 8 consecutive weeks in the 3 months before an application, and recruitment must target youth; the cap on low-wage temporary foreign workers stays at 10 percent of a work location's workforce (20 percent in construction, food manufacturing, hospitals and nursing care), and rural employers in participating provinces and territories may keep their current share or use a 15 percent cap until 2027-03-31 (start dates vary by province).",
+    fr: "Volet des postes à bas salaire : les offres d'emploi doivent être affichées pendant au moins 8 semaines consécutives dans les 3 mois précédant la demande, et le recrutement doit cibler les jeunes; le plafond de travailleurs étrangers temporaires à bas salaire reste à 10 % de l'effectif d'un lieu de travail (20 % dans la construction, la fabrication d'aliments, les hôpitaux et les soins infirmiers), et les employeurs des régions rurales des provinces et territoires participants peuvent conserver leur proportion actuelle ou appliquer un plafond de 15 % jusqu'au 2027-03-31 (dates de début selon la province).",
+  },
+  "trends.mark.thresholds_2026": {
+    en: "New provincial and territorial hourly wage thresholds (the median hourly wage plus 20 percent, from the Labour Force Survey for 2024 to 2025) divide the high-wage and low-wage streams for LMIAs received from this date; the Program conditions page lists them.",
+    fr: "De nouveaux seuils salariaux horaires provinciaux et territoriaux (le salaire horaire médian majoré de 20 %, selon l'Enquête sur la population active de 2024 à 2025) séparent les volets des postes à haut et à bas salaire pour les EIMT reçues à compter de cette date; la page Conditions du programme les énumère.",
+  },
   "trends.source_release": { en: "ESDC news release of {date}", fr: "communiqué d'EDSC du {date}" },
+  "trends.source_requirements": {
+    en: "program requirements for low-wage positions (canada.ca)",
+    fr: "exigences du programme pour les postes à bas salaire (canada.ca)",
+  },
+  "trends.source_rural": {
+    en: "temporary measures for rural employers (canada.ca)",
+    fr: "mesures temporaires pour les employeurs ruraux (canada.ca)",
+  },
+  "trends.source_thresholds": {
+    en: "hourly wage thresholds by province or territory (canada.ca)",
+    fr: "seuils salariaux horaires par province ou territoire (canada.ca)",
+  },
   "trends.source_dataset": {
     en: "ESDC positive LMIA employers list, Open Government Portal",
     fr: "liste des employeurs ayant reçu une EIMT positive d'EDSC, Portail du gouvernement ouvert",
@@ -2252,8 +2315,8 @@ const STRINGS = {
   "trends.pending_none": { en: "No complete pass is recorded yet.", fr: "Aucun passage complet n'est encore enregistré." },
 
   "trends.sources": {
-    en: "Sources: ESDC's positive and negative LMIA employer lists (Open Government Licence, Canada) and Job Bank's search, read nightly; licences on the {data}. Rule changes: Government of Canada news releases, linked above.",
-    fr: "Sources : listes des employeurs ayant reçu une EIMT positive ou négative d'EDSC (Licence du gouvernement ouvert, Canada) et recherche du Guichet-Emplois, lue chaque nuit; licences à la {data}. Changements de règles : communiqués du gouvernement du Canada, en lien ci-dessus.",
+    en: "Sources: ESDC's positive and negative LMIA employer lists (Open Government Licence, Canada) and Job Bank's search, read nightly; licences on the {data}. Rule changes: Government of Canada news releases and program pages, linked above.",
+    fr: "Sources : listes des employeurs ayant reçu une EIMT positive ou négative d'EDSC (Licence du gouvernement ouvert, Canada) et recherche du Guichet-Emplois, lue chaque nuit; licences à la {data}. Changements de règles : communiqués et pages de programme du gouvernement du Canada, en lien ci-dessus.",
   },
   "trends.sources_pending": {
     en: "Source: Job Bank's search, read each night by this site; licences on the {data}.",
@@ -2301,6 +2364,137 @@ const STRINGS = {
     en: "Trends: every release as one series, year over year",
     fr: "Tendances : toutes les publications en une série, d'une année à l'autre",
   },
+
+  // --- program conditions (pages/program.tsx) ---
+  "program.crumb": { en: "Program conditions", fr: "Conditions du programme" },
+  "program.h1": { en: "Program Conditions", fr: "Conditions du programme" },
+  "program.lead": {
+    en: "What the Temporary Foreign Worker Program's own pages on canada.ca state, read each night: LMIA processing times by stream, the census metropolitan areas where low-wage LMIA applications are not processed, and the wage thresholds between the high-wage and low-wage streams. Every figure links to the page it was read from, with the date it was read.",
+    fr: "Ce que les pages du Programme des travailleurs étrangers temporaires sur canada.ca indiquent, relevé chaque nuit : les délais de traitement des EIMT par volet, les régions métropolitaines de recensement où les demandes d'EIMT à bas salaire ne sont pas traitées et les seuils salariaux entre les volets des postes à haut et à bas salaire. Chaque chiffre renvoie à la page où il a été relevé, avec la date du relevé.",
+  },
+  "program.now_title": { en: "In Force on {date}", fr: "En vigueur le {date}" },
+  "program.as_of_note": {
+    en: "Worked out for the date of the latest nightly export.",
+    fr: "Établi pour la date de la plus récente exportation de nuit.",
+  },
+  "program.range": { en: "from {from} to {to}", fr: "du {from} au {to}" },
+  "program.range_open": { en: "from {from}", fr: "à compter du {from}" },
+  "program.now_cma": {
+    en: "Low-wage LMIA applications are not processed in {n} of {total} census metropolitan areas (unemployment rate of {threshold} percent or more), for applications submitted {range}.",
+    fr: "Les demandes d'EIMT à bas salaire ne sont pas traitées dans {n} des {total} régions métropolitaines de recensement (taux de chômage de {threshold} % ou plus), pour les demandes soumises {range}.",
+  },
+  "program.now_wage": {
+    en: "Wage thresholds for LMIAs received {range}: {low} an hour ({low_prov}) to {high} ({high_prov}).",
+    fr: "Seuils salariaux pour les EIMT reçues {range} : de {low} l'heure ({low_prov}) à {high} ({high_prov}).",
+  },
+  "program.now_times": {
+    en: "Average processing time in {month}: {low} business days ({low_stream}) to {high} ({high_stream}).",
+    fr: "Délai de traitement moyen en {month} : de {low} jours ouvrables ({low_stream}) à {high} ({high_stream}).",
+  },
+  "program.cma_none": { en: "No list read is in force on {date}.", fr: "Aucune liste relevée n'est en vigueur le {date}." },
+  "program.wage_none": { en: "No thresholds read are in force on {date}.", fr: "Aucun seuil relevé n'est en vigueur le {date}." },
+  "program.not_read": { en: "Not read yet.", fr: "Pas encore relevé." },
+  "program.times_title": { en: "LMIA Processing Times by Stream", fr: "Délais de traitement des EIMT par volet" },
+  "program.times_text": {
+    en: "The average number of business days Service Canada took to assess an application and render a decision once all required information was received, for the LMIAs processed in the month; ESDC updates the table monthly, about five weeks after the month begins. The times do not include the minimum advertising period an employer must complete before applying (14 days to 8 weeks, depending on the stream).",
+    fr: "Le nombre moyen de jours ouvrables qu'il a fallu à Service Canada pour évaluer une demande et rendre une décision une fois toute l'information requise reçue, pour les EIMT traitées pendant le mois; EDSC met le tableau à jour chaque mois, environ cinq semaines après le début du mois. Ces délais ne comprennent pas la période minimale d'affichage qu'un employeur doit terminer avant de présenter une demande (de 14 jours à 8 semaines, selon le volet).",
+  },
+  "program.times_caption": { en: "Average business days, {month}", fr: "Jours ouvrables en moyenne, {month}" },
+  "program.col_stream": { en: "Stream", fr: "Volet" },
+  "program.col_days": { en: "Business days", fr: "Jours ouvrables" },
+  "program.col_month": { en: "Month", fr: "Mois" },
+  "program.history_times": { en: "All Months Read", fr: "Tous les mois relevés" },
+  "program.col_read": { en: "Read", fr: "Relevé le" },
+  "program.col_published": { en: "Page updated", fr: "Page mise à jour" },
+  "program.col_status": { en: "Status", fr: "État" },
+  "program.in_force": { en: "In force", fr: "En vigueur" },
+  "program.upcoming": { en: "Upcoming", fr: "À venir" },
+  "program.latest": { en: "Latest", fr: "Le plus récent" },
+  "program.cma_title": {
+    en: "Census Metropolitan Areas Where Low-Wage LMIAs Are Not Processed",
+    fr: "Régions métropolitaines de recensement où les EIMT à bas salaire ne sont pas traitées",
+  },
+  "program.cma_text": {
+    en: "Since 2024-09-26 ESDC does not process an LMIA application for a position paid below the provincial or territorial wage threshold when the work location is in a census metropolitan area whose unemployment rate is at or above the cut-off on the list in force when the application is submitted, outside the exempt sectors and positions the page lists. The rates are Statistics Canada's Labour Force Survey figures, and ESDC replaces the list every three months.",
+    fr: "Depuis le 2024-09-26, EDSC ne traite pas une demande d'EIMT pour un poste payé sous le seuil salarial de la province ou du territoire lorsque le lieu de travail se trouve dans une région métropolitaine de recensement dont le taux de chômage atteint le seuil de la liste en vigueur au moment de la demande, sauf pour les secteurs et les postes exemptés que la page énumère. Les taux sont ceux de l'Enquête sur la population active de Statistique Canada, et EDSC remplace la liste tous les trois mois.",
+  },
+  "program.cma_current": {
+    en: "List in force for applications submitted {range}: {n} of {total} areas at {threshold} percent or more.",
+    fr: "Liste en vigueur pour les demandes soumises {range} : {n} des {total} régions à {threshold} % ou plus.",
+  },
+  "program.col_cma": { en: "Census metropolitan area", fr: "Région métropolitaine de recensement" },
+  "program.col_rate": { en: "Unemployment rate (%)", fr: "Taux de chômage (%)" },
+  "program.history_cma": { en: "All Lists Read", fr: "Toutes les listes relevées" },
+  "program.col_in_force": { en: "In force", fr: "En vigueur" },
+  "program.col_areas": { en: "Areas at or above the cut-off", fr: "Régions qui atteignent le seuil" },
+  "program.col_cutoff": { en: "Cut-off (%)", fr: "Seuil (%)" },
+  "program.cma_all": { en: "Every area's rate in each list read", fr: "Le taux de chaque région dans chaque liste relevée" },
+  "program.cma_all_note": {
+    en: "Rates at or above the list's cut-off are in bold, as on ESDC's page.",
+    fr: "Les taux qui atteignent le seuil de la liste sont en gras, comme sur la page d'EDSC.",
+  },
+  "program.indicator_note": {
+    en: "The low-wage stream indicator on employer profiles reads these lists for each quarter whose two applicable lists have been read here ({first} on) and Statistics Canada's Labour Force Survey rates for earlier quarters; the {methodology} explains the rule.",
+    fr: "L'indicateur du volet des postes à bas salaire des profils d'employeurs lit ces listes pour chaque trimestre dont les deux listes applicables ont été relevées ici (à partir du {first}) et les taux de l'Enquête sur la population active de Statistique Canada pour les trimestres antérieurs; la {methodology} explique la règle.",
+  },
+  "program.indicator_note_lfs": {
+    en: "The low-wage stream indicator on employer profiles reads Statistics Canada's Labour Force Survey rates until two of these lists cover a quarter; the {methodology} explains the rule.",
+    fr: "L'indicateur du volet des postes à bas salaire des profils d'employeurs lit les taux de l'Enquête sur la population active de Statistique Canada jusqu'à ce que deux de ces listes couvrent un trimestre; la {methodology} explique la règle.",
+  },
+  "program.methodology_link": { en: "Methodology page", fr: "page Méthodologie" },
+  "program.wage_title": {
+    en: "Wage Thresholds Between the High-Wage and Low-Wage Streams",
+    fr: "Seuils salariaux entre les volets des postes à haut et à bas salaire",
+  },
+  "program.wage_text": {
+    en: "The hourly wage threshold is the province's or territory's median hourly wage plus 20 percent, from Statistics Canada's Labour Force Survey. An LMIA whose offered wage is at or above the threshold of the work location's province or territory goes in the high-wage stream; one below it goes in the low-wage stream.",
+    fr: "Le seuil salarial horaire est le salaire horaire médian de la province ou du territoire majoré de 20 %, selon l'Enquête sur la population active de Statistique Canada. Une EIMT dont le salaire offert atteint le seuil de la province ou du territoire du lieu de travail relève du volet des postes à haut salaire; sous ce seuil, elle relève du volet des postes à bas salaire.",
+  },
+  "program.wage_current": { en: "Thresholds in force for LMIAs received {range}.", fr: "Seuils en vigueur pour les EIMT reçues {range}." },
+  "program.col_province": { en: "Province or territory", fr: "Province ou territoire" },
+  "program.col_from": { en: "From {date}", fr: "À compter du {date}" },
+  "program.col_change": { en: "Change", fr: "Variation" },
+  "program.history_wage": { en: "All Editions Read", fr: "Toutes les éditions relevées" },
+  "program.money": { en: "${v}", fr: "{v} $" },
+  "program.source_line": {
+    en: "Source: {link}, page updated {published}; first read {read}, last checked {checked}.",
+    fr: "Source : {link}, page mise à jour le {published}; premier relevé le {read}, dernière vérification le {checked}.",
+  },
+  "program.src_times": {
+    en: "ESDC, Labour Market Impact Assessment application processing times",
+    fr: "EDSC, Temps de traitement des demandes d'évaluation de l'impact sur le marché du travail",
+  },
+  "program.src_cma": {
+    en: "ESDC, Refusal to process a Labour Market Impact Assessment application",
+    fr: "EDSC, Refus de traiter une demande d'évaluation de l'impact sur le marché du travail",
+  },
+  "program.src_wage": {
+    en: "ESDC, Hire a temporary foreign worker in a high-wage or low-wage position",
+    fr: "EDSC, Embaucher un travailleur étranger temporaire pour un poste à haut salaire ou à bas salaire",
+  },
+  "program.sources": {
+    en: "The three pages are published by Employment and Social Development Canada on canada.ca and reproduced here under the {terms} (non-commercial reproduction with attribution). This site reads them each night and keeps every edition it has read; a figure ESDC later changes is kept beside the earlier one. Licences for the rest of the site are on the {data}.",
+    fr: "Les trois pages sont publiées par Emploi et Développement social Canada sur canada.ca et reproduites ici conformément aux {terms} (reproduction non commerciale avec attribution). Ce site les relève chaque nuit et conserve chaque édition relevée; un chiffre qu'EDSC modifie plus tard est conservé à côté du précédent. Les licences du reste du site figurent à la {data}.",
+  },
+  "program.terms_link": { en: "canada.ca terms and conditions", fr: "avis de Canada.ca" },
+  "program.not_published": {
+    en: "The program conditions have not been read yet.",
+    fr: "Les conditions du programme n'ont pas encore été relevées.",
+  },
+  "program.seo_title": {
+    en: "LMIA Program Conditions: Processing Times, Low-Wage Refusal List, Wage Thresholds",
+    fr: "Conditions du programme des EIMT : délais de traitement, refus à bas salaire, seuils salariaux",
+  },
+  "program.seo_desc": {
+    en: "The TFWP rules in force, read nightly from canada.ca: LMIA processing times by stream, where low-wage LMIAs are not processed, and the wage thresholds.",
+    fr: "Règles du PTET en vigueur, relevées chaque nuit sur canada.ca : délais de traitement des EIMT, régions où les EIMT à bas salaire ne sont pas traitées, seuils salariaux.",
+  },
+  "program.stream.global_talent": { en: "Global Talent Stream", fr: "Volet des talents mondiaux" },
+  "program.stream.agricultural": { en: "Agricultural stream", fr: "Volet agricole" },
+  "program.stream.sawp": { en: "Seasonal Agricultural Worker Program", fr: "Programme des travailleurs agricoles saisonniers" },
+  "program.stream.high_wage": { en: "High-wage stream", fr: "Volet des postes à haut salaire" },
+  "program.stream.low_wage": { en: "Low-wage stream", fr: "Volet des postes à bas salaire" },
+  "program.stream.permanent_resident": { en: "Permanent resident stream", fr: "Volet de résidence permanente" },
 } as const satisfies Record<string, Entry>;
 
 export type Key = keyof typeof STRINGS;
@@ -2521,7 +2715,7 @@ const BASIS_PATTERNS: { key: Key; re: RegExp }[] = BASIS_KEYS.map((key) => ({ ke
 // Quarters become "T1 2026" wherever they appear; counts and amounts are
 // grouped and decimals take a comma, but a code (the NOC, a posting ID) is
 // left as written.
-const BASIS_NUMBERS = new Set(["days", "top", "n", "run", "median", "posted", "rate", "rate2"]);
+const BASIS_NUMBERS = new Set(["days", "top", "n", "run", "median", "posted", "rate", "rate2", "lists", "lfs"]);
 const BASIS_UNITS: Record<string, string> = { h: "h", yr: "an" };
 
 // Statistics Canada's French names for the economic regions and census
@@ -2546,6 +2740,11 @@ const PLACE_FR: Record<string, string> = {
   "Northwest Territories": "Territoires du Nord-Ouest",
   "Greater Sudbury": "Grand Sudbury",
 };
+
+// A census metropolitan area's name in the reader's language.
+export function cmaName(lang: Lang, english: string): string {
+  return lang === "fr" ? PLACE_FR[english] ?? english : english;
+}
 
 function frProvince(english: string): string {
   const code = Object.keys(PROVINCE_KEY).find((c) => STRINGS[PROVINCE_KEY[c]].en === english);

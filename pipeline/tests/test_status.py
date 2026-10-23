@@ -87,4 +87,4 @@ def test_rollups_and_meta(conn):
     assert get_meta(conn, "count_approved_records") == "1"
     assert get_meta(conn, "count_approved_positions") == "760"
     assert get_meta(conn, "count_refused_records") == "1"
-    assert get_meta(conn, "rules_version") == "0.2"
+    assert get_meta(conn, "rules_version") == "0.3"

@@ -22,6 +22,7 @@ import { rankingsPage } from "./pages/rankings";
 import { releasePage, releasesIndexPage } from "./pages/releases";
 import { occupationPage, occupationsIndex } from "./pages/occupations";
 import { placePage, placesIndex, provincePage } from "./pages/places";
+import { programPage } from "./pages/program";
 import { searchPage } from "./pages/search";
 import { supportPage } from "./pages/support";
 import { trendsPage } from "./pages/trends";
@@ -90,6 +91,8 @@ app.get("/rankings/:year", rankingsPage);
 // The whole series at once: one small JSON file per view, charts drawn here.
 app.get("/trends", trendsPage);
 app.get("/trends/:view", trendsPage);
+// What the program's own pages state is in force: one small JSON file.
+app.get("/program", programPage);
 app.get("/occupations", occupationsIndex);
 app.get("/occupations/:noc", occupationPage);
 app.get("/places", placesIndex);

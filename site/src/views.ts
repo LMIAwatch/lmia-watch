@@ -30,7 +30,7 @@ export type Kind = "page" | "api" | "download" | "form" | "hook" | "file" | "fee
 
 const PAGES = new Set([
   "/", "/search", "/map", "/methodology", "/data", "/support", "/corrections",
-  "/feeds", "/watchlist", "/releases", "/rankings", "/trends", "/occupations", "/places",
+  "/feeds", "/watchlist", "/releases", "/rankings", "/trends", "/program", "/occupations", "/places",
 ]);
 const API_FIXED = new Set(["/api/stats", "/api/pending", "/api/clusters", "/api/search", "/api/search/facets"]);
 const DOWNLOAD_FILES = new Set(DOWNLOADS.map((d) => d.file));

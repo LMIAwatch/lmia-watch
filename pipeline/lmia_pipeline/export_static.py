@@ -31,6 +31,7 @@ Output tree (under data/out/static):
   aliases/<abc>.json                 retired employer id -> the live id that took its records,
                                      sharded on the retired id's characters 5 to 7 like the profiles
   trends/*.json                      the series behind /trends (trends.py)
+  program/index.json                 the program conditions behind /program (conditions.py)
   sitemaps/sitemap-<n>.xml           the fixed pages and every profile URL, at most 50,000 per file
   sitemaps/index.xml                 the sitemap index; the site serves it at /sitemap.xml and the
                                      parts at /sitemap-<n>.xml, since a sitemap may list only URLs
@@ -52,7 +53,7 @@ from collections.abc import Collection, Sequence
 from pathlib import Path
 from xml.sax.saxutils import escape
 
-from . import config, places, releases, trends
+from . import conditions, config, places, releases, trends
 from .db import log_run
 from .feeds import write_feeds
 from .normalize import period_end_date, period_sort_key
@@ -514,6 +515,9 @@ def sitemap_entries(conn: sqlite3.Connection, data_as_of: str | None,
     # publication, the daily pending series by its latest complete pass.
     if "trends" not in skip:
         entries += trends.sitemap_entries(conn)
+    # The program conditions page, dated by the newest edition read.
+    if "program" not in skip:
+        entries += conditions.sitemap_entries(conn)
     entries += [(f"/employers/{r['id']}", _lastmod(r["updated_at"]))
                 for r in conn.execute("SELECT id, updated_at FROM employers ORDER BY id")]
     # Occupation and place pages at or above the record threshold, each dated
@@ -601,23 +605,24 @@ def _write_static(conn: sqlite3.Connection, out: Path) -> dict[str, int]:
                                               "total": len(rows), "rows": rows[:AREA_ROW_CAP]})
         areas += 1
     counts["areas"] = areas
-    # The feeds, the release pages, the trends, the place pages and the alias
-    # map each come from their own aggregation, and the site answers "not
-    # published" for a section whose files are missing (a retired id without
-    # its alias file is a plain 404, as before the map existed). So one bad
-    # value in one of them must not hold back the night's data for every
-    # other page: a section that fails is logged as a stage of its own (the
-    # run status reports it), its files stay unwritten and the sitemap leaves
-    # its pages out until an export writes them again. The search, map,
-    # profile and stats files are the site itself and still fail the export.
-    # The search counts only spare the search API a count (it counts in D1
-    # without them), so they are a section too.
+    # The feeds, the release pages, the trends, the program conditions, the
+    # place pages and the alias map each come from their own aggregation, and
+    # the site answers "not published" for a section whose files are missing
+    # (a retired id without its alias file is a plain 404, as before the map
+    # existed). So one bad value in one of them must not hold back the
+    # night's data for every other page: a section that fails is logged as a
+    # stage of its own (the run status reports it), its files stay unwritten
+    # and the sitemap leaves its pages out until an export writes them again.
+    # The search, map, profile and stats files are the site itself and still
+    # fail the export. The search counts only spare the search API a count (it
+    # counts in D1 without them), so they are a section too.
     failed: set[str] = set()
     sections = (
         ("search_counts", lambda: write_search_counts(conn, out, meta.get("data_as_of"))),
         ("feeds", lambda: write_feeds(conn, out)),
         ("releases", lambda: releases.write_all(conn, out)),
         ("trends", lambda: trends.write_all(conn, out)),
+        ("program", lambda: conditions.write_all(conn, out)),
         ("places", lambda: places.write_places(conn, out)),
         ("aliases", lambda: write_aliases(conn, out)),
     )

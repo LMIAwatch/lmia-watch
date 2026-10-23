@@ -17,6 +17,7 @@ import winnipeg from "./fixtures/place-mb-winnipeg.json";
 import winnipegCma from "./fixtures/place-mb-winnipeg-cma.json";
 import placesIndex from "./fixtures/places-index.json";
 import profiles from "./fixtures/profiles-a00.json";
+import program from "./fixtures/program-index.json";
 import rankingsYear from "./fixtures/rankings-2026.json";
 import rankingsAll from "./fixtures/rankings-all.json";
 import release from "./fixtures/release-2026-q1.json";
@@ -52,6 +53,7 @@ const CASES: { file: string; data: unknown; paths: string[] }[] = [
   { file: "places/mb/winnipeg.json", data: winnipeg, paths: ["/places/mb/winnipeg"] },
   { file: "places/mb/winnipeg-cma.json", data: winnipegCma, paths: ["/places/mb/winnipeg-cma"] },
   { file: "feeds/index.json", data: feedIndex, paths: ["/feeds"] },
+  { file: "program/index.json", data: program, paths: ["/program"] },
   { file: "stats.json", data: WITH_CITATION, paths: ["/data", "/methodology", "/", "/search"] },
   // The search page's first rows and counts; the home page reads the counts too.
   { file: "search/first.json", data: first, paths: ["/search", "/"] },

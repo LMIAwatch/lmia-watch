@@ -353,3 +353,56 @@ describe("links to the trends page", () => {
     expect(await html("/trends")).toContain('href="/trends" class="active" aria-current="page"');
   });
 });
+
+describe("the 2026 rule changes", () => {
+  // The files end with 2026 Q1 today; the two changes of 2026 take their
+  // place on the charts once the 2026 Q2 and Q3 lists are loaded.
+  function laterFiles() {
+    const later = JSON.parse(JSON.stringify(national));
+    const last = later.periods[later.periods.length - 1];
+    later.periods.push(
+      { ...last, p: "2026Q2", start: "2026-04-01", end: "2026-06-30", quarters: 1 },
+      { ...last, p: "2026Q3", start: "2026-07-01", end: "2026-09-30", quarters: 1 },
+    );
+    return testEnv(assetsWith({ ...FILES, "trends/national.json": later }));
+  }
+  const ruleList = (page: string) =>
+    page.slice(page.indexOf('<ol class="rule-list">'), page.indexOf("</ol>", page.indexOf('<ol class="rule-list">')));
+
+  it("are numbered after the others once the files reach them, each with its canada.ca sources", async () => {
+    const list = ruleList(await html("/trends", laterFiles()));
+    const labels = [...list.matchAll(/<li value="(\d)"><strong class="nw">([^<]+)<\/strong>/g)].map((m) => [m[1], m[2]]);
+    expect(labels.slice(-2)).toEqual([["6", "2026-04-01"], ["7", "2026-07-17"]]);
+    const body = text(list);
+    expect(body).toContain("job advertisements must run for at least 8 consecutive weeks in the 3 months before an application, and recruitment must target youth");
+    expect(body).toContain("may keep their current share or use a 15 percent cap until 2027-03-31");
+    expect(body).toContain("New provincial and territorial hourly wage thresholds (the median hourly wage plus 20 percent");
+    for (const href of [
+      "https://www.canada.ca/en/employment-social-development/services/foreign-workers/median-wage/low/requirements.html#duration",
+      "https://www.canada.ca/en/employment-social-development/news/2026/03/government-of-canada-taking-action-to-support-rural-employers-under-the-temporary-foreign-worker-program.html",
+      "https://www.canada.ca/en/employment-social-development/services/foreign-workers/temporary-measures.html",
+      "https://www.canada.ca/en/employment-social-development/services/foreign-workers/median-wage.html#table1",
+    ]) expect(list).toContain(`href="${href}"`);
+    // Tags became spaces in text(); a comma or full stop after a link is drawn back to it.
+    expect(body.replace(/ ([,.])/g, "$1")).toContain(
+      "Sources: program requirements for low-wage positions (canada.ca), ESDC news release of 2026-03-13, temporary measures for rural employers (canada.ca).",
+    );
+  });
+
+  it("link the French pages in French", async () => {
+    const list = ruleList(await html("/trends?lang=fr", laterFiles()));
+    for (const href of [
+      "https://www.canada.ca/fr/emploi-developpement-social/services/travailleurs-etrangers/salaire-moyen/bas/exigences.html#duree",
+      "https://www.canada.ca/fr/emploi-developpement-social/nouvelles/2026/03/le-gouvernement-du-canada-prend-des-mesures-pour-appuyer-les-employeurs-des-regions-rurales-dans-le-cadre-du-programme-des-travailleurs-etrangers-t.html",
+      "https://www.canada.ca/fr/emploi-developpement-social/services/travailleurs-etrangers/mesures-temporaires.html",
+      "https://www.canada.ca/fr/emploi-developpement-social/services/travailleurs-etrangers/salaire-moyen.html#table1",
+    ]) expect(list).toContain(`href="${href}"`);
+    expect(text(list)).toContain("au moins 8 semaines consécutives");
+  });
+
+  it("stay off the charts while the newest file is 2026 Q1", async () => {
+    const list = ruleList(await html("/trends"));
+    expect(list).not.toContain("2026-04-01");
+    expect(list).not.toContain("2026-07-17");
+  });
+});

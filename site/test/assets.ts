@@ -6,6 +6,7 @@ import area from "./fixtures/area-V0N.json";
 import clusters from "./fixtures/clusters-latest.json";
 import facets from "./fixtures/facets.json";
 import profiles from "./fixtures/profiles-a00.json";
+import program from "./fixtures/program-index.json";
 import latest from "./fixtures/search-latest.json";
 import sitemapPart from "./fixtures/sitemap-1.xml?raw";
 import sitemapIndex from "./fixtures/sitemap-index.xml?raw";
@@ -31,6 +32,8 @@ const FILES: Record<string, unknown> = {
   // Retired ids whose shard key (characters 5 to 7 of the old id) is a00, each
   // pointing at a live id in the profile shard above.
   "aliases/a00.json": aliases,
+  // The program conditions (/program), written by the pipeline's export.
+  "program/index.json": program,
 };
 
 export const fakeAssets = {

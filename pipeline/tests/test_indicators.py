@@ -271,3 +271,110 @@ def test_only_changed_rows_are_rewritten(conn):
     assert indicators.compute(conn, now=NOW) == 6
     assert indicators.compute(conn, now="2026-10-13T00:00:00Z") == 0
     assert conn.execute("SELECT DISTINCT computed_at FROM indicators").fetchone()[0] == NOW
+
+
+# -- the two bases of the low-wage rule: ESDC's published lists, the LFS reconstruction --
+
+def load_lists(conn, fixtures):
+    """Store the three lists on the refusal page of 2026-10-09 (in force from
+    2026-04-10, 2026-07-10 and 2026-10-09), as the program_cma stage does."""
+    from lmia_pipeline.sources import program
+    page = program.parse_cma_refusal((fixtures / "program_refusal_en.html").read_text(encoding="utf-8"))
+    program.store(conn, program.CMA, page, source_url=program.SOURCES[program.CMA].url, now=NOW)
+
+
+def setup_toronto(conn):
+    conn.execute("INSERT INTO fsa_regions (fsa, er_uid, er_name, cma_uid, cma_name, lat, lon, method) "
+                 "VALUES ('M5V', '3530', 'Toronto', '535', 'Toronto', 0, 0, 'centroid')")
+
+
+def test_a_published_list_carries_the_window_the_reconstruction_reads():
+    assert indicators.window_month("2026-10-09") == "2026-09"
+    assert indicators.window_month("2027-01-08") == "2026-12"
+    assert indicators.window_month("2026-04-10") == indicators._reference_month(2026, 2)
+    assert indicators.window_month("not a date") is None
+
+
+def test_each_quarter_has_one_basis(conn, fixtures):
+    assert all(b["basis"] == "lfs" for b in indicators.quarter_bases({}, (2026, 1)))
+    load_lists(conn, fixtures)
+    bases = indicators.quarter_bases(indicators.load_cma_lists(conn), (2026, 4))
+    assert [b["quarter"] for b in bases][:2] == ["2025Q1", "2025Q2"]
+    assert {b["quarter"]: b["basis"] for b in bases}["2026Q2"] == "lfs"  # the list of 2026-01 is not stored
+    assert [b for b in bases if b["basis"] == "lists"] == [
+        {"quarter": "2026Q3", "basis": "lists", "lists": ["2026-04-10", "2026-07-10"]},
+        {"quarter": "2026Q4", "basis": "lists", "lists": ["2026-07-10", "2026-10-09"]},
+    ]
+
+
+def test_low_wage_reads_the_published_lists_where_they_are_stored(conn, fixtures):
+    setup_regions(conn)
+    setup_toronto(conn)
+    # LFS figures that disagree with the lists on purpose: Winnipeg at 6.5 in
+    # both windows of 2026 Q3, where the lists of 2026-04-10 and 2026-07-10
+    # give 6.0 and 5.6.
+    add_rates(conn, [("602", "Winnipeg", "2026-03", 6.5), ("602", "Winnipeg", "2026-06", 6.5),
+                     ("602", "Winnipeg", "2025-06", 6.4), ("602", "Winnipeg", "2025-09", 6.6)])
+    grill = upsert_employer(conn, "Lists Grill", "MB", source="esdc_positive", now=NOW)
+    add_low_wage(conn, grill, "2026Q3", "R2H 2B2")
+    # Without the lists the quarter is judged on the LFS table.
+    assert low_state(conn, grill) == ("triggered", (
+        "Low Wage stream approval in 2026Q3; the Winnipeg CMA unemployment rate was 6.5 percent for the three months "
+        "ending 2026-03 and 6.5 percent for the three months ending 2026-06 (Statistics Canada LFS)."))
+    load_lists(conn, fixtures)
+    assert low_state(conn, grill) == ("not_triggered", (
+        "1 low-wage positive-list row(s) from 2025Q1 on; none in a census metropolitan area at or above 6 percent "
+        "in both periods checked: 1 against ESDC's published refusal-to-process lists, 0 against Statistics Canada "
+        "LFS rates."))
+    # Toronto was at or above 6 percent on both lists that could have applied.
+    cafe = upsert_employer(conn, "Lists Cafe", "ON", source="esdc_positive", now=NOW)
+    add_low_wage(conn, cafe, "2026Q3", "M5V 2T6")
+    assert low_state(conn, cafe) == ("triggered", (
+        "Low Wage stream approval in 2026Q3; ESDC's refusal-to-process lists gave the Toronto CMA 7.9 percent from "
+        "2026-04-10 and 7.3 percent from 2026-07-10."))
+
+
+def test_earlier_quarters_keep_the_reconstruction(conn, fixtures):
+    setup_regions(conn)
+    add_rates(conn, [("602", "Winnipeg", "2025-06", 6.4), ("602", "Winnipeg", "2025-09", 6.6),
+                     ("602", "Winnipeg", "2025-12", 5.7), ("602", "Winnipeg", "2026-03", 6.0)])
+    load_lists(conn, fixtures)
+    early = upsert_employer(conn, "Early Grill", "MB", source="esdc_positive", now=NOW)
+    add_low_wage(conn, early, "2025Q4", "R2H 2B2")
+    # 2025 Q4 is before the stored lists, so the sentence is the LFS one, unchanged from rules 0.2.
+    assert low_state(conn, early) == ("triggered", (
+        "Low Wage stream approval in 2025Q4; the Winnipeg CMA unemployment rate was 6.4 percent for the three months "
+        "ending 2025-06 and 6.6 percent for the three months ending 2025-09 (Statistics Canada LFS)."))
+    # One row on each basis: Winnipeg in 2026 Q2 (the list of 2026-01 is not
+    # stored, so the LFS table: 5.7 and 6.0) and Halifax in 2026 Q4 (the lists
+    # of 2026-07-10 and 2026-10-09: 5.9 and 6.1).
+    mixed = upsert_employer(conn, "Mixed Diner", "NS", source="esdc_positive", now=NOW)
+    add_low_wage(conn, mixed, "2026Q2", "R2H 2B2")
+    add_low_wage(conn, mixed, "2026Q4", "B3H 4R2")
+    assert low_state(conn, mixed) == ("not_triggered", (
+        "2 low-wage positive-list row(s) from 2025Q1 on; none in a census metropolitan area at or above 6 percent "
+        "in both periods checked: 1 against ESDC's published refusal-to-process lists, 1 against Statistics Canada "
+        "LFS rates."))
+
+
+def test_with_lists_but_no_lfs_table_the_covered_quarters_are_still_judged(conn, fixtures):
+    setup_regions(conn)
+    setup_toronto(conn)
+    load_lists(conn, fixtures)
+    late = upsert_employer(conn, "Late Lists", "ON", source="esdc_positive", now=NOW)
+    add_low_wage(conn, late, "2026Q4", "M5V 2T6")
+    assert low_state(conn, late)[0] == "triggered"
+    early = upsert_employer(conn, "Early Lists", "ON", source="esdc_positive", now=NOW)
+    add_low_wage(conn, early, "2025Q4", "M5V 2T6")
+    assert low_state(conn, early) == (
+        "not_evaluated", "The low-wage approvals could not be placed in an area with a published unemployment rate.")
+
+
+def test_an_area_a_list_leaves_out_is_not_at_the_threshold(conn, fixtures):
+    setup_regions(conn)
+    conn.execute("INSERT INTO fsa_regions (fsa, er_uid, er_name, cma_uid, cma_name, lat, lon, method) "
+                 "VALUES ('Y1A', '6010', 'Yukon', '999', 'Nowhere', 0, 0, 'centroid')")
+    load_lists(conn, fixtures)
+    eid = upsert_employer(conn, "North Diner", "YT", source="esdc_positive", now=NOW)
+    add_low_wage(conn, eid, "2026Q3", "Y1A 1A1")
+    assert low_state(conn, eid)[0] == "not_triggered"

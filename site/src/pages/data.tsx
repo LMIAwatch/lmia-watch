@@ -5,6 +5,7 @@ import type { AppEnv } from "../env";
 import { t, tj, type Key, type Lang } from "../i18n";
 import { Layout, fmtInt, noDataPage, page, periodLabel } from "../layout";
 import { CANADA_TERMS_URL, type DownloadLicence, OGL_URL, datasetJsonLd, pageSeo } from "../seo";
+import { TERMS } from "./program";
 import { isListOf, isNum, isNumOrNull, isObj, isStr, isStrOrNull } from "../valid";
 
 // The changelog, newest first whatever order the entries are written in.
@@ -20,6 +21,7 @@ export const CHANGELOG: readonly ChangeRow[] = [
     vars: { rows: 8359, positions: 49043, streams: 55006, provinces: 2349, headers: 473, header_positions: 1606 },
   },
   { date: "2026-10-20", change: "data.change_trends", recomputed: "data.recomputed_trends" },
+  { date: "2026-10-22", change: "data.change_program", recomputed: "data.recomputed_program", vars: { rules: "0.3" } },
 ];
 // Numbers in an entry are formatted for the page's language; the drafted entry names the latest period.
 export function changelog(latestPeriod: string, lang: Lang): { date: string; change: Key; recomputed: Key; vars: Record<string, string> }[] {
@@ -274,6 +276,12 @@ export async function dataPage(c: Context<AppEnv>): Promise<Response> {
               lfs: <a href={SOURCE_LINKS.lfs[lang]}>{t(lang, "data.src.lfs")}</a>,
               boundaries: <a href={SOURCE_LINKS.boundaries[lang]}>{t(lang, "data.src.boundaries")}</a>,
               statcan: <a href={SOURCE_LINKS.statcan[lang]}>{t(lang, "data.src.statcan_licence")}</a>,
+            })}
+          </p>
+          <p>
+            {tj(lang, "data.program_text", {
+              program: <a href="/program">{t(lang, "trends.program_link")}</a>,
+              terms: <a href={TERMS[lang]}>{t(lang, "program.terms_link")}</a>,
             })}
           </p>
           <p>

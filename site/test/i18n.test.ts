@@ -67,6 +67,7 @@ const FRENCH_PAGES = [
   "/corrections?lang=fr",
   "/nothing-here?lang=fr",
   "/downloads/employers.csv?lang=fr",
+  "/program?lang=fr",
 ];
 
 // The data blocks hold {name} templates on purpose, and the JSON-LD search
@@ -237,6 +238,15 @@ describe("indicator basis sentences", () => {
       [
         "1 low-wage positive-list row(s) from 2025Q1 on; none in a census metropolitan area at or above 6 percent in both three-month periods checked.",
         "1 inscription(s) sur la liste positive dans le volet des postes à bas salaire depuis le T1 2025; aucune dans une région métropolitaine de recensement à 6 % ou plus pendant les deux périodes de trois mois vérifiées.",
+      ],
+      // Rules 0.3: a quarter judged on ESDC's published refusal-to-process lists.
+      [
+        "Low Wage stream approval in 2026Q3; ESDC's refusal-to-process lists gave the Greater Sudbury CMA 6.4 percent from 2026-04-10 and 6.2 percent from 2026-07-10.",
+        "Approbation dans le volet des postes à bas salaire, T3 2026; les listes de refus de traitement d’EDSC donnaient 6,4 % à compter du 2026-04-10 et 6,2 % à compter du 2026-07-10, région métropolitaine de recensement : Grand Sudbury.",
+      ],
+      [
+        "2 low-wage positive-list row(s) from 2025Q1 on; none in a census metropolitan area at or above 6 percent in both periods checked: 1 against ESDC's published refusal-to-process lists, 1 against Statistics Canada LFS rates.",
+        "2 inscription(s) sur la liste positive dans le volet des postes à bas salaire depuis le T1 2025; aucune dans une région métropolitaine de recensement à 6 % ou plus pendant les deux périodes vérifiées : 1 selon les listes de refus de traitement publiées par EDSC, 1 selon les taux de l’EPA de Statistique Canada.",
       ],
     ];
     for (const [en, fr] of cases) {

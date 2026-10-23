@@ -184,6 +184,8 @@ interface Rule {
 
 const NEWS_EN = "https://www.canada.ca/en/employment-social-development/news/";
 const NEWS_FR = "https://www.canada.ca/fr/emploi-developpement-social/nouvelles/";
+const TFW_EN = "https://www.canada.ca/en/employment-social-development/services/foreign-workers/";
+const TFW_FR = "https://www.canada.ca/fr/emploi-developpement-social/services/travailleurs-etrangers/";
 const POSITIVE_LIST = "90fed587-1364-4f33-a9ee-208181dc0b97";
 
 export const RULES: readonly Rule[] = [
@@ -239,6 +241,41 @@ export const RULES: readonly Rule[] = [
         en: `${NEWS_EN}2024/10/minister-boissonnault-announces-further-temporary-foreign-worker-program-reforms-to-better-protect-the-canadian-labour-market-and-workers.html`,
         fr: `${NEWS_FR}2024/10/le-ministre-boissonnault-annonce-dautres-changements-au-programme-des-travailleurs-etrangers-temporaires-afin-doffrir-une-meilleure-protection-pour.html`,
       },
+    }],
+  },
+  // The advertising and youth rules have no news release: the program
+  // requirements state them, and ESDC's notice dating them April 1, 2026 is
+  // no longer shown on the program's pages. The rural measures were announced
+  // on 2026-03-13 to begin as early as April 1, 2026.
+  {
+    date: "2026-04-01",
+    key: "trends.mark.lowwage_2026",
+    sources: [
+      {
+        label: "trends.source_requirements",
+        href: { en: `${TFW_EN}median-wage/low/requirements.html#duration`, fr: `${TFW_FR}salaire-moyen/bas/exigences.html#duree` },
+      },
+      {
+        label: "trends.source_release", date: "2026-03-13",
+        href: {
+          en: `${NEWS_EN}2026/03/government-of-canada-taking-action-to-support-rural-employers-under-the-temporary-foreign-worker-program.html`,
+          fr: `${NEWS_FR}2026/03/le-gouvernement-du-canada-prend-des-mesures-pour-appuyer-les-employeurs-des-regions-rurales-dans-le-cadre-du-programme-des-travailleurs-etrangers-t.html`,
+        },
+      },
+      {
+        label: "trends.source_rural",
+        href: { en: `${TFW_EN}temporary-measures.html`, fr: `${TFW_FR}mesures-temporaires.html` },
+      },
+    ],
+  },
+  // The thresholds table on the program's page dates each edition; the
+  // quarterly CMA lists are a series on /program, not markers here.
+  {
+    date: "2026-07-17",
+    key: "trends.mark.thresholds_2026",
+    sources: [{
+      label: "trends.source_thresholds",
+      href: { en: `${TFW_EN}median-wage.html#table1`, fr: `${TFW_FR}salaire-moyen.html#table1` },
     }],
   },
 ];
@@ -400,6 +437,7 @@ const Notes: FC<{ lang: Lang; periods: Period[]; marks: Marks; refusedMissing: s
         {refusedMissing.length ? (
           <li>{t(lang, "trends.note_refused_missing", { periods: joinList(lang, refusedMissing.map((p) => periodLabel(p, lang))) })}</li>
         ) : null}
+        <li>{tj(lang, "trends.note_program", { program: <a href="/program">{t(lang, "trends.program_link")}</a> })}</li>
       </ul>
     </section>
   );

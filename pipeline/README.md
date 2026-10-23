@@ -45,7 +45,8 @@ first and sends every row); the workflow applies them with Wrangler, reads
 the row count back for `search-check`, and only then runs `search-synced`,
 which records the ledger. Operator guide: `../docs/hosted-search.md`.
 Stage order: esdc, ircc, jobbank, registry (BC, federal, Quebec), wages, lfs,
-vacancies, geography, indicators and status, export.
+vacancies, program (processing times, CMA list, wage thresholds), geography,
+indicators and status, export.
 Before any stage, `run` compares `meta.normalize_version` with
 `normalize.NORMALIZE_VERSION` and, when the database is older, re-derives every
 employer id once (`migrate.py`).
@@ -72,6 +73,7 @@ marking, because a capped run has not seen the whole feed.
 | `sources/wages.py` | Job Bank wages by occupation and area (the prevailing-wage reference), newest two yearly tables |
 | `sources/lfs.py` | Labour Force Survey unemployment rate by census metropolitan area |
 | `sources/vacancies.py` | Statistics Canada job vacancies and average offered wage by NOC 2021 unit group and economic region (table 14-10-0444-01), newest eight quarters; NOC 2021 titles and definitions in English and French |
+| `sources/program.py` | the program's own pages on canada.ca: LMIA processing times by stream, the low-wage refusal-to-process list by census metropolitan area, the provincial and territorial wage thresholds; one stage per page, every edition kept (`../docs/program-conditions.md`) |
 | `sources/geography.py` | 2021 Census boundaries; places every forward sortation area in an economic region and a census metropolitan area (`fsa_regions`) |
 | `indicators.py` | the rules (version in `RULES_VERSION`) |
 | `status.py` | employer rollups, the status lifecycle, meta counters |
@@ -79,6 +81,7 @@ marking, because a capped run has not seen the whole feed.
 | `export_static.py` | the JSON files the site serves |
 | `places.py` | the occupation and place pages: one JSON file per page, and their sitemap entries |
 | `offered.py` | what LMIA-flagged postings offered, for the occupation pages: quartiles of the hourly posted minimum and maximum, other units counted, a monthly series, nationally and by economic region, withheld under 10 postings (`docs/occupations.md`) |
+| `conditions.py` | the program conditions page: `program/index.json`, what is in force on the export date and every edition read |
 | `search_db.py` | the hosted search database (`../pipeline/search_schema.sql`): its rows, the content-hash ledger, the nightly batches and manifest, the ledger record after the apply (separate `search-sync`, `search-check` and `search-synced` commands) |
 | `social.py` | the daily X digest: compose, save to `data/out/social/`, post (separate `post-digest` command) |
 | `social_card.py` | the card image attached to the digest, drawn with Pillow from the day's figures |
@@ -96,7 +99,8 @@ data/out/static/        the JSON the site serves as static assets (see export_st
                           search/<PROV>/postings.json, search/<PROV>/<YEAR>.json,
                           clusters/*.json, areas/<FSA>.json, profiles/<abc>.json,
                           aliases/<abc>.json (retired employer id to live id),
-                          occupations/*.json, places/**/*.json (places.py)
+                          occupations/*.json, places/**/*.json (places.py),
+                          program/index.json (conditions.py)
 data/out/search/        written by `search-sync`: batch-0001.sql and on (at most 5 MB or
                         5,000 statements each, up to 100 rows per upsert statement),
                         manifest.json, last_outcome.txt
@@ -152,6 +156,7 @@ loaded into pipeline-local tables; none of it is committed.
 | `wage_tables`, `jobbank_wages` | Wages, ESDC (Job Bank), one CSV a year, about 18 MB (the 2025 file is revised 2025-11-19): low, median and high wage per NOC 2021 occupation for Canada, each province and territory and each economic region. Dataset: https://open.canada.ca/data/en/dataset/adad580f-76b0-4502-bd05-20c125de9116 | Open Government Licence, Canada | listing checked monthly; each yearly file downloaded once; the newest two kept |
 | `lfs_unemployment` | Statistics Canada table 14-10-0459-01, Labour force characteristics by census metropolitan area, three-month moving average (the unadjusted series is kept, which is what ESDC's refusal table shows). Table: https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1410045901, download: https://www150.statcan.gc.ca/n1/tbl/csv/14100459-eng.zip (about 4 MB) | Statistics Canada Open Licence | at most monthly, revalidated by ETag |
 | `statcan_vacancies`, `noc_titles` | Statistics Canada table 14-10-0444-01, Job vacancies and average offered hourly wage by occupation (unit group), quarterly, unadjusted for seasonality (Job Vacancy and Wage Survey). Table: https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1410044401, download: https://www150.statcan.gc.ca/n1/tbl/csv/14100444-eng.zip (about 100 MB zipped, 1.2 GB unzipped, read as a stream; the WDS API would need hundreds of requests for its 137,000 series). The newest eight quarters of the unit groups and the all-occupations total are kept; a region published only combined with a neighbour is stored under both codes. Titles: NOC 2021 Version 1.0 classification structure, https://www.statcan.gc.ca/en/subjects/standard/noc/2021/indexV1 (English and French CSVs) | Statistics Canada Open Licence | table at most monthly, an unchanged file not parsed again; titles once |
+| `program_editions`, `program_figures` | Three ESDC pages on canada.ca, read as HTML: LMIA processing times (https://www.canada.ca/en/employment-social-development/services/foreign-workers/labour-market-impact-assessment-processing-times.html), refusal to process with the unemployment rate by CMA (https://www.canada.ca/en/employment-social-development/services/foreign-workers/refusal.html), hourly wage thresholds (https://www.canada.ca/en/employment-social-development/services/foreign-workers/median-wage.html). One row per edition, never overwritten | canada.ca terms and conditions (non-commercial reproduction with attribution) | each page at most once every 20 hours |
 | `fsa_regions` | Statistics Canada 2021 Census cartographic boundary files: economic regions, census metropolitan areas, forward sortation areas (https://www12.statcan.gc.ca/census-recensement/2021/geo/sip-pis/boundary-limites/index2021-eng.cfm). The zipped files there sit behind a browser challenge, so the same layers come from Statistics Canada's map service, https://geo.statcan.gc.ca/geo_wa/rest/services/2021/Cartographic_boundary_files/MapServer (layers 2, 6 and 14), as JSON, one request per province per layer, about 40 MB in all | Statistics Canada Open Licence | once; cached for good |
 
 `fsa_regions` gives each forward sortation area one point: the GeoNames

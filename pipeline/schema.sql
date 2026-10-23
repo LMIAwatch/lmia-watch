@@ -17,7 +17,8 @@ CREATE TABLE IF NOT EXISTS meta (
 -- pipeline-only keys: normalize_version (the name normalization employer ids
 -- were derived with; see migrate.py), search_full_at (date of the last full
 -- reload of the search database) and search_reload_due (date its row count
--- last disagreed; see search_db.py)
+-- last disagreed; see search_db.py), program_<series>_checked_at (the last read
+-- of each program-conditions page; see sources/program.py)
 
 -- One row per merged employer. Identity = normalized legal name + province:
 -- the part of a name before "dba", "o/a" and similar markers is the legal name.
@@ -196,7 +197,7 @@ CREATE TABLE IF NOT EXISTS fsa_centroids (
 CREATE TABLE IF NOT EXISTS sources_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   run_at TEXT NOT NULL,
-  source TEXT NOT NULL,                          -- jobbank | esdc | ircc | registry | wages | lfs | geography | indicators | export
+  source TEXT NOT NULL,                          -- jobbank | esdc | ircc | registry | wages | lfs | program_times | program_cma | program_thresholds | geography | indicators | export
   detail TEXT,
   rows_in INTEGER,
   rows_new INTEGER,
@@ -295,6 +296,33 @@ CREATE TABLE IF NOT EXISTS lfs_unemployment (
   cma_name TEXT NOT NULL,                        -- English name without the province, e.g. 'Winnipeg'
   vector TEXT,                                   -- Statistics Canada vector id, e.g. 'v1643280007'
   PRIMARY KEY (cma_uid, ref_month)
+);
+
+-- Program conditions (sources/program.py): what three Temporary Foreign Worker
+-- Program pages on canada.ca state is in force. One row per edition, never
+-- overwritten: a read that finds a period's figures unchanged adds nothing, and
+-- one that finds them changed adds a new edition beside the old one.
+CREATE TABLE IF NOT EXISTS program_editions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  series TEXT NOT NULL,                          -- processing_times | cma_refusal | wage_thresholds
+  period TEXT NOT NULL,                          -- 'YYYY-MM' the processing times measure; for the other two the ISO date the edition took effect
+  in_force_to TEXT,                              -- the last day in force the page states (ISO date); NULL when it states none
+  threshold REAL,                                -- the cut-off the page states (cma_refusal: 6.0 percent); NULL for the other series
+  published TEXT,                                -- the page's own date for its last update when this edition was first read (ISO date)
+  source_url TEXT NOT NULL,                      -- the English canada.ca page it was read from
+  read_at TEXT NOT NULL,                         -- ISO datetime of the first read that found this edition
+  sha256 TEXT NOT NULL,                          -- over the period, dates, threshold and figures (not the labels)
+  items INTEGER NOT NULL                         -- rows in program_figures
+);
+-- A few editions a quarter, so no secondary index.
+
+-- The figures of one edition.
+CREATE TABLE IF NOT EXISTS program_figures (
+  edition_id INTEGER NOT NULL REFERENCES program_editions(id),
+  key TEXT NOT NULL,                             -- stream ('high_wage'), 2021 Census CMA code ('602') or province code ('AB')
+  label TEXT NOT NULL,                           -- the row's name as the page writes it ('Low-wage stream', 'Winnipeg, Manitoba', 'Alberta')
+  value REAL NOT NULL,                           -- average business days, unemployment rate in percent, or hourly threshold in dollars
+  PRIMARY KEY (edition_id, key)
 );
 
 -- Forward sortation area to 2021 Census economic region and census
