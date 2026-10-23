@@ -75,19 +75,34 @@ interface Pending {
 }
 
 const isObj = (v: unknown): v is Record<string, any> => !!v && typeof v === "object" && !Array.isArray(v);
-const isPeriods = (v: unknown): boolean => Array.isArray(v) && v.length > 0 && v.every((p) => isObj(p) && typeof p.start === "string" && typeof p.end === "string");
+// Dates place every mark on the axes; one that is not a calendar date would
+// put NaN into the axis arithmetic (and the month loop of the daily axis
+// would never end), so a file with one reads as unpublished.
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const isDate = (v: unknown): v is string => typeof v === "string" && ISO_DATE.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`));
+const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+const isCount = (v: unknown): boolean => v === null || isNum(v);
+const isPeriods = (v: unknown): boolean => Array.isArray(v) && v.length > 0 &&
+  v.every((p) => isObj(p) && typeof p.p === "string" && isDate(p.start) && isDate(p.end) && p.start <= p.end && isNum(p.quarters));
 
 function isNational(v: unknown): v is National {
-  return isObj(v) && isPeriods(v.periods) && Array.isArray(v.years) && isObj(v.yoy) && typeof v.latest === "string";
+  return isObj(v) && isPeriods(v.periods) && v.periods.every((p: any) => isNum(p.positions) && isNum(p.rows) && isCount(p.refused)) &&
+    Array.isArray(v.years) && v.years.length > 0 &&
+    v.years.every((y: any) => isObj(y) && isNum(y.year) && isNum(y.positions) && typeof y.start === "string" && Array.isArray(y.periods)) &&
+    isObj(v.yoy) && typeof v.latest === "string";
 }
 
 function isBreakdown(v: unknown): v is Breakdown {
-  return isObj(v) && Array.isArray(v.keys) && isPeriods(v.periods) && typeof v.latest === "string" &&
-    v.periods.every((p: any) => Array.isArray(p.positions) && p.positions.length === v.keys.length);
+  return isObj(v) && Array.isArray(v.keys) && v.keys.every((k: unknown) => typeof k === "string") && isPeriods(v.periods) &&
+    typeof v.latest === "string" &&
+    v.periods.every((p: any) => Array.isArray(p.positions) && p.positions.length === v.keys.length && p.positions.every(isNum) &&
+      (p.refused === null || (Array.isArray(p.refused) && p.refused.length === v.keys.length))) &&
+    (v.yoy == null || (isObj(v.yoy) && Array.isArray(v.yoy.rows) && v.yoy.rows.every((r: unknown) => isObj(r) && typeof r.k === "string")));
 }
 
 function isPending(v: unknown): v is Pending {
-  return isObj(v) && Array.isArray(v.points) && v.points.length > 0 && v.points.every((p: any) => isObj(p) && typeof p.date === "string");
+  return isObj(v) && Array.isArray(v.points) && v.points.length > 0 &&
+    v.points.every((p: any) => isObj(p) && isDate(p.date) && isNum(p.n)) && typeof v.first === "string";
 }
 
 // -- views ---------------------------------------------------------------------------
@@ -705,7 +720,8 @@ function dayAxis(lang: Lang, dates: string[]): { domain: [number, number]; label
   const fmt = new Intl.DateTimeFormat(locale, yearly ? { year: "numeric", timeZone: "UTC" } : { month: "short", year: "numeric", timeZone: "UTC" });
   const ticks: string[] = [];
   const [y0, m0] = dates[0].split("-").map(Number);
-  for (let y = y0, m = m0; ; m++) {
+  // Bounded as well as stopped at the domain's end: a hundred years of months.
+  for (let y = y0, m = m0, guard = 0; guard < 1200; m++, guard++) {
     if (m > 12) { m = 1; y++; }
     const iso = `${y}-${String(m).padStart(2, "0")}-01`;
     if (dayPos(iso) > domain[1]) break;
