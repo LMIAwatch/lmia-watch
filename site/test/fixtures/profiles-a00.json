@@ -255,5 +255,108 @@
     "registry": [],
     "indicators": [],
     "findings": []
+  },
+  "emp-a000000009": {
+    "employer": {
+      "id": "emp-a000000009",
+      "display_name": "Valley Orchard Growers Ltd.",
+      "province": "BC",
+      "city": "Oliver",
+      "postal_code": "V0H 1T0",
+      "street": null,
+      "current_status": "approved",
+      "status_changed_at": "2026-07-22T00:00:00Z",
+      "first_seen": "2014-01-01",
+      "last_seen": "2026-03-31",
+      "pending_count": 0,
+      "approved_lmias": 3,
+      "approved_positions": 45,
+      "refused_lmias": 0,
+      "refused_positions": 4,
+      "finding_count": 0,
+      "indicator_count": 0,
+      "registry_grade": "none",
+      "updated_at": "2026-10-12T09:10:00Z"
+    },
+    "names": [
+      {
+        "name": "Valley Orchard Growers Ltd.",
+        "source": "esdc_positive"
+      }
+    ],
+    "postings": [],
+    "esdc": [
+      {
+        "id": 91,
+        "list": "positive",
+        "period": "2026Q1",
+        "employer_raw": "Valley Orchard Growers Ltd.",
+        "province": "BC",
+        "stream": "Primary Agriculture",
+        "city": "Oliver",
+        "postal_code": "V0H 1T0",
+        "noc_code": "85101",
+        "noc_title": "Harvesting labourers",
+        "incorporate_status": null,
+        "lmias": 3,
+        "positions": 30,
+        "resource_id": "4ee7a4e0-ffc3-47af-94e7-30929d1eeb67",
+        "published": "2026-07-21"
+      },
+      {
+        "id": 94,
+        "list": "negative",
+        "period": "2018Q2",
+        "employer_raw": "Valley Orchard Growers Ltd.",
+        "province": "BC",
+        "stream": "Primary Agriculture",
+        "city": "Oliver",
+        "postal_code": "V0H 1T0",
+        "noc_code": "8611",
+        "noc_title": "Harvesting labourers",
+        "incorporate_status": null,
+        "lmias": null,
+        "positions": 4,
+        "resource_id": "res-2018q2-negative",
+        "published": null
+      },
+      {
+        "id": 92,
+        "list": "positive",
+        "period": "2015",
+        "employer_raw": "Valley Orchard Growers Ltd.",
+        "province": "BC",
+        "stream": null,
+        "city": "Oliver",
+        "postal_code": null,
+        "noc_code": null,
+        "noc_title": null,
+        "incorporate_status": null,
+        "lmias": null,
+        "positions": 10,
+        "resource_id": "res-2015-positive",
+        "published": null
+      },
+      {
+        "id": 93,
+        "list": "positive",
+        "period": "2014",
+        "employer_raw": "Valley Orchard Growers Ltd.",
+        "province": "BC",
+        "stream": null,
+        "city": "Oliver",
+        "postal_code": null,
+        "noc_code": null,
+        "noc_title": null,
+        "incorporate_status": null,
+        "lmias": null,
+        "positions": 5,
+        "resource_id": "res-2014-positive",
+        "published": null
+      }
+    ],
+    "registry": [],
+    "indicators": [],
+    "findings": []
   }
 }

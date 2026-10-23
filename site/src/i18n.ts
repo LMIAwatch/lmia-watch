@@ -332,8 +332,27 @@ const STRINGS = {
   "employer.positions_requested": { en: "Positions requested", fr: "Postes demandés" },
   "employer.approved_lmias": { en: "Approved LMIAs", fr: "EIMT approuvées" },
   "employer.refused_lmias": { en: "Refused LMIAs", fr: "EIMT refusées" },
-  "employer.positions_paren_one": { en: "({n} positions)", fr: "({n} poste)" },
+  "employer.positions_paren_one": { en: "({n} position)", fr: "({n} poste)" },
   "employer.positions_paren_many": { en: "({n} positions)", fr: "({n} postes)" },
+  // Many ESDC files, positive and negative, give positions but no LMIA count,
+  // so a summed LMIA count covers fewer rows than the records table shows.
+  // Each note names its count, since a profile can carry both.
+  "employer.lmias_note_one": {
+    en: "The approved LMIA count leaves out {n} row from a file that carries no LMIA count.",
+    fr: "Le nombre d'EIMT approuvées laisse de côté {n} inscription tirée d'un fichier qui n'indique aucun nombre d'EIMT.",
+  },
+  "employer.lmias_note_many": {
+    en: "The approved LMIA count leaves out {n} rows from files that carry no LMIA count.",
+    fr: "Le nombre d'EIMT approuvées laisse de côté {n} inscriptions tirées de fichiers qui n'indiquent aucun nombre d'EIMT.",
+  },
+  "employer.refused_lmias_note_one": {
+    en: "The refused LMIA count leaves out {n} row from a file that carries no LMIA count.",
+    fr: "Le nombre d'EIMT refusées laisse de côté {n} inscription tirée d'un fichier qui n'indique aucun nombre d'EIMT.",
+  },
+  "employer.refused_lmias_note_many": {
+    en: "The refused LMIA count leaves out {n} rows from files that carry no LMIA count.",
+    fr: "Le nombre d'EIMT refusées laisse de côté {n} inscriptions tirées de fichiers qui n'indiquent aucun nombre d'EIMT.",
+  },
   "employer.findings_count": { en: "Non-compliance findings", fr: "Constats de non-conformité" },
   "employer.response": { en: "Employer response", fr: "Réponse de l'employeur" },
   "employer.published_one": { en: "{n} published", fr: "{n} publiée" },
@@ -840,9 +859,66 @@ const STRINGS = {
   "data.licence": { en: "Licence and Attribution", fr: "Licence et attribution" },
   "data.code_licence": { en: "The site's own code, text and design are published for inspection and are not licensed for reuse or for running another site; the data licences above are unaffected.", fr: "Le code, les textes et le design du site sont publiés pour consultation et ne sont pas concédés sous licence pour réutilisation ni pour exploiter un autre site; les licences des données ci-dessus demeurent inchangées." },
   "data.licence_text": {
-    en: "ESDC's positive and negative LMIA employer lists and the federal corporations extract from Innovation, Science and Economic Development Canada are published under the Open Government Licence, Canada. Derived files on this site are released under the same licence. Job Bank content is Government of Canada material reproduced with attribution. Quebec registry details (enterprise number, legal name, form, status and registration date) come from the Registre des entreprises dataset of the Registraire des entreprises du Québec, on Données Québec under CC BY-NC-SA 4.0, are shared under that licence for non-commercial use, and do not carry the Registraire's endorsement. Postal-area centroids come from GeoNames (CC BY 4.0).",
-    fr: "Les listes des employeurs ayant reçu une EIMT positive ou négative d'EDSC et l'extrait des sociétés fédérales d'Innovation, Sciences et Développement économique Canada sont publiés sous la Licence du gouvernement ouvert, Canada. Les fichiers dérivés de ce site sont diffusés sous la même licence. Le contenu du Guichet-Emplois est du matériel du gouvernement du Canada reproduit avec attribution. Les renseignements du registre du Québec (numéro d'entreprise, dénomination, forme juridique, statut et date d'immatriculation) proviennent du « Registre des entreprises » du Registraire des entreprises du Québec sur Données Québec sous licence CC BY-NC-SA 4.0, sont diffusés sous cette licence à des fins non commerciales et ne sont pas approuvés par le Registraire. Les centres des secteurs postaux proviennent de GeoNames (CC BY 4.0).",
+    en: "Each file and field keeps the licence or terms of the source it comes from. The site does not relicense any of them.",
+    fr: "Chaque fichier et chaque champ garde la licence ou les conditions de la source dont il provient. Le site n'en modifie aucune.",
   },
+  "data.col_material": { en: "Files and fields", fr: "Fichiers et champs" },
+  "data.col_terms": { en: "Licence or terms", fr: "Licence ou conditions" },
+  "data.lic.ogl": { en: "Open Government Licence, Canada", fr: "Licence du gouvernement ouvert, Canada" },
+  "data.lic.canada_terms": { en: "Government of Canada terms of use (canada.ca)", fr: "conditions d'utilisation du gouvernement du Canada (canada.ca)" },
+  "data.lic.cc": { en: "CC BY-NC-SA 4.0", fr: "CC BY-NC-SA 4.0" },
+  "data.lic.esdc": {
+    en: "approved_quarterly.csv, refused_quarterly.csv, esdc_resources.csv and the mirrored ESDC files; in employers.csv, the approved and refused counts and the names and places from ESDC's lists; federal corporation details on profiles (Corporations Canada extract)",
+    fr: "approved_quarterly.csv, refused_quarterly.csv, esdc_resources.csv et les fichiers d'EDSC reproduits; dans employers.csv, les nombres d'approbations et de refus ainsi que les noms et les lieux tirés des listes d'EDSC; renseignements sur les sociétés fédérales dans les profils (extrait de Corporations Canada)",
+  },
+  "data.lic.esdc_terms": {
+    en: "{ogl}: reuse, commercial or not, with attribution.",
+    fr: "{ogl} : réutilisation, commerciale ou non, avec mention de la source.",
+  },
+  "data.lic.jobbank": {
+    en: "pending_observations.csv; in employers.csv, pending_count and the name, place and street of an employer known only from Job Bank or whose street comes from a posting",
+    fr: "pending_observations.csv; dans employers.csv, pending_count ainsi que le nom, le lieu et l'adresse d'un employeur connu seulement par le Guichet-Emplois ou dont l'adresse provient d'une offre",
+  },
+  "data.lic.jobbank_terms": {
+    en: "Under the {terms}: non-commercial reproduction with attribution; commercial redistribution needs ESDC's written permission.",
+    fr: "Selon les {terms} : reproduction non commerciale avec mention de la source; la redistribution commerciale exige la permission écrite d'EDSC.",
+  },
+  "data.lic.ircc": {
+    en: "findings.csv (IRCC's list of non-compliant employers); in employers.csv, finding_count and a street taken from a finding",
+    fr: "findings.csv (liste des employeurs non conformes d'IRCC); dans employers.csv, finding_count et une adresse tirée d'un constat",
+  },
+  "data.lic.ircc_terms": {
+    en: "Under the same {terms}: non-commercial reproduction with attribution; commercial redistribution needs prior written permission.",
+    fr: "Selon les mêmes {terms} : reproduction non commerciale avec mention de la source; la redistribution commerciale exige une permission écrite préalable.",
+  },
+  "data.lic.quebec": {
+    en: "Quebec register details on profiles and in the API: enterprise number, legal name, form, status and registration date",
+    fr: "Renseignements du registre du Québec dans les profils et l'API : numéro d'entreprise, dénomination, forme juridique, statut et date d'immatriculation",
+  },
+  "data.lic.quebec_terms": {
+    en: "{cc}: non-commercial use, shared under the same licence, without the Registraire's endorsement. Cite as: REGISTRAIRE DES ENTREPRISES. Registre des entreprises, [Jeu de données], dans Données Québec.",
+    fr: "{cc} : usage non commercial, partage sous la même licence, sans approbation du Registraire. Citation : REGISTRAIRE DES ENTREPRISES. Registre des entreprises, [Jeu de données], dans Données Québec.",
+  },
+  "data.lic.statcan": {
+    en: "Statistics Canada figures: the Labour Force Survey and job vacancy tables (14-10-0459-01, 14-10-0444-01), the NOC 2021 classification and the 2021 Census boundary files, in the indicators and on the occupation and place pages",
+    fr: "Chiffres de Statistique Canada : tableaux de l'Enquête sur la population active et des postes vacants (14-10-0459-01, 14-10-0444-01), classification CNP 2021 et fichiers des limites du Recensement de 2021, dans les indicateurs et les pages des professions et des lieux",
+  },
+  "data.lic.statcan_terms": {
+    en: "{statcan}. Source: Statistics Canada, tables 14-10-0459-01 and 14-10-0444-01, NOC 2021 Version 1.0 and the 2021 Census boundary files. Reproduced and distributed on an \"as is\" basis with the permission of Statistics Canada. Figures the site calculates from them are adapted from Statistics Canada; this does not constitute an endorsement by Statistics Canada of this product.",
+    fr: "{statcan}. Source : Statistique Canada, tableaux 14-10-0459-01 et 14-10-0444-01, CNP 2021 version 1.0 et fichiers des limites du Recensement de 2021. Reproduit et diffusé « tel quel » avec la permission de Statistique Canada. Les chiffres que le site en tire sont adaptés de Statistique Canada; ceci ne constitue pas une approbation de ce produit par Statistique Canada.",
+  },
+  "data.lic.computed": {
+    en: "indicators.csv, and in employers.csv the status, dates, indicator count and registry grade",
+    fr: "indicators.csv et, dans employers.csv, le statut, les dates, le nombre d'indicateurs et le niveau de correspondance au registre",
+  },
+  "data.lic.computed_terms": {
+    en: "Worked out by this site from the sources in this table; each figure keeps the terms of the source it rests on.",
+    fr: "Calculés par le site à partir des sources de ce tableau; chaque chiffre garde les conditions de la source sur laquelle il repose.",
+  },
+  "data.lic.geonames": { en: "Postal-area centroids for the maps", fr: "Centres des secteurs postaux des cartes" },
+  "data.lic.geonames_terms": { en: "GeoNames, under CC BY 4.0.", fr: "GeoNames, sous licence CC BY 4.0." },
+  "data.dl.canada": { en: "canada.ca terms, non-commercial", fr: "conditions de canada.ca, usage non commercial" },
+  "data.dl.mixed": { en: "By source", fr: "Selon la source" },
   "data.sources_text": {
     en: "The wage and unemployment indicators use {wages} (Open Government Licence, Canada), Statistics Canada's {lfs} and the {boundaries}, used under the {statcan}.",
     fr: "Les indicateurs salarial et de chômage utilisent les {wages} (Licence du gouvernement ouvert, Canada), le {lfs} de Statistique Canada et les {boundaries}, utilisés sous la {statcan}.",
@@ -1803,10 +1879,6 @@ const STRINGS = {
   },
   "places.src_vacancies": { en: "job vacancy and offered wage table 14-10-0444-01", fr: "tableau 14-10-0444-01 des postes vacants et du salaire offert" },
   "places.src_noc": { en: "NOC 2021 Version 1.0 classification structure", fr: "structure de classification de la CNP 2021 version 1.0" },
-  "places.data_licence": {
-    en: "Statistics Canada's job vacancy table and the NOC 2021 classification, used on the occupation and place pages, are under the Statistics Canada Open Licence.",
-    fr: "Le tableau des postes vacants et la classification CNP 2021 de Statistique Canada, utilisés dans les pages des professions et des lieux, relèvent de la Licence ouverte de Statistique Canada.",
-  },
   "occ.index_title": { en: "LMIA Records by Occupation", fr: "Dossiers EIMT par profession" },
   "occ.index_seo_title": { en: "LMIA Records by Occupation (NOC 2021)", fr: "Dossiers EIMT par profession (CNP 2021)" },
   "occ.index_description": {
@@ -2211,6 +2283,7 @@ export const SAME_IN_BOTH: ReadonlySet<Key> = new Set<Key>([
   "methodology.grade.possible",
   "data.toc_api",
   "data.toc_licence",
+  "data.lic.cc",
   "data.col_ok",
   "data.list.positive",
   "support.bar_total",

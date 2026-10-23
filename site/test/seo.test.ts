@@ -78,7 +78,12 @@ describe("page metadata", () => {
     expect(nbsp(meta(home, "og:image:alt"))).toBe("LMIA Watch : Dossiers publics des études d’impact sur le marché du travail");
     const data = await headOf("/data?lang=fr");
     expect(nbsp(title(data))).toBe("Données EIMT : téléchargements, API et licence | LMIA Watch");
-    expect(jsonLd(data)[0].license).toBe("https://ouvert.canada.ca/fr/licence-du-gouvernement-ouvert-canada");
+    const frFiles = Object.fromEntries(jsonLd(data)[0].distribution.map((d: any) => [d.name, d.license]));
+    expect(frFiles["approved_quarterly.csv"]).toBe("https://ouvert.canada.ca/fr/licence-du-gouvernement-ouvert-canada");
+    expect(frFiles["findings.csv"]).toBe("https://www.canada.ca/fr/transparence/avis.html");
+    expect(nbsp(meta(data, "description"))).toBe(
+      "Les listes EIMT d’EDSC depuis 2014, les relevés du Guichet-Emplois et les employeurs fusionnés en CSV, une API JSON et la licence de chaque fichier.",
+    );
     expect(jsonLd(data)[0].inLanguage).toBe("fr");
     expect(title(await headOf("/support?lang=fr"))).toBe("Soutenir le site | LMIA Watch");
     expect(canonical(home)).toBe("https://lmiawatch.ca/?lang=fr");
@@ -150,10 +155,34 @@ describe("page metadata", () => {
     expect(JSON.stringify(ld)).not.toMatch(/"Person"|founder|author|employee/);
   });
 
-  it("the data page describes the downloads as a Dataset under the open licence", async () => {
-    const [ld] = jsonLd(await headOf("/data"));
+  it("the data page describes the downloads as a Dataset, each file under its own licence", async () => {
+    const head = await headOf("/data");
+    const [ld] = jsonLd(head);
     expect(ld["@type"]).toBe("Dataset");
-    expect(ld.license).toBe("https://open.canada.ca/en/open-government-licence-canada");
+    // The files do not share one licence: none is claimed for the whole dataset.
+    expect(ld.license).toBeUndefined();
+    expect(ld.usageInfo).toBe("https://lmiawatch.ca/data#licence");
+    expect(ld.creditText).toContain("Open Government Licence, Canada");
+    expect(ld.creditText).toContain("Job Bank and IRCC material reproduced under the Government of Canada terms of use");
+    const files = Object.fromEntries(ld.distribution.map((d: any) => [d.name, d]));
+    const ogl = "https://open.canada.ca/en/open-government-licence-canada";
+    const terms = "https://www.canada.ca/en/transparency/terms.html";
+    expect(Object.fromEntries(ld.distribution.map((d: any) => [d.name, d.license ?? null]))).toEqual({
+      "pending_observations.csv": terms,
+      "approved_quarterly.csv": ogl,
+      "refused_quarterly.csv": ogl,
+      "employers.csv": null,
+      "indicators.csv": null,
+      "findings.csv": terms,
+      "esdc_resources.csv": ogl,
+    });
+    for (const name of ["employers.csv", "indicators.csv"]) {
+      expect(files[name].description).toMatch(/\. The licence differs by column; see the licence table on the Data page\.$/);
+    }
+    expect(files["findings.csv"].description).toBe("IRCC non-compliant employers as published, joined to employer IDs");
+    expect(meta(head, "description")).toBe(
+      "Every ESDC LMIA employer list since 2014, nightly Job Bank observations and merged employers as CSV, a read-only JSON API, and each file's licence.",
+    );
     expect(ld.isAccessibleForFree).toBe(true);
     expect(ld.dateModified).toBe("2026-10-12");
     expect(ld.temporalCoverage).toBe("2014/..");

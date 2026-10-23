@@ -65,6 +65,11 @@ const EsdcRecordRow = ({ r, lang }: { r: Profile["esdc"][number]; lang: Lang }) 
 interface ResponseRow { received_at: string; statement: string; contact_name: string | null }
 interface CorrectionRow { received_at: string; record_ref: string | null; request: string; resolution: string | null; resolved_at: string | null }
 
+// Rows of one list with no LMIA count (from files that carry positions only).
+export function lmiaGap(esdc: Profile["esdc"], list: "positive" | "negative" = "positive"): number {
+  return esdc.filter((r) => r.list === list && r.lmias === null).length;
+}
+
 export function periodEnd(period: string): string {
   const m = /^(\d{4})Q(\d)(?:-Q(\d))?$/.exec(period);
   if (!m) return /^\d{4}$/.test(period) ? `${period}-12-31` : period;
@@ -138,6 +143,11 @@ export async function employerPage(c: Context<AppEnv>): Promise<Response> {
   const na = t(lang, "common.na");
   const n = (v: number | null | undefined) => fmtInt(v, lang);
   const positions = (v: number) => tn(lang, "employer.positions_paren_one", "employer.positions_paren_many", v, { n: n(v) });
+  // approved_lmias and refused_lmias sum the rows' LMIA counts, and many ESDC
+  // files give positions only, so without a note a count reads short of the
+  // rows listed below.
+  const gapApproved = lmiaGap(esdc, "positive");
+  const gapRefused = lmiaGap(esdc, "negative");
 
   const events: { date: string; text: string; kind: string }[] = [];
   for (const r of registry) {
@@ -308,6 +318,14 @@ export async function employerPage(c: Context<AppEnv>): Promise<Response> {
                 : t(lang, "employer.none_received")}
             </dd>
           </dl>
+          {gapApproved || gapRefused ? (
+            <p class="muted small" id="lmia-count-note">
+              {[
+                gapApproved ? tn(lang, "employer.lmias_note_one", "employer.lmias_note_many", gapApproved, { n: n(gapApproved) }) : "",
+                gapRefused ? tn(lang, "employer.refused_lmias_note_one", "employer.refused_lmias_note_many", gapRefused, { n: n(gapRefused) }) : "",
+              ].filter(Boolean).join(" ")}
+            </p>
+          ) : null}
         </div>
       </section>
 

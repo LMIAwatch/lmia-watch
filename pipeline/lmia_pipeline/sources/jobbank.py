@@ -29,7 +29,9 @@ from .. import config
 from ..db import get_meta, log_run, now_iso, set_meta, upsert_employer
 from ..exclusions import is_private_household
 from ..http import AbortRun, FetchError, PoliteClient
-from ..normalize import POSTAL_RE, format_postal, parse_jobbank_date, parse_salary_text
+from ..normalize import (
+    POSTAL_RE, PROVINCE_CODES, format_postal, parse_jobbank_date, parse_salary_text, province_code,
+)
 
 log = logging.getLogger(__name__)
 
@@ -64,6 +66,7 @@ class ListItem:
     province: str | None
     date_posted: str | None
     salary_text: str | None
+    postal_code: str | None = None
 
 
 @dataclass
@@ -92,6 +95,7 @@ class RunStats:
     new_postings: int = 0
     details_fetched: int = 0
     marked_gone: int = 0
+    locations_fixed: int = 0    # stored provinces repair_locations turned into a code
     complete: bool = True       # every facet swept to its end; only then is anything marked gone
     problems: list[str] = field(default_factory=list)
 
@@ -134,6 +138,59 @@ def parse_results_count(html: str) -> int | None:
     return int(digits) if digits else None
 
 
+def _province(text: str | None) -> str | None:
+    """normalize.province_code kept to the thirteen codes: a Job Bank posting is in Canada,
+    and any other value would be repaired again every night by repair_locations."""
+    code = province_code(text)
+    return code if code in PROVINCE_CODES else None
+
+
+def _take_postal(text: str) -> tuple[str, str | None]:
+    """(the text without its postal code, the postal code in 'A1A 1A1' form or None)."""
+    pm = POSTAL_RE.search(text)
+    if not pm:
+        return text, None
+    return _clean(text[: pm.start()] + " " + text[pm.end():]) or "", format_postal(pm.group(1), pm.group(2))
+
+
+def split_region(raw: str | None) -> tuple[str | None, str | None]:
+    """A posting page's addressRegion text as (province code, postal code), each None when absent.
+
+    Some posting pages hold the comma before the province, and sometimes the
+    postal code after it, inside the region element: ", ON", ", AB T2C 2Z2".
+    Stored as read, that text replaced the listing's code (the posting-page
+    update outranks the listing) and split the province filters, the place
+    pages and the search database's province column.
+    """
+    text = _clean(raw)
+    if not text:
+        return None, None
+    text, postal = _take_postal(text)
+    parts = [p for p in (_clean(s) for s in text.split(",")) if p]
+    return (_province(parts[-1].strip(" .()")) if parts else None), postal
+
+
+def split_location(raw: str | None) -> tuple[str | None, str | None, str | None]:
+    """A search result's location as (city, province code, postal code).
+
+    Job Bank writes "Sept-Îles (QC)". The comma form ("Sudbury, ON", with or
+    without a postal code) is read as well, so that neither the comma nor a
+    postal code can reach the province or stay in the city.
+    """
+    text = _clean(raw)
+    if not text:
+        return None, None, None
+    text, postal = _take_postal(text)
+    lm = LOCATION_RE.match(text)
+    if lm:
+        return _clean(lm.group(1)), _province(lm.group(2)), postal
+    head, sep, tail = text.rpartition(",")
+    province = _province(tail.strip(" .()")) if sep else None
+    if province and _clean(head):
+        return _clean(head), province, postal
+    return text or None, None, postal
+
+
 def parse_search_page(html: str) -> list[ListItem]:
     soup = BeautifulSoup(html, "html.parser")
     items: list[ListItem] = []
@@ -148,16 +205,11 @@ def parse_search_page(html: str) -> list[ListItem]:
         date_el = article.select_one(".date")
         salary = article.select_one(".salary")
         location = article.select_one(".location")
-        city = province = None
+        city = province = postal_code = None
         if location is not None:
             for hidden in location.select(".wb-inv"):
                 hidden.decompose()
-            loc_text = _clean(location.get_text(" ")) or ""
-            lm = LOCATION_RE.match(loc_text)
-            if lm:
-                city, province = _clean(lm.group(1)), lm.group(2)
-            else:
-                city = loc_text or None
+            city, province, postal_code = split_location(location.get_text(" "))
         salary_text = None
         if salary is not None:
             salary_text = _clean(re.sub(r"^\s*Salary\s*", "", salary.get_text(" "), flags=re.I))
@@ -170,6 +222,7 @@ def parse_search_page(html: str) -> list[ListItem]:
                 province=province,
                 date_posted=_date(date_el.get_text(" ")) if date_el else None,
                 salary_text=salary_text,
+                postal_code=postal_code,
             )
         )
     return items
@@ -195,11 +248,13 @@ def parse_detail_page(html: str) -> DetailFields:
     f.employer = _prop(soup, "hiringOrganization")
     f.street = _prop(soup, "streetAddress")
     f.city = _prop(soup, "addressLocality")
-    f.province = _prop(soup, "addressRegion")
+    f.province, region_postal = split_region(_prop(soup, "addressRegion"))
     postal = _prop(soup, "postalCode")
     if postal:
         pm = POSTAL_RE.search(postal)
         f.postal_code = format_postal(pm.group(1), pm.group(2)) if pm else postal.upper()
+    if f.postal_code is None:
+        f.postal_code = region_postal
     min_v, max_v = _prop(soup, "minValue"), _prop(soup, "maxValue")
     try:
         f.wage_min = float(min_v.replace(",", "")) if min_v else None
@@ -257,6 +312,10 @@ def run(
     stats = RunStats()
     seen: set[int] = set()
     aborted = False
+    # Before the sweep, so rows stored by an older parser are repaired even
+    # on a night Job Bank does not answer.
+    repaired = repair_locations(conn, now=stamp)
+    stats.locations_fixed = repaired["postings"]
 
     for facet, flag in FACETS.items():
         if aborted:
@@ -351,6 +410,10 @@ def run(
         f"pages={stats.pages} listed={stats.listed} new={stats.new_postings} "
         f"details={stats.details_fetched} gone={stats.marked_gone}"
     )
+    if repaired["postings"]:
+        detail += f" provinces_fixed={repaired['postings']} postal_codes_moved={repaired['postal_codes']}"
+    if repaired["employers_not_codes"]:
+        detail += f" employer_provinces_not_codes={repaired['employers_not_codes']}"
     if stats.problems:
         detail += " problems=" + "; ".join(stats.problems)[:700]
     log_run(
@@ -363,6 +426,57 @@ def run(
         ok=not stats.problems,
     )
     return stats
+
+
+def repair_locations(conn: sqlite3.Connection, *, now: str | None = None) -> dict[str, int]:
+    """Turn every stored posting province that is not a two-letter code into one.
+
+    Idempotent, like esdc.remove_summary_rows: the jobbank stage runs it before
+    every pass, and once each province is a code (or NULL) it finds nothing.
+    The values came from posting pages whose region text held the comma and
+    sometimes the postal code (split_region). A postal code found there fills
+    the posting's blank postal code, and its employer's, as the posting page
+    would have. When the text holds no province, the employer's code stands
+    in: it came from the search listing, which only ever wrote a code.
+
+    Employers are never re-keyed here. An employer id hashes its province, and
+    upsert_employer only ever received the listing's code, so a value in the
+    employers table that is not a code did not come from this fault; those
+    are counted (employers_not_codes) and left alone.
+    """
+    stamp = now or now_iso()
+    codes = sorted(PROVINCE_CODES)
+    marks = ",".join("?" * len(codes))
+    rows = conn.execute(
+        "SELECT p.posting_id, p.province, p.postal_code, p.employer_id, e.province AS employer_province "
+        "FROM jobbank_postings p LEFT JOIN employers e ON e.id = p.employer_id "
+        f"WHERE p.province IS NOT NULL AND p.province NOT IN ({marks})",
+        codes,
+    ).fetchall()
+    moved = 0
+    for r in rows:
+        code, found = split_region(r["province"])
+        if code is None and r["employer_province"] in PROVINCE_CODES:
+            code = r["employer_province"]
+        fill = found if found and not r["postal_code"] else None
+        conn.execute(
+            "UPDATE jobbank_postings SET province = ?, postal_code = COALESCE(postal_code, ?), updated_at = ? "
+            "WHERE posting_id = ?",
+            (code, fill, stamp, r["posting_id"]),
+        )
+        if fill:
+            moved += 1
+            conn.execute(
+                "UPDATE employers SET postal_code = ?, updated_at = ? WHERE id = ? AND postal_code IS NULL",
+                (fill, stamp, r["employer_id"]),
+            )
+    # 'XX' (head office outside Canada) is a code ESDC's lists use.
+    odd = conn.execute(
+        f"SELECT COUNT(*) FROM employers WHERE province IS NOT NULL AND province != 'XX' AND province NOT IN ({marks})",
+        codes,
+    ).fetchone()[0]
+    conn.commit()
+    return {"postings": len(rows), "postal_codes": moved, "employers_not_codes": odd}
 
 
 def _mark_gone(conn: sqlite3.Connection, seen: set[int], stamp: str) -> int:
@@ -385,7 +499,8 @@ def _upsert_listing(
     conn: sqlite3.Connection, item: ListItem, flag: str, facet: str, stamp: str
 ) -> bool:
     eid = upsert_employer(
-        conn, item.employer or "", item.province, source="jobbank", city=item.city, now=stamp
+        conn, item.employer or "", item.province, source="jobbank", city=item.city,
+        postal_code=item.postal_code, now=stamp,
     )
     wage_min, wage_max, wage_unit = parse_salary_text(item.salary_text)
     existing = conn.execute(
@@ -394,10 +509,10 @@ def _upsert_listing(
     conn.execute(
         """
         INSERT INTO jobbank_postings (
-          posting_id, employer_id, employer_raw, title, city, province,
+          posting_id, employer_id, employer_raw, title, city, province, postal_code,
           wage_min, wage_max, wage_unit, date_posted, first_seen, last_seen,
           flag_current, flag_first, approved_seen_at, url, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(posting_id) DO UPDATE SET
           last_seen = excluded.last_seen,
           title = COALESCE(excluded.title, jobbank_postings.title),
@@ -405,6 +520,7 @@ def _upsert_listing(
           employer_id = excluded.employer_id,
           city = COALESCE(jobbank_postings.city, excluded.city),
           province = COALESCE(jobbank_postings.province, excluded.province),
+          postal_code = COALESCE(jobbank_postings.postal_code, excluded.postal_code),
           wage_min = COALESCE(jobbank_postings.wage_min, excluded.wage_min),
           wage_max = COALESCE(jobbank_postings.wage_max, excluded.wage_max),
           wage_unit = COALESCE(jobbank_postings.wage_unit, excluded.wage_unit),
@@ -414,7 +530,7 @@ def _upsert_listing(
           updated_at = excluded.updated_at
         """,
         (
-            item.posting_id, eid, item.employer, item.title, item.city, item.province,
+            item.posting_id, eid, item.employer, item.title, item.city, item.province, item.postal_code,
             wage_min, wage_max, wage_unit, item.date_posted, stamp, stamp,
             flag, flag, stamp if flag == "approved" else None, posting_url(item.posting_id), stamp,
         ),
@@ -465,7 +581,7 @@ def _fetch_details(
             """
             UPDATE jobbank_postings SET
               title = COALESCE(?, title), street = ?, city = COALESCE(?, city),
-              province = COALESCE(?, province), postal_code = ?,
+              province = COALESCE(?, province), postal_code = COALESCE(?, postal_code),
               wage_min = COALESCE(?, wage_min), wage_max = COALESCE(?, wage_max),
               wage_unit = COALESCE(?, wage_unit), vacancies = ?,
               date_posted = COALESCE(?, date_posted), valid_through = ?,

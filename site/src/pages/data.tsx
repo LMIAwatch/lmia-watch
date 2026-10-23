@@ -4,7 +4,7 @@ import { loadStats } from "../data";
 import type { AppEnv } from "../env";
 import { t, tj, type Key, type Lang } from "../i18n";
 import { Layout, fmtInt, noDataPage, page, periodLabel } from "../layout";
-import { datasetJsonLd, pageSeo } from "../seo";
+import { CANADA_TERMS_URL, type DownloadLicence, OGL_URL, datasetJsonLd, pageSeo } from "../seo";
 import { isListOf, isNum, isNumOrNull, isObj, isStr, isStrOrNull } from "../valid";
 
 // The changelog, newest first whatever order the entries are written in.
@@ -39,15 +39,44 @@ export function runTime(iso: string | null | undefined, lang: Lang): string {
   return m ? t(lang, "data.run_time", { date: m[1], hh: m[2], mm: m[3] }) : (iso ?? "");
 }
 
-export const DOWNLOADS: { file: string; contents: Key }[] = [
-  { file: "pending_observations.csv", contents: "data.file.pending_observations" },
-  { file: "approved_quarterly.csv", contents: "data.file.approved_quarterly" },
-  { file: "refused_quarterly.csv", contents: "data.file.refused_quarterly" },
-  { file: "employers.csv", contents: "data.file.employers" },
-  { file: "indicators.csv", contents: "data.file.indicators" },
-  { file: "findings.csv", contents: "data.file.findings" },
-  { file: "esdc_resources.csv", contents: "data.file.esdc_resources" },
+// Each file's licence group, shown beside it, declared per file in the
+// Dataset JSON-LD and detailed in the licence table. Job Bank and IRCC
+// material is under canada.ca's terms, which the site cannot relicense;
+// employers.csv and indicators.csv mix sources column by column.
+const DOWNLOAD_LICENCE_LABEL: Record<DownloadLicence, Key> = {
+  ogl: "data.lic.ogl",
+  canada: "data.dl.canada",
+  mixed: "data.dl.mixed",
+};
+
+export const DOWNLOADS: { file: string; contents: Key; licence: DownloadLicence }[] = [
+  { file: "pending_observations.csv", contents: "data.file.pending_observations", licence: "canada" },
+  { file: "approved_quarterly.csv", contents: "data.file.approved_quarterly", licence: "ogl" },
+  { file: "refused_quarterly.csv", contents: "data.file.refused_quarterly", licence: "ogl" },
+  { file: "employers.csv", contents: "data.file.employers", licence: "mixed" },
+  { file: "indicators.csv", contents: "data.file.indicators", licence: "mixed" },
+  { file: "findings.csv", contents: "data.file.findings", licence: "canada" },
+  { file: "esdc_resources.csv", contents: "data.file.esdc_resources", licence: "ogl" },
 ];
+
+// The licence table: what each source supplies and the terms it carries.
+export const LICENCE_ROWS: readonly { material: Key; terms: Key }[] = [
+  { material: "data.lic.esdc", terms: "data.lic.esdc_terms" },
+  { material: "data.lic.jobbank", terms: "data.lic.jobbank_terms" },
+  { material: "data.lic.ircc", terms: "data.lic.ircc_terms" },
+  { material: "data.lic.quebec", terms: "data.lic.quebec_terms" },
+  { material: "data.lic.statcan", terms: "data.lic.statcan_terms" },
+  { material: "data.lic.computed", terms: "data.lic.computed_terms" },
+  { material: "data.lic.geonames", terms: "data.lic.geonames_terms" },
+];
+
+const LICENCE_LINKS: Record<"terms" | "cc", Record<Lang, string>> = {
+  terms: CANADA_TERMS_URL,
+  cc: {
+    en: "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+    fr: "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.fr",
+  },
+};
 
 const API_ROWS: [string, Key][] = [
   ["GET /api/stats", "data.api.stats"],
@@ -112,7 +141,7 @@ export async function dataPage(c: Context<AppEnv>): Promise<Response> {
       dataAsOf={stats.data_as_of}
       active="/data"
       seo={pageSeo("data", lang, {
-        jsonLd: [datasetJsonLd(DOWNLOADS.map((d) => ({ file: d.file, contents: t(lang, d.contents) })), stats.data_as_of, lang)],
+        jsonLd: [datasetJsonLd(DOWNLOADS.map((d) => ({ file: d.file, contents: t(lang, d.contents), licence: d.licence })), stats.data_as_of, lang)],
       })}
     >
       <div class="doc-layout">
@@ -142,6 +171,7 @@ export async function dataPage(c: Context<AppEnv>): Promise<Response> {
                 <tr>
                   <th>{t(lang, "data.col_file")}</th>
                   <th>{t(lang, "data.col_contents")}</th>
+                  <th>{t(lang, "data.toc_licence")}</th>
                   <th>{t(lang, "data.col_updated")}</th>
                 </tr>
               </thead>
@@ -150,6 +180,7 @@ export async function dataPage(c: Context<AppEnv>): Promise<Response> {
                   <tr>
                     <td><a href={`/downloads/${d.file}`} class="mono">{d.file}</a></td>
                     <td>{t(lang, d.contents)}</td>
+                    <td><a href="#licence">{t(lang, DOWNLOAD_LICENCE_LABEL[d.licence])}</a></td>
                     <td class="mono">{stats.data_as_of ?? na}</td>
                   </tr>
                 ))}
@@ -211,8 +242,33 @@ export async function dataPage(c: Context<AppEnv>): Promise<Response> {
           </div>
 
           <h2 id="licence">{t(lang, "data.licence")}</h2>
-          <p>{t(lang, "data.licence_text")} {t(lang, "places.data_licence")}</p>
-          <p>
+          <p>{t(lang, "data.licence_text")}</p>
+          <div class="table-wrap bordered">
+            <table class="restack">
+              <thead>
+                <tr>
+                  <th>{t(lang, "data.col_material")}</th>
+                  <th>{t(lang, "data.col_terms")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {LICENCE_ROWS.map((row) => (
+                  <tr>
+                    <td data-label={t(lang, "data.col_material")}>{t(lang, row.material)}</td>
+                    <td data-label={t(lang, "data.col_terms")}>
+                      {tj(lang, row.terms, {
+                        ogl: <a href={OGL_URL[lang]}>{t(lang, "data.lic.ogl")}</a>,
+                        terms: <a href={LICENCE_LINKS.terms[lang]}>{t(lang, "data.lic.canada_terms")}</a>,
+                        cc: <a href={LICENCE_LINKS.cc[lang]}>{t(lang, "data.lic.cc")}</a>,
+                        statcan: <a href={SOURCE_LINKS.statcan[lang]}>{t(lang, "data.src.statcan_licence")}</a>,
+                      })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p class="top-gap">
             {tj(lang, "data.sources_text", {
               wages: <a href={SOURCE_LINKS.wages[lang]}>{t(lang, "data.src.wages")}</a>,
               lfs: <a href={SOURCE_LINKS.lfs[lang]}>{t(lang, "data.src.lfs")}</a>,

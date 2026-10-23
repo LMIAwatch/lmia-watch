@@ -288,7 +288,9 @@ describe("every new page", () => {
     const html = await text("/data");
     expect(html).toContain("https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1410044401");
     expect(html).toContain("job vacancy and offered wage table 14-10-0444-01");
-    expect(html).toContain("NOC 2021 classification, used on the occupation and place pages, are under the Statistics Canada Open Licence.");
+    // The licence table's Statistics Canada row names the table and the classification.
+    expect(html).toContain("the NOC 2021 classification and the 2021 Census boundary files, in the indicators and on the occupation and place pages");
+    expect(html).toContain('<a href="https://www.statcan.gc.ca/en/reference/licence">Statistics Canada Open Licence</a>. Source: Statistics Canada, tables 14-10-0459-01 and 14-10-0444-01');
     const fr = await text("/data?lang=fr");
     expect(fr).toContain("https://www150.statcan.gc.ca/t1/tbl1/fr/tv.action?pid=1410044401");
   });

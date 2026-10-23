@@ -61,6 +61,7 @@ const FRENCH_PAGES = [
   "/employers/emp-a000000001?lang=fr",
   "/employers/emp-a000000005?lang=fr",
   "/employers/emp-a000000008?lang=fr",
+  "/employers/emp-a000000009?lang=fr",
   "/employers/emp-ffffffffff?lang=fr",
   "/employers/emp-a000000001/respond?lang=fr",
   "/corrections?lang=fr",

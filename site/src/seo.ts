@@ -103,8 +103,8 @@ const PAGES: Record<PageKey, { path: string; name: Both | Key; title?: Both; des
     path: "/data",
     name: { en: "LMIA Data Downloads, API and Licence", fr: "Données EIMT : téléchargements, API et licence" },
     description: {
-      en: `Every ESDC LMIA employer list since ${ESDC_HISTORY_START_YEAR}, nightly Job Bank observations and merged employers as CSV, plus a read-only JSON API. Open Government Licence.`,
-      fr: `Toutes les listes EIMT d’EDSC depuis ${ESDC_HISTORY_START_YEAR}, les relevés quotidiens du Guichet-Emplois et les employeurs fusionnés en CSV, et une API JSON en lecture seule.`,
+      en: `Every ESDC LMIA employer list since ${ESDC_HISTORY_START_YEAR}, nightly Job Bank observations and merged employers as CSV, a read-only JSON API, and each file's licence.`,
+      fr: `Les listes EIMT d’EDSC depuis ${ESDC_HISTORY_START_YEAR}, les relevés du Guichet-Emplois et les employeurs fusionnés en CSV, une API JSON et la licence de chaque fichier.`,
     },
   },
   support: {
@@ -216,10 +216,19 @@ export function homeJsonLd(lang: Lang): object {
   };
 }
 
-const OGL_URL: Both = {
+export const OGL_URL: Both = {
   en: "https://open.canada.ca/en/open-government-licence-canada",
   fr: "https://ouvert.canada.ca/fr/licence-du-gouvernement-ouvert-canada",
 };
+// Job Bank and IRCC material is under these terms, which the site cannot relicense.
+export const CANADA_TERMS_URL: Both = {
+  en: "https://www.canada.ca/en/transparency/terms.html",
+  fr: "https://www.canada.ca/fr/transparence/avis.html",
+};
+// A download's licence group: the OGL, canada.ca's terms, or one that mixes
+// sources column by column (the Data page's licence table says which).
+export type DownloadLicence = "ogl" | "canada" | "mixed";
+const LICENCE_URL: Record<Exclude<DownloadLicence, "mixed">, Both> = { ogl: OGL_URL, canada: CANADA_TERMS_URL };
 const SOURCE_DATASETS = [
   "https://open.canada.ca/data/en/dataset/90fed587-1364-4f33-a9ee-208181dc0b97",
   "https://open.canada.ca/data/en/dataset/f82f66f2-a22b-4511-bccf-e1d74db39ae5",
@@ -248,12 +257,21 @@ const DATASET_KEYWORDS: Record<Lang, string[]> = {
   fr: ["EIMT", "étude d’impact sur le marché du travail", "Programme des travailleurs étrangers temporaires", "travailleurs étrangers temporaires", "Guichet-Emplois", "EDSC", "IRCC", "Canada"],
 };
 const CREDIT: Both = {
-  en: "Contains information licensed under the Open Government Licence, Canada.",
-  fr: "Contient des informations visées par la Licence du gouvernement ouvert, Canada.",
+  en: "Contains information licensed under the Open Government Licence, Canada, and Job Bank and IRCC material reproduced under the Government of Canada terms of use (canada.ca).",
+  fr: "Contient des informations visées par la Licence du gouvernement ouvert, Canada, et du contenu du Guichet-Emplois et d’IRCC reproduit selon les conditions d’utilisation du gouvernement du Canada (canada.ca).",
+};
+// For a file that mixes sources, which has no single licence to declare.
+const MIXED_NOTE: Both = {
+  en: "The licence differs by column; see the licence table on the Data page.",
+  fr: "La licence varie selon la colonne; voir le tableau des licences de la page Données.",
 };
 
-// `contents` is each file's description in the page's language.
-export function datasetJsonLd(downloads: { file: string; contents: string }[], dataAsOf: string | null, lang: Lang): object {
+// `contents` is each file's description in the page's language. The files do
+// not share one licence, so there is no dataset-wide `license`: each
+// distribution carries its own, and usageInfo points at the licence table.
+export function datasetJsonLd(
+  downloads: { file: string; contents: string; licence: DownloadLicence }[], dataAsOf: string | null, lang: Lang,
+): object {
   return {
     "@context": "https://schema.org",
     "@type": "Dataset",
@@ -262,7 +280,7 @@ export function datasetJsonLd(downloads: { file: string; contents: string }[], d
     description: local(lang, DATASET_DESCRIPTION),
     url: absoluteUrl("/data"),
     keywords: DATASET_KEYWORDS[lang],
-    license: OGL_URL[lang],
+    usageInfo: `${absoluteUrl("/data")}#licence`,
     isAccessibleForFree: true,
     creditText: local(lang, CREDIT),
     creator: PUBLISHER,
@@ -275,9 +293,10 @@ export function datasetJsonLd(downloads: { file: string; contents: string }[], d
     distribution: downloads.map((d) => ({
       "@type": "DataDownload",
       name: d.file,
-      description: d.contents,
+      description: d.licence === "mixed" ? `${d.contents}. ${local(lang, MIXED_NOTE)}` : d.contents,
       encodingFormat: "text/csv",
       contentUrl: absoluteUrl(`/downloads/${d.file}`),
+      ...(d.licence === "mixed" ? {} : { license: LICENCE_URL[d.licence][lang] }),
     })),
   };
 }

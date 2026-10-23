@@ -37,8 +37,11 @@ what is published) are kept outside the repository.
 The ESDC positive and negative LMIA employer lists are published on open.canada.ca
 under the Open Government Licence, Canada. Job Bank content is Government of Canada
 material reproduced with attribution. The IRCC list of employers found non-compliant
-is published on canada.ca. Derived files from this project carry the Open
-Government Licence, Canada.
+is published on canada.ca. Each derived file keeps the terms of its sources.
+Files derived only from ESDC's lists and the federal corporations extract are under
+the Open Government Licence, Canada. Job Bank and IRCC material stays under the
+Government of Canada terms of use on canada.ca. Quebec register fields are under
+CC BY-NC-SA 4.0. The licence table on the site's Data page is the reference.
 
 ## Citing the data
 The files derived from ESDC's lists (the approved and refused quarterly lists
