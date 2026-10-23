@@ -39,6 +39,25 @@ def load(out, rel):
     return json.loads((out / rel).read_text(encoding="utf-8"))
 
 
+def test_a_failing_section_is_logged_and_the_export_goes_on(conn, tmp_path, monkeypatch):
+    seed(conn)
+
+    def boom(conn, out):
+        raise ValueError("Out of range float values are not JSON compliant")
+
+    monkeypatch.setattr(export_static.trends, "write_all", boom)
+    out = tmp_path / "static"
+    export_static.export_static(conn, out)
+    # The site's own files are written; the failed section's are not.
+    assert (out / "stats.json").exists() and (out / "releases" / "index.json").exists()
+    assert not (out / "trends").exists()
+    rows = [(r[0], r[1], r[2]) for r in conn.execute("SELECT source, ok, detail FROM sources_log ORDER BY id") if r[0].startswith("export")]
+    assert [(s, ok) for s, ok, _ in rows] == [("export_trends", 0), ("export", 1)]
+    assert rows[0][2].startswith("ValueError: Out of range")
+    sitemap = (out / "sitemaps" / "sitemap-1.xml").read_text(encoding="utf-8")
+    assert "/trends" not in sitemap and "/releases/2026-q1" in sitemap
+
+
 def test_static_export_tree(conn, tmp_path):
     a, b, c, d = seed(conn)
     out = tmp_path / "static"

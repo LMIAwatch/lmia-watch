@@ -39,11 +39,12 @@ shard keeps its bytes and the deploy skips it.
 from __future__ import annotations
 
 import json
+import logging
 import re
 import shutil
 import sqlite3
 from collections import Counter, defaultdict
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from pathlib import Path
 from xml.sax.saxutils import escape
 
@@ -52,6 +53,8 @@ from .db import log_run
 from .feeds import write_feeds
 from .normalize import period_end_date, period_sort_key
 from .zenodo import citation_from_meta
+
+log = logging.getLogger(__name__)
 
 SEARCH_FROM_PERIOD = "2023Q4"
 FIRST_ROWS = 500
@@ -393,29 +396,35 @@ def _lastmod(value: str | None) -> str | None:
     return None
 
 
-def sitemap_entries(conn: sqlite3.Connection, data_as_of: str | None) -> list[tuple[str, str | None]]:
+def sitemap_entries(conn: sqlite3.Connection, data_as_of: str | None,
+                    skip: Collection[str] = ()) -> list[tuple[str, str | None]]:
     """(path, lastmod) for the fixed pages, the release pages, then every profile in id order.
 
     A profile's lastmod is the employer row's updated_at, which status.recompute
-    rewrites only when something on the profile changed.
+    rewrites only when something on the profile changed. `skip` names sections
+    whose files were not written tonight (see _write_static), so their pages
+    are left out rather than listed while they answer "not published".
     """
     dated = _lastmod(data_as_of)
     entries: list[tuple[str, str | None]] = [(p, dated if p in SITEMAP_DATED_PAGES else None) for p in SITEMAP_PAGES]
     # Feeds and the browser watchlist. The feed list follows the nightly data;
     # the watchlist page changes only with the code.
-    entries += [("/feeds", dated), ("/watchlist", None)]
+    entries += ([] if "feeds" in skip else [("/feeds", dated)]) + [("/watchlist", None)]
     # --- releases and rankings: /releases, /rankings, each year's rankings and
     # each release page, dated by the lists' publication; none until a list is
     # loaded, so an empty page is never listed.
-    entries += releases.sitemap_entries(conn)
+    if "releases" not in skip:
+        entries += releases.sitemap_entries(conn)
     # The trends views (trends.py): the ESDC series dated by the lists'
     # publication, the daily pending series by its latest complete pass.
-    entries += trends.sitemap_entries(conn)
+    if "trends" not in skip:
+        entries += trends.sitemap_entries(conn)
     entries += [(f"/employers/{r['id']}", _lastmod(r["updated_at"]))
                 for r in conn.execute("SELECT id, updated_at FROM employers ORDER BY id")]
     # Occupation and place pages at or above the record threshold, each dated
     # by its newest record, and their two index pages (places.py).
-    entries += [(path, _lastmod(mod)) for path, mod in places.sitemap_entries(conn)]
+    if "places" not in skip:
+        entries += [(path, _lastmod(mod)) for path, mod in places.sitemap_entries(conn)]
     return entries
 
 
@@ -433,7 +442,7 @@ def _entry(tag: str, loc: str, lastmod: str | None) -> str:
 
 
 def write_sitemaps(conn: sqlite3.Connection, out: Path, base_url: str, data_as_of: str | None,
-                   max_urls: int = SITEMAP_MAX_URLS) -> dict[str, int]:
+                   max_urls: int = SITEMAP_MAX_URLS, skip: Collection[str] = ()) -> dict[str, int]:
     """Write sitemaps/sitemap-<n>.xml and the index that lists them.
 
     URLs are absolute, as the protocol requires, on `base_url`. The index names
@@ -441,7 +450,7 @@ def write_sitemaps(conn: sqlite3.Connection, out: Path, base_url: str, data_as_o
     the newest lastmod inside that part.
     """
     base = base_url.rstrip("/")
-    entries = sitemap_entries(conn, data_as_of)
+    entries = sitemap_entries(conn, data_as_of, skip)
     folder = out / "sitemaps"
     folder.mkdir(parents=True, exist_ok=True)
     index: list[str] = []
@@ -497,11 +506,29 @@ def _write_static(conn: sqlite3.Connection, out: Path) -> dict[str, int]:
                                               "total": len(rows), "rows": rows[:AREA_ROW_CAP]})
         areas += 1
     counts["areas"] = areas
-    counts.update(write_feeds(conn, out))
-    counts.update(releases.write_all(conn, out))
-    counts.update(trends.write_all(conn, out))
-    counts.update(places.write_places(conn, out))
+    # The feeds, the release pages, the trends and the place pages each come
+    # from their own aggregation, and the site answers "not published" for a
+    # section whose files are missing. So one bad value in one of them must
+    # not hold back the night's data for every other page: a section that
+    # fails is logged as a stage of its own (the run status reports it), its
+    # files stay unwritten and the sitemap leaves its pages out until an
+    # export writes them again. The search, map, profile and stats files are
+    # the site itself and still fail the export.
+    failed: set[str] = set()
+    sections = (
+        ("feeds", lambda: write_feeds(conn, out)),
+        ("releases", lambda: releases.write_all(conn, out)),
+        ("trends", lambda: trends.write_all(conn, out)),
+        ("places", lambda: places.write_places(conn, out)),
+    )
+    for name, write in sections:
+        try:
+            counts.update(write())
+        except Exception as exc:
+            log.exception("export: the %s section failed", name)
+            failed.add(name)
+            log_run(conn, f"export_{name}", detail=f"{type(exc).__name__}: {exc}"[:900], ok=False)
     counts["profile_shards"] = write_profiles(conn, out)
-    counts.update(write_sitemaps(conn, out, config.SITE_URL, stats["data_as_of"]))
+    counts.update(write_sitemaps(conn, out, config.SITE_URL, stats["data_as_of"], skip=failed))
     counts["employers"] = stats["counts"]["employers"]
     return counts
