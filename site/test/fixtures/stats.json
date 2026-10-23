@@ -11,7 +11,11 @@
     "approved_positions": 33216,
     "refused_records": 3008,
     "findings": 1423,
-    "employers": 166497
+    "employers": 166497,
+    "grant_employers": 2140,
+    "grant_agreements": 9812,
+    "alberta_employers": 1311,
+    "carrier_employers": 402
   },
   "by_stream": [
     { "k": "High Wage", "n": 4092 },

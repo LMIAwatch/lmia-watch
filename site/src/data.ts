@@ -45,6 +45,12 @@ export interface Stats {
     refused_records: number;
     findings: number;
     employers: number;
+    // The public records matched to employers; absent from files written
+    // before them.
+    grant_employers?: number;
+    grant_agreements?: number;
+    alberta_employers?: number;
+    carrier_employers?: number;
   };
   by_stream: { k: string; n: number }[];
   by_province: { k: string; n: number }[];
@@ -181,11 +187,17 @@ export async function loadJson<T>(env: Env, path: string): Promise<T | null> {
   }
 }
 
+const OPTIONAL_COUNTS = ["grant_employers", "grant_agreements", "alberta_employers", "carrier_employers"] as const;
+
 // The pages read these fields without further checks, so a file without them
 // is treated like a missing one.
 export async function loadStats(env: Env): Promise<Stats | null> {
   const stats = await loadJson<Stats>(env, "stats.json");
-  return isObj(stats) && isObj(stats.counts) ? stats : null;
+  if (!isObj(stats) || !isObj(stats.counts)) return null;
+  // Optional counts: a value that is not a number reads as absent, so it
+  // hides the home page's tile instead of failing every page.
+  for (const k of OPTIONAL_COUNTS) if (!optional(stats.counts[k], isNum)) delete stats.counts[k];
+  return stats;
 }
 
 // The search page's fallback reads the default scope's total and its status

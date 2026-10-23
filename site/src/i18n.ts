@@ -155,8 +155,8 @@ const STRINGS = {
     fr: "Qui demande à embaucher des travailleurs étrangers temporaires, et qui a été approuvé",
   },
   "home.lead": {
-    en: "Public records from Job Bank and Employment and Social Development Canada, merged by employer and refreshed nightly. Every row links to the government record it came from.",
-    fr: "Dossiers publics du Guichet-Emplois et d'Emploi et Développement social Canada, regroupés par employeur et mis à jour chaque nuit. Chaque ligne renvoie au dossier gouvernemental d'où elle provient.",
+    en: "Public records from Job Bank and Employment and Social Development Canada, merged by employer and refreshed nightly. Every row links to the government record it came from. Each employer's page also carries its corporate registry record and, where the public records match, federal grants and contributions received, Alberta employer records and US carrier records.",
+    fr: "Dossiers publics du Guichet-Emplois et d'Emploi et Développement social Canada, regroupés par employeur et mis à jour chaque nuit. Chaque ligne renvoie au dossier gouvernemental d'où elle provient. La page de chaque employeur présente aussi son inscription au registre des entreprises et, lorsque les dossiers publics concordent, les subventions et contributions fédérales reçues, les dossiers d'employeur de l'Alberta et les dossiers de transporteurs américains.",
   },
   "home.quick": { en: "Quick views:", fr: "Accès rapide :" },
   "home.quick_pending": { en: "Pending Now", fr: "En attente maintenant" },
@@ -174,6 +174,13 @@ const STRINGS = {
   "home.tile_findings": {
     en: "employers on IRCC's non-compliance list",
     fr: "employeurs inscrits sur la liste des employeurs non conformes d'IRCC",
+  },
+  // The public records matched to employers (grants, Alberta, US carriers):
+  // a neutral tag, since a match links a record to a profile and is no status.
+  "home.tile_grants_label": { en: "Public money", fr: "Fonds publics" },
+  "home.tile_grants": {
+    en: "employers on this site matched to a disclosed federal grant or contribution ({agreements} agreements)",
+    fr: "employeurs du site jumelés à une subvention ou contribution fédérale divulguée ({agreements} accords)",
   },
   "home.applying": { en: "Applying This Week", fr: "Demandes de la semaine" },
   "home.all_pending": { en: "All Pending ({n})", fr: "Toutes en attente ({n})" },
@@ -202,6 +209,17 @@ const STRINGS = {
     fr: "Tout employeur nommé ici peut publier une réponse sur son profil. Voir {methodology} et {corrections}.",
   },
   "home.how_reply_corrections": { en: "Corrections and right of reply", fr: "Corrections et droit de réponse" },
+  "home.how_profile": {
+    en: "Each employer's profile holds its {jobbank}, {esdc} and {ircc}, its {registry} where one matches, and any matched {grants}, {alberta} and {carrier}.",
+    fr: "Le profil de chaque employeur réunit ses {jobbank}, ses {esdc} et ses {ircc}, son {registry} lorsqu'une correspondance existe, ainsi que les {grants}, les {alberta} et les {carrier} qui lui sont jumelés.",
+  },
+  "home.how_profile_jobbank": { en: "Job Bank postings", fr: "offres du Guichet-Emplois" },
+  "home.how_profile_esdc": { en: "ESDC approvals and refusals", fr: "approbations et refus d'EDSC" },
+  "home.how_profile_ircc": { en: "IRCC non-compliance findings", fr: "constats de non-conformité d'IRCC" },
+  "home.how_profile_registry": { en: "corporate registry record", fr: "dossier au registre des entreprises" },
+  "home.how_profile_grants": { en: "federal grants and contributions received", fr: "subventions et contributions fédérales reçues" },
+  "home.how_profile_alberta": { en: "Alberta employer records", fr: "dossiers d'employeur de l'Alberta" },
+  "home.how_profile_carrier": { en: "US carrier records", fr: "dossiers de transporteurs américains" },
 
   // -- search ---------------------------------------------------------------------
   "search.filters": { en: "Filters", fr: "Filtres" },

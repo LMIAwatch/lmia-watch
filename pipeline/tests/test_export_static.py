@@ -120,6 +120,30 @@ def test_static_export_tree(conn, tmp_path):
     assert (out / "profiles" / f"{export_static.shard_key(a)}.json").read_bytes() == before
 
 
+def test_stats_count_the_public_records_matched_to_employers(conn, tmp_path):
+    a, b, c, d = seed(conn)
+    out = tmp_path / "static"
+    export_static.export_static(conn, out)
+    assert {k: load(out, "stats.json")["counts"][k] for k in export_static.PUBLIC_RECORD_COUNTS} == {
+        "grant_employers": 0, "grant_agreements": 0, "alberta_employers": 0, "carrier_employers": 0}
+    # Two employers share agreement K-1, so it counts once; Alpha holds two
+    # agreements and is one employer.
+    conn.executemany("INSERT INTO grant_matches VALUES (?, ?, 'exact', 'name_postal_area', ?)",
+                     [(a, "org,K-1", NOW), (a, "org,K-2", NOW), (c, "org,K-1", NOW)])
+    conn.executemany("INSERT INTO alberta_matches VALUES (?, ?, ?, 'exact', 'name_city', ?)",
+                     [(a, "E1", "ALPHA FARMS LTD", NOW), (a, "E2", "ALPHA FARMS", NOW)])
+    conn.executemany("INSERT INTO fmcsa_matches VALUES (?, ?, 'exact', 'name_postal_code', ?)",
+                     [(b, 101, NOW), (d, 102, NOW)])
+    export_static.export_static(conn, out)
+    counts = load(out, "stats.json")["counts"]
+    assert (counts["grant_employers"], counts["grant_agreements"], counts["alberta_employers"],
+            counts["carrier_employers"]) == (2, 2, 1, 2)
+    # A database from before these tables existed counts 0 rather than failing.
+    for table in ("grant_matches", "alberta_matches", "fmcsa_matches"):
+        conn.execute(f"DROP TABLE {table}")
+    assert set(export_static.public_record_counts(conn).values()) == {0}
+
+
 def alias(conn, old, new):
     conn.execute("INSERT INTO employer_aliases (old_id, new_id, normalize_version, created_at) VALUES (?, ?, 2, ?)",
                  (old, new, NOW))

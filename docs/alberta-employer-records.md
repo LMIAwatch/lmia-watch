@@ -81,6 +81,10 @@ this release" while the file leaves it empty) and the match. It carries the
 sentence that this is Alberta's record of the employer as a workers'
 compensation account, matched by name and city, and links to the dataset.
 
+The home page names these records in its lede and in "How to Read This Site",
+linked to the public-records paragraph of the Data page; `stats.json`'s
+`counts` carries `alberta_employers`, the employers with a matched account.
+
 ## What a record does not mean
 
 - A match is not an identity: an Alberta account with the same name in

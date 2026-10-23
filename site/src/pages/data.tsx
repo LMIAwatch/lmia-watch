@@ -307,7 +307,7 @@ export async function dataPage(c: Context<AppEnv>): Promise<Response> {
               statcan: <a href={SOURCE_LINKS.statcan[lang]}>{t(lang, "data.src.statcan_licence")}</a>,
             })}
           </p>
-          <p>
+          <p id="public-records">
             {tj(lang, "data.public_records_text", {
               grants: <a href={SOURCE_LINKS.grants[lang]}>{t(lang, "data.src.grants")}</a>,
               alberta: <a href={SOURCE_LINKS.alberta[lang]}>{t(lang, "data.src.alberta")}</a>,

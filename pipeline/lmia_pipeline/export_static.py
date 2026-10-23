@@ -328,6 +328,24 @@ def clusters(conn: sqlite3.Connection, rows: list[dict]) -> list[dict]:
     return [agg[k] for k in sorted(agg)]
 
 
+# The home page's count of the public records matched to employers. A match
+# row is one employer and one agreement, and an agreement can match two
+# employers of the same name, so agreements are counted once each.
+PUBLIC_RECORD_COUNTS = {
+    "grant_employers": ("grant_matches", "COUNT(DISTINCT employer_id)"),
+    "grant_agreements": ("grant_matches", "COUNT(DISTINCT agreement_key)"),
+    "alberta_employers": ("alberta_matches", "COUNT(DISTINCT employer_id)"),
+    "carrier_employers": ("fmcsa_matches", "COUNT(DISTINCT employer_id)"),
+}
+
+
+def public_record_counts(conn: sqlite3.Connection) -> dict[str, int]:
+    """Counts over the match tables; a table not created yet counts 0."""
+    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    return {key: conn.execute(f"SELECT {expr} FROM {table}").fetchone()[0] if table in tables else 0
+            for key, (table, expr) in PUBLIC_RECORD_COUNTS.items()}
+
+
 def write_stats(conn: sqlite3.Connection, out: Path, latest: str, ind: dict[str, list[str]]) -> dict:
     meta = {r["key"]: r["value"] for r in conn.execute("SELECT key, value FROM meta")}
     counts = {
@@ -337,6 +355,7 @@ def write_stats(conn: sqlite3.Connection, out: Path, latest: str, ind: dict[str,
         "refused_records": int(meta.get("count_refused_records", 0)),
         "findings": int(meta.get("count_findings", 0)),
         "employers": conn.execute("SELECT COUNT(*) FROM employers").fetchone()[0],
+        **public_record_counts(conn),
     }
     by_stream = [{"k": r["k"] or "Unknown", "n": r["n"]} for r in conn.execute(
         "SELECT stream AS k, COUNT(*) AS n FROM esdc_records WHERE list = 'positive' AND period = ? GROUP BY stream ORDER BY n DESC", (latest,))]

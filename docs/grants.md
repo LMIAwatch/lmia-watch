@@ -94,6 +94,12 @@ record page then has no body while the dataset download carries the row.
 The profile JSON carries the same rows (`grants`) and the full count
 (`grants_total`).
 
+The home page shows a "Public money" tile with the number of employers matched
+to at least one agreement and the number of distinct agreements matched
+(`grant_employers` and `grant_agreements` in `stats.json`'s `counts`), linked
+to the public-records paragraph of the Data page (`/data#public-records`); the
+tile is left out while no agreement is matched.
+
 ## What a record does not mean
 
 - A match is not an identity. It links a published record to a profile; the

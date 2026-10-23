@@ -226,6 +226,8 @@ td.mono { white-space: nowrap; }
 .badge-finding { background: #801c18; color: #ffffff; }
 .badge-lapsed { background: var(--white); color: var(--muted); border: 1px dashed var(--outline); }
 .badge-none { background: none; color: var(--muted); padding-left: 0; padding-right: 0; }
+/* A tag that is no status (the home page's public-money tile): an outline in the page's own tokens, so it follows the dark scheme. */
+.badge-neutral { background: var(--white); color: var(--chip-text); border-color: var(--outline); }
 /* Indicator states stay neutral: amber means Pending and nothing else. */
 .state-triggered { background: var(--white); color: var(--text); border: 2px solid var(--text); padding: 0 7px 1px; font-weight: 700; }
 .state-not_triggered { background: none; color: var(--muted); padding-left: 0; padding-right: 0; }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { app } from "../src/index";
-import { emptyAssets, testEnv } from "./assets";
+import { emptyAssets, fakeAssets, testEnv } from "./assets";
+import stats from "./fixtures/stats.json";
 
 const get = (path: string, headers: Record<string, string> = {}) => app.request(path, { headers }, testEnv());
 
@@ -30,6 +31,41 @@ describe("pages", () => {
     expect(html).toContain('<a href="https://bsky.app/profile/lmiawatch.ca" class="footer-x" target="_blank" rel="noopener" aria-label="LMIA Watch on Bluesky"');
     expect(html).toContain('<script src="/links.js" defer=""></script>');
     expect(html).toContain('<button type="button" class="theme-toggle"><span class="when-light">Dark</span><span class="when-dark">Light</span></button>');
+  });
+
+  it("home names the public records on profiles and counts the employers matched to a federal agreement", async () => {
+    const html = await (await get("/")).text();
+    expect(html).toContain("Each employer&#39;s page also carries its corporate registry record and, where the public records match,");
+    expect(html).toContain('<span class="badge badge-neutral">Public money</span><span class="tile-value">2,140</span>');
+    expect(html).toContain(
+      '<a href="/data#public-records">employers on this site matched to a disclosed federal grant or contribution (9,812 agreements)</a>',
+    );
+    expect(html).toContain('<a href="/methodology#matching">corporate registry record</a>');
+    expect(html).toContain('<a href="/data#public-records">US carrier records</a>');
+    expect(html).not.toContain(String.fromCharCode(0x2014));
+    const fr = await (await get("/?lang=fr")).text();
+    expect(fr).toContain("Fonds publics");
+    expect(fr).toContain("accords)</a>");
+    expect(fr).toContain('<a href="/data#public-records">dossiers de transporteurs américains</a>');
+    // The anchor the tile and the list link to.
+    expect(await (await get("/data")).text()).toContain('<p id="public-records">');
+  });
+
+  it("home shows four tiles when stats.json has no public-record counts, or none matched yet", async () => {
+    const { grant_employers, grant_agreements, ...older } = stats.counts;
+    for (const counts of [older, { ...stats.counts, grant_employers: 0, grant_agreements: 0 }, { ...stats.counts, grant_employers: "2140" }]) {
+      const assets = {
+        fetch: async (input: Request) =>
+          new URL(input.url).pathname === "/data/stats.json"
+            ? new Response(JSON.stringify({ ...stats, counts }))
+            : fakeAssets.fetch(input),
+      } as unknown as Fetcher;
+      const res = await app.request("/", {}, testEnv(assets));
+      expect(res.status).toBe(200);
+      const html = await res.text();
+      expect(html).not.toContain("badge-neutral");
+      expect(html.match(/class="tile"/g)?.length).toBe(4);
+    }
   });
 
   // This file's search database is empty (test/search_page.test.ts fills its

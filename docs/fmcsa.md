@@ -74,6 +74,10 @@ drivers, the safety rating with its date ("Not rated" when there is none),
 the record's date (the MCS-150 date, the carrier's latest update of its
 census record) and the match.
 
+The home page names these records in its lede and in "How to Read This Site",
+linked to the public-records paragraph of the Data page; `stats.json`'s
+`counts` carries `carrier_employers`, the employers with a matched record.
+
 ## What a record does not mean
 
 - A match is not an identity: a carrier with the same name elsewhere in the

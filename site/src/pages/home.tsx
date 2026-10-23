@@ -35,6 +35,7 @@ export async function homePage(c: Context<AppEnv>): Promise<Response> {
     .sort((a, b) => b.n - a.n || a.k.localeCompare(b.k));
   const periodText = stats.esdc_latest_period ? periodLabel(stats.esdc_latest_period, lang) : t(lang, "home.latest_quarter");
   const n = (v: number | null | undefined) => fmtInt(v, lang);
+  const { grant_employers: grantEmployers, grant_agreements: grantAgreements } = stats.counts;
 
   const PostingTable = ({ rows }: { rows: SearchRow[] }) => (
     <div class="table-wrap">
@@ -138,6 +139,16 @@ export async function homePage(c: Context<AppEnv>): Promise<Response> {
           <span class="tile-value">{n(stats.counts.findings)}</span>
           <span class="tile-note">{t(lang, "home.tile_findings")}</span>
         </div>
+        {/* Left out until a run has matched an agreement (or by a stats file from before these counts). */}
+        {grantEmployers !== undefined && grantEmployers > 0 && grantAgreements !== undefined ? (
+          <div class="tile">
+            <span class="badge badge-neutral">{t(lang, "home.tile_grants_label")}</span>
+            <span class="tile-value">{n(grantEmployers)}</span>
+            <span class="tile-note">
+              <a href="/data#public-records">{t(lang, "home.tile_grants", { agreements: n(grantAgreements) })}</a>
+            </span>
+          </div>
+        ) : null}
       </section>
 
       <section class="two-col">
@@ -209,6 +220,17 @@ export async function homePage(c: Context<AppEnv>): Promise<Response> {
       <section class="panel">
         <h2>{t(lang, "home.how")}</h2>
         <p>{t(lang, "home.how_pending")}</p>
+        <p>
+          {tj(lang, "home.how_profile", {
+            jobbank: <a href="/methodology#sources">{t(lang, "home.how_profile_jobbank")}</a>,
+            esdc: <a href="/methodology#sources">{t(lang, "home.how_profile_esdc")}</a>,
+            ircc: <a href="/methodology#sources">{t(lang, "home.how_profile_ircc")}</a>,
+            registry: <a href="/methodology#matching">{t(lang, "home.how_profile_registry")}</a>,
+            grants: <a href="/data#public-records">{t(lang, "home.how_profile_grants")}</a>,
+            alberta: <a href="/data#public-records">{t(lang, "home.how_profile_alberta")}</a>,
+            carrier: <a href="/data#public-records">{t(lang, "home.how_profile_carrier")}</a>,
+          })}
+        </p>
         <p>{t(lang, "home.how_indicators")}</p>
         <p>
           {tj(lang, "home.how_reply", {
