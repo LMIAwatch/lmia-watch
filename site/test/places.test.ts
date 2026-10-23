@@ -252,6 +252,30 @@ describe("every new page", () => {
     }
   });
 
+  it("answers 503 for an index that is missing or malformed while stats.json is published, as the other indexes do", async () => {
+    // The other tests' fixtures carry stats.json but neither index.
+    for (const path of ["/occupations", "/places", "/occupations?lang=fr", "/places?lang=fr"]) {
+      const res = await get(path, testEnv(fakeAssets));
+      expect(res.status, path).toBe(503);
+      const html = await res.text();
+      expect(html, path).toMatch(/<h1>(Data Not Published Yet|Données pas encore publiées)<\/h1>/);
+      expect(html, path).not.toContain("These pages have not been published yet.");
+    }
+    const broken = (file: string, body: string) => ({
+      fetch: async (input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        if (new URL(url).pathname === `/data/${file}`) return new Response(body, { headers: { "content-type": "application/json" } });
+        return assets.fetch(input as Request);
+      },
+    }) as unknown as Fetcher;
+    for (const body of ["{\"rows\":", "[]", JSON.stringify({ ...occIndex, rows: [{}] })]) {
+      expect((await get("/occupations", testEnv(broken("occupations/index.json", body)))).status, body).toBe(503);
+    }
+    for (const body of ["{\"provinces\":", "{}", JSON.stringify({ ...placesIndex, threshold: "20" })]) {
+      expect((await get("/places", testEnv(broken("places/index.json", body)))).status, body).toBe(503);
+    }
+  });
+
   it("is linked once from the search page and the Data page, apart from the navigation", async () => {
     for (const path of ["/search", "/data"]) {
       const html = (await (await get(path)).text()).replace(/<nav [\s\S]*?<\/nav>/, "");

@@ -1,6 +1,7 @@
 // A stand-in for the static assets binding: serves the JSON fixtures under
 // /data/ the way the deployed Worker reads the pipeline's export.
 import { env } from "cloudflare:test";
+import aliases from "./fixtures/aliases-a00.json";
 import area from "./fixtures/area-V0N.json";
 import clusters from "./fixtures/clusters-latest.json";
 import facets from "./fixtures/facets.json";
@@ -27,6 +28,9 @@ const FILES: Record<string, unknown> = {
   "clusters/since_2023q4.json": clusters,
   "areas/V0N.json": area,
   "profiles/a00.json": profiles,
+  // Retired ids whose shard key (characters 5 to 7 of the old id) is a00, each
+  // pointing at a live id in the profile shard above.
+  "aliases/a00.json": aliases,
 };
 
 export const fakeAssets = {

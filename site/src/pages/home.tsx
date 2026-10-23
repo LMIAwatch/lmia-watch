@@ -4,12 +4,28 @@ import type { AppEnv } from "../env";
 import { provinceName, streamLabel, t, tj } from "../i18n";
 import { Badge, Layout, fmtInt, noDataPage, page, periodLabel } from "../layout";
 import { homeJsonLd, pageSeo } from "../seo";
+import { isListOf, isNum, isObj, isStr, isStrOrNull } from "../valid";
 import { FeedLinks } from "./feeds";
+
+// The lists of stats.json that only this page reads, checked here rather than
+// in loadStats so a malformed row costs this page, not every page. Each field
+// is checked as the tables below render it, and allows null wherever the
+// export can write it: a posting's title, date, city and province, and a top
+// employer's city, province and stream.
+const isPostingRow = (r: unknown): boolean => isObj(r) && isStr(r.employer_id) && isStr(r.employer) && isStrOrNull(r.date) &&
+  isStrOrNull(r.job) && isStrOrNull(r.city) && isStrOrNull(r.prov);
+const isTopRow = (r: unknown): boolean => isObj(r) && isStr(r.employer_id) && isStr(r.employer) && isStrOrNull(r.city) &&
+  isStrOrNull(r.prov) && isStrOrNull(r.stream) && isNum(r.positions);
+// The export writes "Unknown" where the quarter's rows have no stream or province, so a key is never null.
+const isCountRow = (r: unknown): boolean => isObj(r) && isStr(r.k) && isNum(r.n);
 
 export async function homePage(c: Context<AppEnv>): Promise<Response> {
   const lang = c.get("lang");
   const stats = await loadStats(c.env);
-  if (!stats) return noDataPage(c, "common.home");
+  if (
+    !stats || !isListOf(stats.recent_pending, isPostingRow) || !isListOf(stats.recent_approved, isPostingRow) ||
+    !isListOf(stats.top_approvals, isTopRow) || !isListOf(stats.by_stream, isCountRow) || !isListOf(stats.by_province, isCountRow)
+  ) return noDataPage(c, "common.home");
   // Pending postings by province, from the search facets; fills the space under
   // the week's postings and links each row to the filtered search.
   const facets = await loadFacets(c.env).catch(() => null);

@@ -60,7 +60,7 @@ interface OccupationIndex {
 const NOC_RE = /^[0-9]{5}$/;
 
 // Each file is checked field by field as the page reads it; one that fails
-// reads as missing (the index's "not published yet" line, or a 404).
+// reads as missing ("not published" for the index, a 404 for an occupation).
 
 const isRegion = (v: unknown): v is RegionRow =>
   isObj(v) && isStr(v.name) && isStrOrNull(v.prov) && isNum(v.records) && isWageRow(v);
@@ -96,13 +96,14 @@ export async function occupationsIndex(c: Context<AppEnv>): Promise<Response> {
   const lang = c.get("lang");
   const stats = await loadStats(c.env);
   if (!stats) return noDataPage(c, "occ.index_title");
-  // An unreadable index renders like a missing one: the page with its "not published yet" line.
-  const loaded = await loadJson<unknown>(c.env, "occupations/index.json");
-  const idx = isOccupationIndex(loaded) ? loaded : null;
-  const rows = idx ? idx.rows : [];
+  // An unreadable index reads like a missing one: "not published", as the
+  // release, ranking and trend indexes answer.
+  const idx = await loadJson<unknown>(c.env, "occupations/index.json");
+  if (!isOccupationIndex(idx)) return noDataPage(c, "occ.index_title");
+  const rows = idx.rows;
   const n = (v: number) => fmtInt(v, lang);
   const title = t(lang, "occ.index_title");
-  const from = periodLabel(idx?.from ?? "", lang);
+  const from = periodLabel(idx.from ?? "", lang);
   const seo = sectionSeo("/occupations", t(lang, "occ.index_seo_title"), t(lang, "occ.index_description"),
     [{ name: t(lang, "common.home"), path: "/" }, { name: title }], rows.length === 0);
   const groups = new Map<string, OccupationIndex["rows"]>();
@@ -112,9 +113,9 @@ export async function occupationsIndex(c: Context<AppEnv>): Promise<Response> {
     list.push(r);
     groups.set(key, list);
   }
-  const latest = periodLabel(idx?.latest ?? "", lang);
+  const latest = periodLabel(idx.latest, lang);
   const sorted = [...groups.entries()].sort();
-  const categoryName = (key: string) => idx?.categories?.[key]?.[lang] ?? key;
+  const categoryName = (key: string) => idx.categories[key]?.[lang] ?? key;
   return page(
     c,
     <Layout lang={lang} title={title} dataAsOf={stats.data_as_of} seo={seo}>

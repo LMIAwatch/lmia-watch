@@ -4,6 +4,8 @@ import { pendingResults } from "../src/api";
 import { FORM_MAX_BYTES } from "../src/body";
 import { app } from "../src/index";
 import { fakeAssets, testEnv } from "./assets";
+import facets from "./fixtures/facets.json";
+import profiles from "./fixtures/profiles-a00.json";
 import latest from "./fixtures/search-latest.json";
 
 // Assets that answer like the real ones except where a test says otherwise:
@@ -75,6 +77,37 @@ describe("missing and corrupt data files", () => {
     }
   });
 
+  it("home reads its lists strictly; search treats unreadable search years as none", async () => {
+    const stats = JSON.parse(await (await fakeAssets.fetch("https://assets.invalid/data/stats.json")).text());
+    const row = stats.recent_pending[0];
+    const broken: Record<string, unknown>[] = [
+      { recent_pending: null },
+      { recent_approved: [{ ...row, employer: null }] },
+      { recent_pending: [{ ...row, date: 20261010 }] },
+      { top_approvals: [{ ...stats.top_approvals[0], positions: null }] },
+      { top_approvals: [{ ...stats.top_approvals[0], stream: 7 }] },
+      { by_stream: [{ k: null, n: 1 }] },
+      { by_province: [{ k: "QC", n: "3054" }] },
+    ];
+    for (const change of broken) {
+      const res = await req("/", { ASSETS: assetsWith({ "stats.json": JSON.stringify({ ...stats, ...change }) }) });
+      expect(res.status, JSON.stringify(change)).toBe(503);
+      expect(await res.text()).toContain("Data Not Published Yet");
+    }
+    // The fields the export writes as null are allowed to be null.
+    const nulls = {
+      recent_pending: [{ ...row, date: null, job: null, city: null, prov: null }],
+      top_approvals: [{ ...stats.top_approvals[0], city: null, prov: null, stream: null }],
+    };
+    expect((await req("/", { ASSETS: assetsWith({ "stats.json": JSON.stringify({ ...stats, ...nulls }) }) })).status).toBe(200);
+    for (const years of ["2023", { a: 1 }, [2023, "2024"], null]) {
+      const res = await req("/search", { ASSETS: assetsWith({ "stats.json": JSON.stringify({ ...stats, search_years: years }) }) });
+      expect(res.status, JSON.stringify(years)).toBe(200);
+      expect(await res.text()).toContain('data-years=""');
+    }
+    expect(await (await req("/search")).text()).toContain('data-years="2023,2024,2025,2026"');
+  });
+
   it("a corrupt search/first.json leaves the rows to the script; a corrupt facets file still renders", async () => {
     const first = await req("/search", { ASSETS: assetsWith({ "search/first.json": "[{" }) });
     expect(first.status).toBe(200);
@@ -84,6 +117,90 @@ describe("missing and corrupt data files", () => {
     expect(await facets.text()).toContain('data-ssr="1"');
     const home = await req("/", { ASSETS: assetsWith({ "search/facets.json": "{" }) });
     expect(home.status).toBe(200);
+  });
+
+  it("a first.json with an unreadable row leaves the rows to the script; null where the export writes it is fine", async () => {
+    const [posting] = latest;
+    const bad: Record<string, unknown>[] = [
+      { kind: "other" }, { ref: "50456228" }, { employer: null }, { employer_id: 7 }, { ind: null }, { ind: [1] },
+      { wage_min: "38" }, { unit: 7 }, { positions: "1" }, { source: null }, { status: null }, { period: 7 }, { date: {} },
+    ];
+    for (const change of bad) {
+      const res = await req("/search", { ASSETS: assetsWith({ "search/first.json": JSON.stringify([{ ...posting, ...change }, ...latest.slice(1)]) }) });
+      expect(res.status, JSON.stringify(change)).toBe(200);
+      expect(await res.text(), JSON.stringify(change)).toContain('data-ssr="0"');
+    }
+    const { kind, ...noKind } = posting;
+    expect(kind).toBe("posting");
+    expect(await (await req("/search", { ASSETS: assetsWith({ "search/first.json": JSON.stringify([noKind]) }) })).text()).toContain('data-ssr="0"');
+    const nulls = { job: null, noc: null, street: null, city: null, prov: null, postal: null, wage_min: null, wage_max: null, unit: null, date: null, period: null, positions: null };
+    const ok = await req("/search", { ASSETS: assetsWith({ "search/first.json": JSON.stringify([{ ...posting, ...nulls }]) }) });
+    expect(await ok.text()).toContain('data-ssr="1"');
+  });
+
+  it("a facets.json of the wrong shape reads as missing on the search and home pages", async () => {
+    const bad: unknown[] = [
+      { ...facets, default: { ...facets.default, total: "5" } },
+      { ...facets, default: { ...facets.default, status: null } },
+      { ...facets, default: { ...facets.default, prov: { BC: "4" } } },
+      { ...facets, default: { ...facets.default, status_prov: { "pending|BC": null } } },
+      { ...facets, long: { ...facets.long, total: null } },
+      { default: facets.default },
+    ];
+    for (const body of bad) {
+      const assets = assetsWith({ "search/facets.json": JSON.stringify(body) });
+      const search = await req("/search", { ASSETS: assets });
+      expect(search.status, JSON.stringify(body).slice(0, 80)).toBe(200);
+      // Without the facets the total comes from the first rows.
+      expect(await search.text()).toContain('data-ssr="1"');
+      const home = await req("/", { ASSETS: assets });
+      expect(home.status).toBe(200);
+      expect(await home.text()).not.toContain("Pending by province");
+    }
+  });
+
+  it("a profile with an unreadable field is a 404 on the page, the form and the API; null where the export writes it is fine", async () => {
+    const ID = "emp-a000000001";
+    const shardWith = (edit: (p: any) => void) => {
+      const shard = JSON.parse(JSON.stringify(profiles));
+      edit(shard[ID]);
+      return JSON.stringify(shard);
+    };
+    const finding = { operating_name: "Op", legal_name: null, address: null, reasons: "Reason", decision_date: "2025-01-01", penalty: null, status: null };
+    const bad: [string, (p: any) => void][] = [
+      ["id of another employer", (p) => { p.employer.id = "emp-a000000002"; }],
+      ["display_name null", (p) => { p.employer.display_name = null; }],
+      ["pending_count text", (p) => { p.employer.pending_count = "1"; }],
+      ["postal_code number", (p) => { p.employer.postal_code = 7; }],
+      ["street_source number", (p) => { p.employer.street_source = 7; }],
+      ["names element null", (p) => { p.names = [null]; }],
+      ["posting first_seen null", (p) => { p.postings[0].first_seen = null; }],
+      ["posting wage text", (p) => { p.postings[0].wage_min = "38"; }],
+      ["posting vacancies removed", (p) => { delete p.postings[0].vacancies; }],
+      ["registry grade null", (p) => { p.registry[0].grade = null; }],
+      ["indicator basis null", (p) => { p.indicators[0].basis = null; }],
+      ["finding reasons number", (p) => { p.findings = [{ ...finding, reasons: 7 }]; }],
+      ["list row period null", (p) => { p.esdc = [{ ...profiles["emp-a000000005"].esdc[0], period: null }]; }],
+      ["list row published removed", (p) => { const { published, ...row } = profiles["emp-a000000005"].esdc[0]; p.esdc = [row]; }],
+    ];
+    for (const [label, edit] of bad) {
+      const assets = assetsWith({ "profiles/a00.json": shardWith(edit) });
+      for (const path of [`/employers/${ID}`, `/employers/${ID}/respond`, `/api/employers/${ID}`]) {
+        expect((await req(path, { ASSETS: assets })).status, `${path} ${label}`).toBe(404);
+      }
+    }
+    const nulls = assetsWith({
+      "profiles/a00.json": shardWith((p) => {
+        Object.assign(p.employer, { province: null, city: null, postal_code: null, street: null, street_source: null, status_changed_at: null });
+        Object.assign(p.postings[0], { title: null, noc_code: null, wage_min: null, wage_max: null, wage_unit: null, vacancies: null, date_posted: null, valid_through: null, approved_seen_at: null });
+        Object.assign(p.registry[0], { legal_name: null, entity_type: null, status: null, registered_on: null });
+        p.findings = [finding, { ...finding, operating_name: null, reasons: null, decision_date: null }];
+        p.esdc = [{ ...profiles["emp-a000000005"].esdc[0], stream: null, lmias: null, city: null, postal_code: null, noc_code: null, noc_title: null, positions: null, published: null }];
+      }),
+    });
+    for (const path of [`/employers/${ID}`, `/employers/${ID}/respond`, `/api/employers/${ID}`]) {
+      expect((await req(path, { ASSETS: nulls })).status, path).toBe(200);
+    }
   });
 
   it("a corrupt or missing profile shard is a 404, in the page and in the API", async () => {

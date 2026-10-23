@@ -1,5 +1,5 @@
 import { Hono, type Context } from "hono";
-import { assetResponse, loadProfile, type SearchRow } from "./data";
+import { assetResponse, loadAlias, loadProfile, type SearchRow } from "./data";
 import type { AppEnv } from "./env";
 
 // Every endpoint is a view over the static JSON files, so the API costs no
@@ -19,10 +19,14 @@ async function passThrough(c: Context<AppEnv>, path: string): Promise<Response> 
 
 api.get("/stats", (c) => passThrough(c, "stats.json"));
 
+// A retired id redirects to the id that took its records, as the profile page does.
 api.get("/employers/:id", async (c) => {
-  const profile = await loadProfile(c.env, c.req.param("id") ?? "");
-  if (!profile) return c.json({ error: "not found" }, 404);
-  return c.json(profile);
+  const id = c.req.param("id") ?? "";
+  const profile = await loadProfile(c.env, id);
+  if (profile) return c.json(profile);
+  const live = await loadAlias(c.env, id);
+  if (live) return c.redirect(`/api/employers/${live}`, 301);
+  return c.json({ error: "not found" }, 404);
 });
 
 // The pending list is about 2 MB, and parsing it, or even decoding it to

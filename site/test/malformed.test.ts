@@ -6,6 +6,8 @@
 import { describe, expect, it } from "vitest";
 import { app } from "../src/index";
 import { fakeAssets, testEnv } from "./assets";
+import aliases from "./fixtures/aliases-a00.json";
+import facets from "./fixtures/facets.json";
 import feedIndex from "./fixtures/feeds-index.json";
 import occIndex from "./fixtures/occupations-index.json";
 import occ63200 from "./fixtures/occupation-63200.json";
@@ -13,10 +15,12 @@ import mb from "./fixtures/place-mb.json";
 import winnipeg from "./fixtures/place-mb-winnipeg.json";
 import winnipegCma from "./fixtures/place-mb-winnipeg-cma.json";
 import placesIndex from "./fixtures/places-index.json";
+import profiles from "./fixtures/profiles-a00.json";
 import rankingsYear from "./fixtures/rankings-2026.json";
 import rankingsAll from "./fixtures/rankings-all.json";
 import release from "./fixtures/release-2026-q1.json";
 import releaseIndex from "./fixtures/releases-index.json";
+import first from "./fixtures/search-latest.json";
 import stats from "./fixtures/stats.json";
 import national from "./fixtures/trends-national.json";
 import pending from "./fixtures/trends-pending.json";
@@ -45,7 +49,22 @@ const CASES: { file: string; data: unknown; paths: string[] }[] = [
   { file: "places/mb/winnipeg.json", data: winnipeg, paths: ["/places/mb/winnipeg"] },
   { file: "places/mb/winnipeg-cma.json", data: winnipegCma, paths: ["/places/mb/winnipeg-cma"] },
   { file: "feeds/index.json", data: feedIndex, paths: ["/feeds"] },
-  { file: "stats.json", data: WITH_CITATION, paths: ["/data", "/methodology"] },
+  { file: "stats.json", data: WITH_CITATION, paths: ["/data", "/methodology", "/", "/search"] },
+  // The search page's first rows and counts; the home page reads the counts too.
+  { file: "search/first.json", data: first, paths: ["/search", "/"] },
+  { file: "search/facets.json", data: facets, paths: ["/search", "/"] },
+  // A profile shard: the page, its form and the API answer 200 or 404.
+  {
+    file: "profiles/a00.json",
+    data: profiles,
+    paths: ["/employers/emp-a000000001", "/employers/emp-a000000001/respond", "/api/employers/emp-a000000001"],
+  },
+  // A retired id's shard: the profile page, its form and the API redirect or answer 404.
+  {
+    file: "aliases/a00.json",
+    data: aliases,
+    paths: ["/employers/emp-a00dead001", "/employers/emp-a00dead001/respond", "/api/employers/emp-a00dead001"],
+  },
 ];
 
 const JUNK: unknown[] = [null, "x", 7, -1, true, [], {}, [null], [{}], ["x"], "2026-1x-40"];

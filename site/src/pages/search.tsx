@@ -7,6 +7,7 @@ import {
 } from "../i18n";
 import { Badge, Chip, ClientData, Layout, fmtInt, fmtWage, noDataPage, page, periodLabel } from "../layout";
 import { pageSeo } from "../seo";
+import { isListOf, isNum } from "../valid";
 import { FeedLinks } from "./feeds";
 
 // A plain visit (no filters, newest first, an early page) is rendered here from
@@ -106,6 +107,10 @@ export async function searchPage(c: Context<AppEnv>): Promise<Response> {
   const n = (v: number) => fmtInt(v, lang);
   const latest = periodLabel(stats.esdc_latest_period, lang);
   const from = periodLabel(stats.search_from_period, lang);
+  // The years of the long scope's per-year files. Without them search.js
+  // loads only that scope's postings files, so a malformed list costs the
+  // long scope its list rows, not the page.
+  const years: number[] = isListOf(stats.search_years, isNum) ? stats.search_years : [];
 
   let ssrRows: SearchRow[] | null = null;
   let total = facets?.default.total ?? 0;
@@ -202,7 +207,7 @@ export async function searchPage(c: Context<AppEnv>): Promise<Response> {
             id="results"
             data-latest={stats.esdc_latest_period}
             data-from={stats.search_from_period}
-            data-years={(stats.search_years ?? []).join(",")}
+            data-years={years.join(",")}
             data-today={stats.data_as_of ?? ""}
             data-ssr={ssrRows ? "1" : "0"}
           >

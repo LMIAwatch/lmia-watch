@@ -530,11 +530,12 @@ export async function placesIndex(c: Context<AppEnv>): Promise<Response> {
   const lang = c.get("lang");
   const stats = await loadStats(c.env);
   if (!stats) return noDataPage(c, "places.index_title");
-  // An unreadable index renders like a missing one: the page with its "not published yet" line.
-  const loaded = await loadJson<unknown>(c.env, "places/index.json");
-  const idx = isPlacesIndex(loaded) ? loaded : null;
+  // An unreadable index reads like a missing one: "not published", as the
+  // release, ranking and trend indexes answer.
+  const idx = await loadJson<unknown>(c.env, "places/index.json");
+  if (!isPlacesIndex(idx)) return noDataPage(c, "places.index_title");
   const n = (v: number) => fmtInt(v, lang);
-  const provinces = idx ? idx.provinces : [];
+  const provinces = idx.provinces;
   const title = t(lang, "places.index_title");
   const seo = sectionSeo("/places", t(lang, "places.index_seo_title"), t(lang, "places.index_description"),
     [{ name: t(lang, "common.home"), path: "/" }, { name: title }], provinces.length === 0);
@@ -545,7 +546,7 @@ export async function placesIndex(c: Context<AppEnv>): Promise<Response> {
         <a href="/">{t(lang, "common.home")}</a> / {title}
       </nav>
       <h1>{title}</h1>
-      <p class="lead">{t(lang, "places.index_lead", { threshold: idx?.threshold ?? 20 })}</p>
+      <p class="lead">{t(lang, "places.index_lead", { threshold: idx.threshold })}</p>
       <p><a href="/occupations">{t(lang, "places.to_occupations")}</a></p>
       {provinces.length === 0 ? <p class="muted">{t(lang, "places.not_published")}</p> : (
         <>
@@ -557,7 +558,7 @@ export async function placesIndex(c: Context<AppEnv>): Promise<Response> {
                   <th>{t(lang, "search.province")}</th>
                   <th class="num">{t(lang, "places.col_records")}</th>
                   <th class="num">{t(lang, "places.col_approved_positions")}</th>
-                  <th class="num">{t(lang, "places.col_latest_positions", { period: periodLabel(idx?.latest ?? "", lang) })}</th>
+                  <th class="num">{t(lang, "places.col_latest_positions", { period: periodLabel(idx.latest, lang) })}</th>
                   <th class="num">{t(lang, "places.col_city_pages")}</th>
                 </tr>
               </thead>
@@ -567,7 +568,7 @@ export async function placesIndex(c: Context<AppEnv>): Promise<Response> {
                     <td data-label={t(lang, "search.province")}><a href={`/places/${p.prov.toLowerCase()}`}>{provinceName(lang, p.prov)}</a></td>
                     <td data-label={t(lang, "places.col_records")} class="mono num">{n(p.records)}</td>
                     <td data-label={t(lang, "places.col_approved_positions")} class="mono num">{n(p.positions)}</td>
-                    <td data-label={t(lang, "places.col_latest_positions", { period: periodLabel(idx?.latest ?? "", lang) })} class="mono num">{n(p.latest_positions)}</td>
+                    <td data-label={t(lang, "places.col_latest_positions", { period: periodLabel(idx.latest, lang) })} class="mono num">{n(p.latest_positions)}</td>
                     <td data-label={t(lang, "places.col_city_pages")} class="mono num">{n(p.cities)}</td>
                   </tr>
                 ))}
@@ -582,7 +583,7 @@ export async function placesIndex(c: Context<AppEnv>): Promise<Response> {
             )))}
           </ul>
           <h2>{t(lang, "places.cities")}</h2>
-          <p class="muted small">{t(lang, "places.cities_note", { threshold: idx?.threshold ?? 20 })}</p>
+          <p class="muted small">{t(lang, "places.cities_note", { threshold: idx.threshold })}</p>
           {provinces.filter((p) => p.top_cities.length).map((p) => (
             <>
               <h3>{provinceName(lang, p.prov)}</h3>

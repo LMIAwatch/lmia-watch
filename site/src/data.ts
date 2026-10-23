@@ -3,6 +3,7 @@
 // assets binding; nothing here touches a database.
 
 import type { Env } from "./env";
+import { isListOf, isNum, isNumOrNull, isObj, isStr, isStrOrNull, optional } from "./valid";
 
 export interface SearchRow {
   kind: "posting" | "esdc";
@@ -149,33 +150,94 @@ export async function loadJson<T>(env: Env, path: string): Promise<T | null> {
   }
 }
 
-const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
-
 // The pages read these fields without further checks, so a file without them
 // is treated like a missing one.
 export async function loadStats(env: Env): Promise<Stats | null> {
   const stats = await loadJson<Stats>(env, "stats.json");
-  return isObject(stats) && isObject(stats.counts) ? stats : null;
+  return isObj(stats) && isObj(stats.counts) ? stats : null;
 }
+
+// The Worker reads the default scope's total, its status, province and
+// status-by-province counts, and the long scope's total (search.js reads the
+// rest of the file in the browser). A file that fails reads as missing: the
+// search page then counts from its first rows, the home page leaves out the
+// pending-by-province bars.
+const isCounts = (v: unknown): boolean => isObj(v) && Object.values(v).every(isNum);
 
 export async function loadFacets(env: Env): Promise<Facets | null> {
   const facets = await loadJson<Facets>(env, "search/facets.json");
-  return isObject(facets) && isObject(facets.default) && isObject(facets.long) ? facets : null;
+  if (!isObj(facets) || !isObj(facets.default) || !isObj(facets.long)) return null;
+  const d = facets.default;
+  return isNum(d.total) && isCounts(d.status) && isCounts(d.prov) && isCounts(d.status_prov) && isNum(facets.long.total)
+    ? facets
+    : null;
 }
+
+// Each field a server-rendered search row shows (SearchRowView), with null
+// wherever the export writes it: a posting's missing details, the wage, unit
+// and date of a list row, the period of a posting.
+const isSearchRow = (r: unknown): boolean => isObj(r) && (r.kind === "posting" || r.kind === "esdc") && isNum(r.ref) &&
+  isStr(r.employer_id) && isStr(r.employer) && isStrOrNull(r.job) && isStrOrNull(r.noc) && isStrOrNull(r.street) &&
+  isStrOrNull(r.city) && isStrOrNull(r.prov) && isStrOrNull(r.postal) && isNumOrNull(r.wage_min) && isNumOrNull(r.wage_max) &&
+  isStrOrNull(r.unit) && isStrOrNull(r.date) && isStrOrNull(r.period) && isNumOrNull(r.positions) && isStr(r.status) &&
+  isStr(r.source) && isListOf(r.ind, isStr);
 
 // The newest rows of the default scope: small enough to parse on the server
 // (about 150 KB raw for 500 rows) so a plain visit renders without JavaScript.
+// A file with an unreadable row reads as missing, and the page leaves the rows
+// to the script.
 export async function loadFirst(env: Env): Promise<SearchRow[] | null> {
   const rows = await loadJson<SearchRow[]>(env, "search/first.json");
-  return Array.isArray(rows) ? rows : null;
+  return isListOf(rows, isSearchRow) ? rows : null;
 }
+
+// A profile is checked as the employer page, its description and the response
+// form render it: a field the page formats, slices or compares must have that
+// type, and null is allowed wherever the export can write it (the nullable
+// columns of the tables behind each list, and a list row's publication date
+// when its resource is not recorded). The page links to and names itself by
+// employer.id, so that must be the id asked for. A profile that fails reads
+// as missing: a 404, after the alias lookup.
+const EMPLOYER_COUNTS = ["pending_count", "approved_lmias", "approved_positions", "refused_lmias", "refused_positions", "finding_count"] as const;
+const isEmployer = (v: unknown, id: string): boolean => isObj(v) && v.id === id && isStr(v.display_name) &&
+  isStrOrNull(v.province) && isStrOrNull(v.city) && isStrOrNull(v.postal_code) && isStrOrNull(v.street) &&
+  optional(v.street_source, isStrOrNull) && isStr(v.current_status) && isStrOrNull(v.status_changed_at) &&
+  EMPLOYER_COUNTS.every((k) => isNum(v[k]));
+
+const FINDING_FIELDS = ["operating_name", "legal_name", "address", "reasons", "decision_date", "penalty", "status"] as const;
+const PROFILE_LISTS = ["names", "postings", "esdc", "registry", "indicators", "findings"] as const;
+const PROFILE_ROWS: Record<(typeof PROFILE_LISTS)[number], (v: unknown) => boolean> = {
+  names: (v) => isObj(v) && isStr(v.name),
+  postings: (v) => isObj(v) && isNum(v.posting_id) && isStrOrNull(v.title) && isStrOrNull(v.noc_code) &&
+    isNumOrNull(v.wage_min) && isNumOrNull(v.wage_max) && isStrOrNull(v.wage_unit) && isNumOrNull(v.vacancies) &&
+    isStrOrNull(v.date_posted) && isStrOrNull(v.valid_through) && isStr(v.first_seen) && isStr(v.last_seen) &&
+    isStr(v.flag_current) && isStrOrNull(v.approved_seen_at) && isStr(v.url),
+  esdc: (v) => isObj(v) && isStr(v.list) && isStr(v.period) && isStrOrNull(v.stream) && isNumOrNull(v.lmias) &&
+    isStrOrNull(v.city) && isStrOrNull(v.postal_code) && isStrOrNull(v.noc_code) && isStrOrNull(v.noc_title) &&
+    isNumOrNull(v.positions) && isStr(v.resource_id) && isStrOrNull(v.published),
+  registry: (v) => isObj(v) && isStr(v.registry) && isStr(v.registry_id) && isStrOrNull(v.legal_name) &&
+    isStrOrNull(v.entity_type) && isStrOrNull(v.status) && isStrOrNull(v.registered_on) && isStr(v.grade),
+  indicators: (v) => isObj(v) && isStr(v.indicator) && isStr(v.state) && isStr(v.basis),
+  findings: (v) => isObj(v) && FINDING_FIELDS.every((k) => isStrOrNull(v[k])),
+};
 
 export async function loadProfile(env: Env, id: string): Promise<Profile | null> {
   if (!EMPLOYER_ID_RE.test(id)) return null;
   const shard = await loadJson<Record<string, Profile>>(env, `profiles/${id.slice(4, 7)}.json`);
-  const profile: unknown = isObject(shard) ? shard[id] : null;
-  if (!isObject(profile) || !isObject(profile.employer)) return null;
-  return PROFILE_LISTS.every((k) => Array.isArray(profile[k])) ? (profile as unknown as Profile) : null;
+  const profile: unknown = isObj(shard) ? shard[id] : null;
+  if (!isObj(profile) || !isEmployer(profile.employer, id)) return null;
+  return PROFILE_LISTS.every((k) => isListOf(profile[k], PROFILE_ROWS[k])) ? (profile as unknown as Profile) : null;
 }
 
-const PROFILE_LISTS = ["names", "postings", "esdc", "registry", "indicators", "findings"] as const;
+// The id that took a retired employer id's records (ids change when employer
+// matching changes), from a shard keyed like the profiles by the old id. A
+// missing or unreadable shard, or an entry that is not an employer id, reads
+// as no alias. The value goes into a Location header, so it must be an id: a
+// stray character there would make the redirect itself fail. An entry
+// pointing at itself would redirect forever, so it counts as none.
+export async function loadAlias(env: Env, id: string): Promise<string | null> {
+  if (!EMPLOYER_ID_RE.test(id)) return null;
+  const shard = await loadJson<Record<string, unknown>>(env, `aliases/${id.slice(4, 7)}.json`);
+  const live: unknown = isObj(shard) ? shard[id] : null;
+  return typeof live === "string" && EMPLOYER_ID_RE.test(live) && live !== id ? live : null;
+}

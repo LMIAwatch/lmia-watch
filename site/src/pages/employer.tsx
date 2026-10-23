@@ -1,5 +1,5 @@
 import type { Context } from "hono";
-import { type Area, esdcSource, loadJson, loadProfile, loadStats, type Profile } from "../data";
+import { type Area, esdcSource, loadAlias, loadJson, loadProfile, loadStats, type Profile } from "../data";
 import type { AppEnv } from "../env";
 import { basisText, indicatorLabel, indicatorStateLabel, streamLabel, t, tj, tn, type Key, type Lang } from "../i18n";
 import { Badge, Layout, fmtInt, fmtWage, noDataPage, page, periodLabel } from "../layout";
@@ -94,6 +94,21 @@ async function siteRows(c: Context<AppEnv>, id: string): Promise<{ responses: Re
   }
 }
 
+// A retired employer id redirects to the id that took its records, so old
+// links and bookmarks still reach the profile. The pages read no query but the
+// language, so only that is carried over. The redirect is cached like a page
+// rather than for good, since a later matching change can move the records
+// again. Null when the id has no alias.
+export async function retiredIdRedirect(
+  c: Context<AppEnv>, id: string, suffix = "", status: 301 | 308 = 301,
+): Promise<Response | null> {
+  const live = await loadAlias(c.env, id);
+  if (!live) return null;
+  const lang = c.req.query("lang");
+  c.header("Cache-Control", "public, max-age=300");
+  return c.redirect(`/employers/${live}${suffix}${lang === "en" || lang === "fr" ? `?lang=${lang}` : ""}`, status);
+}
+
 export async function employerPage(c: Context<AppEnv>): Promise<Response> {
   const lang = c.get("lang");
   const id = c.req.param("id") ?? "";
@@ -101,6 +116,8 @@ export async function employerPage(c: Context<AppEnv>): Promise<Response> {
   if (!stats) return noDataPage(c, "employer.title");
   const profile: Profile | null = await loadProfile(c.env, id);
   if (!profile) {
+    const moved = await retiredIdRedirect(c, id);
+    if (moved) return moved;
     return page(
       c,
       <Layout lang={lang} title={t(lang, "employer.not_found")} dataAsOf={stats.data_as_of}>

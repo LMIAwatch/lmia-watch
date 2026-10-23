@@ -6,6 +6,7 @@ import type { AppEnv } from "../env";
 import { t, tj, type Key } from "../i18n";
 import { Layout, page } from "../layout";
 import { pageSeo, respondFormSeo } from "../seo";
+import { retiredIdRedirect } from "./employer";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -34,7 +35,7 @@ export async function respondForm(
   const lang = c.get("lang");
   const id = c.req.param("id") ?? "";
   const profile = await loadProfile(c.env, id);
-  if (!profile) return c.notFound();
+  if (!profile) return (await retiredIdRedirect(c, id, "/respond")) ?? c.notFound();
   return page(
     c,
     <Layout lang={lang} title={t(lang, "employer.respond")} dataAsOf={await dataAsOf(c)} seo={respondFormSeo(profile, lang)}>
@@ -69,7 +70,9 @@ export async function respondSubmit(c: Context<AppEnv>): Promise<Response> {
   if (!EMAIL_RE.test(email)) errors.push("form.err_email");
   if (statement.length < 20) errors.push("form.err_statement");
   const profile = await loadProfile(c.env, id);
-  if (!profile) return c.notFound();
+  // 308, not 301: a browser repeats a 308 as a POST with the same body, so a
+  // statement typed on a form for a retired id is not lost.
+  if (!profile) return (await retiredIdRedirect(c, id, "/respond", 308)) ?? c.notFound();
   if (errors.length) return respondForm(c, errors, { name, email, statement });
   try {
     await c.env.DB.prepare(
