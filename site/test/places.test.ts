@@ -124,10 +124,19 @@ describe("occupation pages", () => {
     expect(html).toContain('<a href="/occupations/63200">Cooks</a>');
     expect(html).toContain('<a href="/occupations/85101">');
     expect(html).toContain('<link rel="canonical" href="https://lmiawatch.ca/occupations"/>');
+    // Compact rows on a phone, with short labels: the column headers keep the full wording.
+    expect(html).toContain('<table class="restack restack-compact">');
+    expect(html).not.toContain('<table class="restack">');
+    expect(html).toContain('<th class="num">Approved positions, 2026 Q1</th>');
+    expect(html).toContain('data-label="2026 Q1" class="mono num"');
+    expect(html).toContain('<th class="num">Pending postings</th>');
+    expect(html).toContain('data-label="Pending" class="mono num"');
+    expect(html).not.toContain('data-label="Approved positions, 2026 Q1"');
     expect(html).toContain('href="/places"');
   });
 
   it("read in French", async () => {
+    expect(await text("/occupations?lang=fr")).toContain('data-label="En attente" class="mono num"');
     const html = await text("/occupations/63200?lang=fr");
     expect(html).toContain('<html lang="fr">');
     expect(html).toContain("<h1>Cuisiniers/cuisinières (CNP 63200)</h1>");
@@ -364,6 +373,12 @@ describe("place pages", () => {
     expect(html).toContain('<a href="/places/mb/winnipeg-cma">Winnipeg</a>');
     expect(html).toContain('<a href="/places/mb/winnipeg">Winnipeg</a>');
     expect(html).toContain('href="/occupations"');
+    // The provinces table has compact phone rows, labelled with the period alone.
+    expect(html).toContain('<table class="restack restack-compact">');
+    expect(html).toContain('<td data-label="Province"><a href="/places/mb">Manitoba</a></td>');
+    expect(html).toContain('data-label="2026 Q1" class="mono num"');
+    const fr = await text("/places?lang=fr");
+    expect(fr).toContain('data-label="T1 2026" class="mono num"');
   });
 
   it("read in French", async () => {

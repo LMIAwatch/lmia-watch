@@ -568,7 +568,7 @@ export async function placesIndex(c: Context<AppEnv>): Promise<Response> {
         <>
           <h2>{t(lang, "places.provinces")}</h2>
           <div class="table-wrap bordered">
-            <table class="restack">
+            <table class="restack restack-compact">
               <thead>
                 <tr>
                   <th>{t(lang, "search.province")}</th>
@@ -584,7 +584,7 @@ export async function placesIndex(c: Context<AppEnv>): Promise<Response> {
                     <td data-label={t(lang, "search.province")}><a href={`/places/${p.prov.toLowerCase()}`}>{provinceName(lang, p.prov)}</a></td>
                     <td data-label={t(lang, "places.col_records")} class="mono num">{n(p.records)}</td>
                     <td data-label={t(lang, "places.col_approved_positions")} class="mono num">{n(p.positions)}</td>
-                    <td data-label={t(lang, "places.col_latest_positions", { period: periodLabel(idx.latest, lang) })} class="mono num">{n(p.latest_positions)}</td>
+                    <td data-label={periodLabel(idx.latest, lang)} class="mono num">{n(p.latest_positions)}</td>
                     <td data-label={t(lang, "places.col_city_pages")} class="mono num">{n(p.cities)}</td>
                   </tr>
                 ))}

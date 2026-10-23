@@ -90,6 +90,11 @@ describe("pages", () => {
     ]) {
       expect(html).toContain(s);
     }
+    // The indicator table restacks on a phone, each cell labelled with its column.
+    expect(html).toMatch(/<table class="restack"><thead><tr><th>Indicator<\/th><th>State<\/th><th>Basis<\/th>/);
+    expect(html).toContain('<td data-label="Indicator">Newly incorporated applicant</td>');
+    expect(html).toContain('<td data-label="State"><span class="badge state-triggered">Triggered</span></td>');
+    expect(html).toMatch(/<td data-label="Basis">[^<]+<\/td>/);
     expect(html).not.toContain("Map at postal-area centroid");
     expect(html).not.toContain("still under review");
     const edsa = await (await get("/employers/emp-a000000002")).text();

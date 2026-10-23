@@ -205,6 +205,10 @@ const STRINGS = {
 
   // -- search ---------------------------------------------------------------------
   "search.filters": { en: "Filters", fr: "Filtres" },
+  // The fold's line on a phone when the URL sets filters; {n} counts filter
+  // groups (two provinces are one).
+  "search.filters_active_one": { en: "Filters ({n} active)", fr: "Filtres ({n} actif)" },
+  "search.filters_active_many": { en: "Filters ({n} active)", fr: "Filtres ({n} actifs)" },
   "search.province": { en: "Province", fr: "Province" },
   "search.noc": { en: "Occupation (NOC 2021)", fr: "Profession (CNP 2021)" },
   "search.noc_label": { en: "Occupation", fr: "Profession" },
@@ -2013,6 +2017,9 @@ const STRINGS = {
   "places.col_records": { en: "Records", fr: "Dossiers" },
   "places.col_latest_positions": { en: "Approved positions, {period}", fr: "Postes approuvés, {period}" },
   "places.col_city_pages": { en: "City pages", fr: "Pages de villes" },
+  // Short labels for the compact phone rows (data-label only; the column
+  // header keeps the full wording).
+  "places.col_pending_short": { en: "Pending", fr: "En attente" },
   "places.col_occupation": { en: "Occupation", fr: "Profession" },
   "places.col_latest": { en: "Latest record", fr: "Dernier dossier" },
   "places.col_posted": { en: "Posted minimum (postings)", fr: "Minimum affiché (offres)" },

@@ -119,6 +119,12 @@ describe("rankings", () => {
     expect(body).toContain("The 2014 and 2015 lists name no occupation");
     expect(page).toContain('<a href="/employers/emp-631b67144f">Procyk Farms (1994) Ltd</a>');
     expect(page).toContain('<strong aria-current="page">All years</strong>');
+    // Every ranking table has compact phone rows, the rank (and the NOC code) leading the title line.
+    const tables = page.match(/<table class="[^"]*">/g) ?? [];
+    expect(tables.length).toBeGreaterThanOrEqual(5);
+    expect(new Set(tables)).toEqual(new Set(['<table class="restack restack-compact">']));
+    expect(page).toContain('<td data-label="Rank" class="mono num title-lead">1</td>');
+    expect(page).toMatch(/<td data-label="NOC code" class="mono title-lead">\d{4,5}<\/td>/);
     expect(page).toContain('<a href="/rankings/2025">2025</a>');
   });
 

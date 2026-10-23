@@ -514,7 +514,7 @@ export async function employerPage(c: Context<AppEnv>): Promise<Response> {
         </div>
         <p class="muted small">{t(lang, "employer.indicator_note")}</p>
         <div class="table-wrap bordered">
-          <table>
+          <table class="restack">
             <thead>
               <tr>
                 <th>{t(lang, "employer.col_indicator")}</th>
@@ -527,9 +527,9 @@ export async function employerPage(c: Context<AppEnv>): Promise<Response> {
                 const basis = basisText(lang, i.basis);
                 return (
                   <tr>
-                    <td>{indicatorLabel(lang, i.indicator)}</td>
-                    <td><span class={`badge state-${i.state}`}>{indicatorStateLabel(lang, i.state)}</span></td>
-                    <td lang={basis.translated ? undefined : enOnly(lang)}>{basis.text}</td>
+                    <td data-label={t(lang, "employer.col_indicator")}>{indicatorLabel(lang, i.indicator)}</td>
+                    <td data-label={t(lang, "employer.col_state")}><span class={`badge state-${i.state}`}>{indicatorStateLabel(lang, i.state)}</span></td>
+                    <td data-label={t(lang, "employer.col_basis")} lang={basis.translated ? undefined : enOnly(lang)}>{basis.text}</td>
                   </tr>
                 );
               })}

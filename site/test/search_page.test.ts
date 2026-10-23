@@ -303,6 +303,30 @@ describe("the first view from the search database", () => {
     expect(nextHref(bare)).toMatch(/^\/search\?cursor=[A-Za-z0-9_-]+$/);
   });
 
+  it("folds the filters for a phone, open and counted when the URL sets filters", async () => {
+    const toggle = (page: string) => /<input type="checkbox" id="filters-open" class="filters-toggle"[^>]*>/.exec(page)?.[0] ?? "";
+    const summary = (page: string) => /<label for="filters-open" class="filters-summary">([^<]*)<\/label>/.exec(page)?.[1];
+    // The text search and the sort are not filters: the fold stays closed.
+    const plain = (await html("/search?q=tim&sort=name")).text;
+    expect(toggle(plain)).toBe('<input type="checkbox" id="filters-open" class="filters-toggle"/>');
+    expect(summary(plain)).toBe("Filters");
+    // The checkbox comes first, its label next and every filter after them,
+    // the order the CSS sibling selectors need.
+    expect(plain).toMatch(/class="filters-toggle"\/><label for="filters-open" class="filters-summary">Filters<\/label><div class="filters-body"><fieldset>/);
+    expect(plain).toMatch(/<p class="filter-actions">[\s\S]*?<\/p><\/div><\/aside>/);
+    const one = (await html("/search?province=AB")).text;
+    expect(toggle(one)).toBe('<input type="checkbox" id="filters-open" class="filters-toggle" checked=""/>');
+    expect(summary(one)).toBe("Filters (1 active)");
+    // Groups, not values: two provinces count once, and a wage needs one bound.
+    const three = (await html("/search?province=AB&province=ON&wage_min=15&year_to=2025&sort=positions&q=holdings")).text;
+    expect(summary(three)).toBe("Filters (3 active)");
+    // A value the API drops is no filter.
+    expect(summary((await html("/search?status=lapsed&wage_min=abc")).text)).toBe("Filters");
+    const fr = nbsp((await html("/search?province=AB&status=approved", withCounts(), { cookie: "lang=fr" })).text);
+    expect(summary(fr)).toBe("Filtres (2 actifs)");
+    expect(summary(nbsp((await html("/search?indicator=high_volume", withCounts(), { cookie: "lang=fr" })).text))).toBe("Filtres (1 actif)");
+  });
+
   it("says no record matches when a filter matches nothing", async () => {
     const t = (await html("/search?q=zzqqxx")).text;
     expect(attr(t, "data-mode")).toBe("db");

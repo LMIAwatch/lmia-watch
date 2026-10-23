@@ -380,10 +380,26 @@
     state = readForm();
     load({ cursor: null, page: 1, stack: [] });
   }
-  form.addEventListener("submit", function (e) { e.preventDefault(); onFilters(); });
+  // On a phone the filters sit between the box and the rows, so a submit
+  // also closes the keyboard and brings the answer into view: the rows when
+  // the fold is open, else the box, with the fold's line and the first rows
+  // under it.
+  var PHONE = typeof matchMedia === "function" ? matchMedia("(max-width: 700px)") : null;
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    onFilters();
+    if (!PHONE || !PHONE.matches) return;
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    var fold = document.getElementById("filters-open");
+    var target = fold && fold.checked ? results : form.querySelector(".search-form");
+    if (target) target.scrollIntoView({ block: "start" });
+  });
   // A text field's own change (on leaving it) usually repeats what its pause
   // already sent; load() skips a request that is on screen or on its way.
-  form.addEventListener("change", onFilters);
+  // The fold's checkbox has no name: opening the filters is not a filter.
+  form.addEventListener("change", function (e) {
+    if (e.target && e.target.name) onFilters();
+  });
   form.addEventListener("input", function (e) {
     if (!e.target || !TEXT_FIELDS.test(e.target.name || "")) return;
     clearTimeout(typing);

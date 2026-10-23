@@ -201,6 +201,15 @@ export async function searchPage(c: Context<AppEnv>): Promise<Response> {
   const years: number[] = [];
   for (let y = lastYear; y >= YEAR_MIN; y--) years.push(y);
 
+  // The filter groups the URL sets (not the text search or the sort, which
+  // sit outside the fold), for the fold's line on a phone. A link that names
+  // filters opens the fold, so the visitor sees what is applied.
+  const activeFilters = [
+    query.status.length > 0, query.province.length > 0, query.stream.length > 0, !!(query.nocCode ?? query.nocText),
+    query.wageMin !== null || query.wageMax !== null, query.date !== "any", query.yearFrom !== null || query.yearTo !== null,
+    !!query.indicator,
+  ].filter(Boolean).length;
+
   const count = (kind: "status" | "prov", key: string) => (view.facets ? n(view.facets[kind][key] ?? 0) : "");
   const check = (name: string, value: string, label: unknown, checked: boolean, countKey?: "status" | "prov") => (
     <label class="check">
@@ -230,6 +239,16 @@ export async function searchPage(c: Context<AppEnv>): Promise<Response> {
         </div>
         <div class="search-layout">
           <aside class="filters" aria-label={t(lang, "search.filters")}>
+            {/* A fold for phones in CSS alone (the page runs no inline script):
+                the checkbox has no name, so it is never submitted and search.js
+                never reads it. Wider screens hide both and show the rail. */}
+            <input type="checkbox" id="filters-open" class="filters-toggle" checked={activeFilters > 0} />
+            <label for="filters-open" class="filters-summary">
+              {activeFilters
+                ? tn(lang, "search.filters_active_one", "search.filters_active_many", activeFilters, { n: activeFilters })
+                : t(lang, "search.filters")}
+            </label>
+            <div class="filters-body">
             <fieldset>
               <legend>{t(lang, "col.status")}</legend>
               {STATUSES.map((s) => check("status", s, <Badge status={s} lang={lang} />, query.status.includes(s), "status"))}
@@ -294,6 +313,7 @@ export async function searchPage(c: Context<AppEnv>): Promise<Response> {
               <a href="/search" class="btn-link">{t(lang, "search.clear")}</a>
               <a href="#results" class="btn show-results">{t(lang, "search.show_results")}</a>
             </p>
+            </div>
           </aside>
 
           <div class="results" id="results" {...view.data}>

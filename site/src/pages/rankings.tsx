@@ -128,7 +128,7 @@ export async function rankingsPage(c: Context<AppEnv>): Promise<Response> {
 
   const ShareTable = ({ rows, label, head, total }: { rows: Breakdown[]; label: (k: string) => string; head: Key; total: number }) => (
     <div class="table-wrap">
-      <table class="restack">
+      <table class="restack restack-compact">
         <thead>
           <tr>
             <th class="num">{t(lang, "rank.col_rank")}</th>
@@ -142,7 +142,7 @@ export async function rankingsPage(c: Context<AppEnv>): Promise<Response> {
         <tbody>
           {rows.map((row, i) => (
             <tr>
-              <td data-label={t(lang, "rank.col_rank")} class="mono num">{n(i + 1)}</td>
+              <td data-label={t(lang, "rank.col_rank")} class="mono num title-lead">{n(i + 1)}</td>
               <td data-label={t(lang, head)}>{label(row.k)}</td>
               <td data-label={t(lang, "col.positions")} class="mono num">{n(row.positions)}</td>
               <td data-label={t(lang, "rank.col_share")} class="mono num">{share(row.positions, total, lang)}</td>
@@ -213,7 +213,7 @@ export async function rankingsPage(c: Context<AppEnv>): Promise<Response> {
             {t(lang, "rank.noc_era_total", { positions: n(era.positions), codes: n(era.codes), n: n(era.rows.length) })}
           </p>
           <div class="table-wrap">
-            <table class="restack">
+            <table class="restack restack-compact">
               <thead>
                 <tr>
                   <th class="num">{t(lang, "rank.col_rank")}</th>
@@ -227,8 +227,8 @@ export async function rankingsPage(c: Context<AppEnv>): Promise<Response> {
               <tbody>
                 {era.rows.map((row, i) => (
                   <tr>
-                    <td data-label={t(lang, "rank.col_rank")} class="mono num">{n(i + 1)}</td>
-                    <td data-label={t(lang, "rank.col_code")} class="mono">{row.code}</td>
+                    <td data-label={t(lang, "rank.col_rank")} class="mono num title-lead">{n(i + 1)}</td>
+                    <td data-label={t(lang, "rank.col_code")} class="mono title-lead">{row.code}</td>
                     <td data-label={t(lang, "rank.col_occupation")} lang={enOnly}>{row.title ?? ""}</td>
                     <td data-label={t(lang, "col.positions")} class="mono num">{n(row.positions)}</td>
                     <td data-label={t(lang, "rank.col_share")} class="mono num">{share(row.positions, era.positions, lang)}</td>
@@ -244,7 +244,7 @@ export async function rankingsPage(c: Context<AppEnv>): Promise<Response> {
       <h2>{t(lang, "rank.by_employer")}</h2>
       <p class="muted small">{t(lang, "rank.employer_note")}</p>
       <div class="table-wrap">
-        <table class="restack">
+        <table class="restack restack-compact">
           <thead>
             <tr>
               <th class="num">{t(lang, "rank.col_rank")}</th>
@@ -257,7 +257,7 @@ export async function rankingsPage(c: Context<AppEnv>): Promise<Response> {
           <tbody>
             {r.employers.map((e, i) => (
               <tr>
-                <td data-label={t(lang, "rank.col_rank")} class="mono num">{n(i + 1)}</td>
+                <td data-label={t(lang, "rank.col_rank")} class="mono num title-lead">{n(i + 1)}</td>
                 <td data-label={t(lang, "col.employer")}><a href={`/employers/${e.id}`}>{e.name}</a></td>
                 <td data-label={t(lang, "col.location")}>{place(lang, e.city, e.prov)}</td>
                 <td data-label={t(lang, "col.positions")} class="mono num">{n(e.positions)}</td>

@@ -354,7 +354,7 @@ export async function occupationsIndex(c: Context<AppEnv>): Promise<Response> {
         <section id={`cat-${key}`} data-cat={key}>
           <h2>{categoryName(key)}</h2>
           <div class="table-wrap bordered">
-            <table class="restack">
+            <table class="restack restack-compact">
               <thead>
                 <tr>
                   <th>{t(lang, "places.col_occupation")}</th>
@@ -370,8 +370,8 @@ export async function occupationsIndex(c: Context<AppEnv>): Promise<Response> {
                     <td data-label={t(lang, "places.col_occupation")}><span><span class="mono muted">{r.noc}</span> <a href={`/occupations/${r.noc}`}>{r.title[lang]}</a></span></td>
                     <td data-label={t(lang, "places.col_records")} class="mono num">{n(r.records)}</td>
                     <td data-label={t(lang, "places.col_approved_positions")} class="mono num">{n(r.positions)}</td>
-                    <td data-label={t(lang, "places.col_latest_positions", { period: latest })} class="mono num">{n(r.latest_positions)}</td>
-                    <td data-label={t(lang, "employer.pending_postings")} class="mono num">{n(r.pending)}</td>
+                    <td data-label={latest} class="mono num">{n(r.latest_positions)}</td>
+                    <td data-label={t(lang, "places.col_pending_short")} class="mono num">{n(r.pending)}</td>
                   </tr>
                 ))}
               </tbody>
