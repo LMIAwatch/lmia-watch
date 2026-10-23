@@ -84,7 +84,13 @@ says how many older matched agreements are not listed, with a link to the
 dataset. Each row gives the start date, the program, the department, the
 value, the match (grade and basis) and the agreement's record in the
 government's search:
-`https://search.open.canada.ca/grants/record/<department>,<reference number>,<amendment>`.
+`https://search.open.canada.ca/grants/record/<department>%2C<reference number>%2Ccurrent`,
+the form the search's own result links use (the agreement as last amended;
+a numbered amendment in that place answers an empty page, checked
+2026-10-23). The search indexes the dataset on its own schedule: an agreement
+from the latest quarter can be absent from it for a time (on 2026-10-23
+SSHRC's 2026-27 Q1 batch was in the dataset and not in the search), and its
+record page then has no body while the dataset download carries the row.
 The profile JSON carries the same rows (`grants`) and the full count
 (`grants_total`).
 

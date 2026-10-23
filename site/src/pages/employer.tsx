@@ -67,12 +67,13 @@ export function matchText(lang: Lang, grade: string, basis: string): string {
   return MATCH_BASIS[basis] ? t(lang, "public.match", { grade: g, basis: t(lang, MATCH_BASIS[basis]) }) : g;
 }
 
-// The agreement's record in the government's grants search: the department,
-// the reference number and the amendment, each part encoded (reference
-// numbers can hold spaces).
-export function grantUrl(g: Pick<GrantRow, "owner_org" | "ref_number" | "amendment_number">): string {
-  const id = [g.owner_org, g.ref_number, String(g.amendment_number)].map(encodeURIComponent).join(",");
-  return `https://search.open.canada.ca/grants/record/${id}`;
+// The agreement's record in the government's grants search, in the form the
+// search's own result links use: department, reference number and the word
+// "current" (the agreement as last amended), joined by commas and encoded as
+// one path segment. A numbered amendment in place of "current" answers an
+// empty page (checked 2026-10-23).
+export function grantUrl(g: Pick<GrantRow, "owner_org" | "ref_number">): string {
+  return `https://search.open.canada.ca/grants/record/${encodeURIComponent(`${g.owner_org},${g.ref_number},current`)}`;
 }
 
 // The carrier's snapshot on FMCSA's SAFER system.

@@ -43,7 +43,7 @@ describe("public records on the employer page", () => {
     expect(grants).toContain("$48,500");
     expect(grants).toContain("Exact match (name and postal area)");
     expect(grants).toContain("Probable match (name and province)");
-    expect(grants).toContain('href="https://search.open.canada.ca/grants/record/pacifican,PAC%202023%20117,2"');
+    expect(grants).toContain('href="https://search.open.canada.ca/grants/record/pacifican%2CPAC%202023%20117%2Ccurrent"');
     expect(grants).toContain("1 older matched agreement is not listed here.");
     expect(grants).toContain('href="https://open.canada.ca/data/en/dataset/432527ab-7aac-45b5-81d6-7597107a7013"');
     expect(html).not.toContain(EM_DASH);
@@ -138,8 +138,8 @@ describe("public records on the employer page", () => {
   });
 
   it("formats and links as the source does", () => {
-    expect(grantUrl({ owner_org: "aafc-aac", ref_number: "235-2018-2019-Q3-00005", amendment_number: 3 }))
-      .toBe("https://search.open.canada.ca/grants/record/aafc-aac,235-2018-2019-Q3-00005,3");
+    expect(grantUrl({ owner_org: "aafc-aac", ref_number: "235-2018-2019-Q3-00005" }))
+      .toBe("https://search.open.canada.ca/grants/record/aafc-aac%2C235-2018-2019-Q3-00005%2Ccurrent");
     expect(fmtMoney(1461108, "en")).toBe("$1,461,108");
     expect(nbsp(fmtMoney(1461108, "fr"))).toBe("1 461 108 $");
     expect(fmtMoney(null, "en")).toBe("n/a");

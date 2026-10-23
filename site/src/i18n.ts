@@ -399,8 +399,8 @@ const STRINGS = {
   // indicators and the IRCC findings, each with how it was matched.
   "employer.grants": { en: "Federal Funding Received", fr: "Financement fédéral reçu" },
   "employer.grants_note": {
-    en: "Grants and contributions that federal departments disclosed, matched to this employer by the business number of its federal corporation or by name and postal area, newest first. A match is not an identity: it links a published record to this profile, and the recipient can be another business with the same name.",
-    fr: "Subventions et contributions divulguées par les ministères fédéraux, jumelées à cet employeur par le numéro d'entreprise de sa société fédérale ou par le nom et le secteur postal, les plus récentes d'abord. Une correspondance n'est pas une identité : elle relie un dossier publié à ce profil, et le bénéficiaire peut être une autre entreprise du même nom.",
+    en: "Grants and contributions that federal departments disclosed, matched to this employer by the business number of its federal corporation or by name and postal area, newest first. A match is not an identity: it links a published record to this profile, and the recipient can be another business with the same name. The government's search can lag the dataset: a record from the latest quarter may open without its details until the search catches up.",
+    fr: "Subventions et contributions divulguées par les ministères fédéraux, jumelées à cet employeur par le numéro d'entreprise de sa société fédérale ou par le nom et le secteur postal, les plus récentes d'abord. Une correspondance n'est pas une identité : elle relie un dossier publié à ce profil, et le bénéficiaire peut être une autre entreprise du même nom. La recherche du gouvernement peut accuser un retard sur le jeu de données : un dossier du dernier trimestre peut s'ouvrir sans ses détails jusqu'à ce que la recherche soit à jour.",
   },
   "employer.grants_col_start": { en: "Start", fr: "Début" },
   "employer.grants_col_program": { en: "Program", fr: "Programme" },
