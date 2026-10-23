@@ -178,7 +178,11 @@ const STRINGS = {
   // The public records matched to employers (grants, Alberta, US carriers):
   // a neutral tag, since a match links a record to a profile and is no status.
   "home.tile_grants_label": { en: "Public money", fr: "Fonds publics" },
-  "home.tile_grants": {
+  "home.tile_grants_one": {
+    en: "employers on this site matched to a disclosed federal grant or contribution ({agreements} agreement)",
+    fr: "employeurs du site jumelés à une subvention ou contribution fédérale divulguée ({agreements} accord)",
+  },
+  "home.tile_grants_many": {
     en: "employers on this site matched to a disclosed federal grant or contribution ({agreements} agreements)",
     fr: "employeurs du site jumelés à une subvention ou contribution fédérale divulguée ({agreements} accords)",
   },
@@ -384,19 +388,19 @@ const STRINGS = {
   "employer.at_least": { en: "at least {n}", fr: "au moins {n}" },
   "employer.lmias_note_one": {
     en: "The approved count includes {n} row from a file that carries no LMIA count, counted as one LMIA, so the true count can be higher.",
-    fr: "Le nombre d'EIMT approuvées compte comme une EIMT {n} inscription tirée d'un fichier qui n'indique aucun nombre d'EIMT; le nombre réel peut être plus élevé.",
+    fr: "Dans le nombre d'EIMT approuvées, {n} inscription tirée d'un fichier qui n'indique aucun nombre d'EIMT compte pour une EIMT. Le nombre réel peut être plus élevé.",
   },
   "employer.lmias_note_many": {
     en: "The approved count includes {n} rows from files that carry no LMIA count, each counted as one LMIA, so the true count can be higher.",
-    fr: "Le nombre d'EIMT approuvées compte comme une EIMT chacune des {n} inscriptions tirées de fichiers qui n'indiquent aucun nombre d'EIMT; le nombre réel peut être plus élevé.",
+    fr: "Dans le nombre d'EIMT approuvées, {n} inscriptions tirées de fichiers qui n'indiquent aucun nombre d'EIMT comptent pour une EIMT chacune. Le nombre réel peut être plus élevé.",
   },
   "employer.refused_lmias_note_one": {
     en: "The refused count includes {n} row from a file that carries no LMIA count, counted as one LMIA, so the true count can be higher.",
-    fr: "Le nombre d'EIMT refusées compte comme une EIMT {n} inscription tirée d'un fichier qui n'indique aucun nombre d'EIMT; le nombre réel peut être plus élevé.",
+    fr: "Dans le nombre d'EIMT refusées, {n} inscription tirée d'un fichier qui n'indique aucun nombre d'EIMT compte pour une EIMT. Le nombre réel peut être plus élevé.",
   },
   "employer.refused_lmias_note_many": {
     en: "The refused count includes {n} rows from files that carry no LMIA count, each counted as one LMIA, so the true count can be higher.",
-    fr: "Le nombre d'EIMT refusées compte comme une EIMT chacune des {n} inscriptions tirées de fichiers qui n'indiquent aucun nombre d'EIMT; le nombre réel peut être plus élevé.",
+    fr: "Dans le nombre d'EIMT refusées, {n} inscriptions tirées de fichiers qui n'indiquent aucun nombre d'EIMT comptent pour une EIMT chacune. Le nombre réel peut être plus élevé.",
   },
   "employer.findings_count": { en: "Non-compliance findings", fr: "Constats de non-conformité" },
   "employer.response": { en: "Employer response", fr: "Réponse de l'employeur" },

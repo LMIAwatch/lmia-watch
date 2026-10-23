@@ -1,7 +1,7 @@
 import type { Context } from "hono";
 import { loadFacets, loadStats, type SearchRow } from "../data";
 import type { AppEnv } from "../env";
-import { provinceName, streamLabel, t, tj } from "../i18n";
+import { provinceName, streamLabel, t, tj, tn } from "../i18n";
 import { Badge, Layout, fmtInt, noDataPage, page, periodLabel } from "../layout";
 import { homeJsonLd, pageSeo } from "../seo";
 import { isListOf, isNum, isObj, isStr, isStrOrNull } from "../valid";
@@ -145,7 +145,7 @@ export async function homePage(c: Context<AppEnv>): Promise<Response> {
             <span class="badge badge-neutral">{t(lang, "home.tile_grants_label")}</span>
             <span class="tile-value">{n(grantEmployers)}</span>
             <span class="tile-note">
-              <a href="/data#public-records">{t(lang, "home.tile_grants", { agreements: n(grantAgreements) })}</a>
+              <a href="/data#public-records">{tn(lang, "home.tile_grants_one", "home.tile_grants_many", grantAgreements, { agreements: n(grantAgreements) })}</a>
             </span>
           </div>
         ) : null}

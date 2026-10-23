@@ -61,14 +61,14 @@ describe("LMIA count notes on the employer page", () => {
       "The refused count includes 3 rows from files that carry no LMIA count, each counted as one LMIA, so the true count can be higher.",
     );
     expect(note("fr", "employer.lmias_note_one", 1)).toBe(
-      "Le nombre d’EIMT approuvées compte comme une EIMT 1 inscription tirée d’un fichier qui n’indique aucun nombre d’EIMT; le nombre réel peut être plus élevé.",
+      "Dans le nombre d’EIMT approuvées, 1 inscription tirée d’un fichier qui n’indique aucun nombre d’EIMT compte pour une EIMT. Le nombre réel peut être plus élevé.",
     );
 
     const fr = nbsp(await (await get("/employers/emp-a000000009?lang=fr")).text());
     expect(fr).toContain('<dd class="mono">au moins 5 <span class="muted">(45 postes)</span></dd>');
     expect(fr).toContain(
-      "Le nombre d’EIMT approuvées compte comme une EIMT chacune des 2 inscriptions tirées de fichiers qui n’indiquent aucun nombre d’EIMT; le nombre réel peut être plus élevé. " +
-        "Le nombre d’EIMT refusées compte comme une EIMT 1 inscription tirée d’un fichier qui n’indique aucun nombre d’EIMT; le nombre réel peut être plus élevé.",
+      "Dans le nombre d’EIMT approuvées, 2 inscriptions tirées de fichiers qui n’indiquent aucun nombre d’EIMT comptent pour une EIMT chacune. Le nombre réel peut être plus élevé. " +
+        "Dans le nombre d’EIMT refusées, 1 inscription tirée d’un fichier qui n’indique aucun nombre d’EIMT compte pour une EIMT. Le nombre réel peut être plus élevé.",
     );
     expect(fr).not.toContain("includes");
   });
