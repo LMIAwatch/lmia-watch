@@ -52,6 +52,10 @@ attention, after everything else has been saved and recorded. GitHub then
 emails the account that owns the repository, provided its notification
 settings keep "Actions: failed workflows" on (the default).
 
+The site-only deploy (`deploy-site.yml`, `docs/site-deploy.md`) writes no
+run status, so the Worker's daily check never sees it: a site deploy that
+did not pass its checks reaches the operator through this email only.
+
 ## 3. The run-attention issue
 
 The same last step keeps one open issue titled "Nightly run needs attention",

@@ -9,6 +9,8 @@ nightly.py calls these from its command line; the workflow calls nightly.py.
   smoke         fetch a few pages of the live site after a deploy and judge
                 it ok, broken (the Worker answers 5xx) or unverifiable (the
                 edge refused the runner, or the answer proves nothing).
+  bundle_check  for the site-only deploy: compare the data files of R2's
+                static.tar.gz with the ones the live site serves.
   R2Rest        list the bucket and download one object through Cloudflare's
                 REST API, for the weekly snapshot the restore falls back to.
   run_checks    once a month, the expiry dates of the tokens and the domain.
@@ -304,6 +306,118 @@ def smoke(http: Any, base_url: str, data_date: str | None, paths: list[str], *,
     except Exception as exc:
         verdict, detail, pages = "unverifiable", f"the check itself failed ({type(exc).__name__})", []
     return {"verdict": verdict, "detail": detail, "base_url": base_url, "data_date": data_date, "pages": pages}
+
+
+# -- site bundle check --------------------------------------------------------
+
+# The files the site-only deploy (.github/workflows/deploy-site.yml) compares
+# between R2's static.tar.gz and the live site. stats.json lists the newest
+# runs with their times and changes with every refresh, so an archive from
+# any other night fails; the two search files are what the search page shows
+# first.
+BUNDLE_FILES = ("stats.json", "search/facets.json", "search/first.json")
+BUNDLE_RETRY_S = 10.0
+# The Worker refuses an asset above 25 MiB, so nothing larger is one of its files.
+MAX_BUNDLE_FILE = 25 * 1024 * 1024
+SAVED_LABEL = "the copy saved before the deploy"
+
+
+def _canonical(raw: bytes) -> str | None:
+    """One text per JSON value, or None when raw is not JSON. Key order and
+    spacing do not count; a change of type does (true is not 1, 1 is not 1.0)."""
+    try:
+        return json.dumps(json.loads(raw), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    except (ValueError, TypeError, RecursionError):
+        return None
+
+
+def _archive_file(bundle: Path, rel: str) -> tuple[bytes | None, str]:
+    path = bundle / rel
+    try:
+        if not path.is_file():
+            return None, f"{rel}: not in the archive"
+        if path.stat().st_size > MAX_BUNDLE_FILE:
+            return None, f"{rel}: the archive's copy is larger than any asset the site can serve"
+        return path.read_bytes(), ""
+    except OSError as exc:
+        return None, f"{rel}: the archive's copy could not be read ({type(exc).__name__})"
+
+
+def _fetch_bytes(http: Any, url: str, timeout: float) -> tuple[bytes | None, str]:
+    try:
+        resp = http.get(url, headers={"User-Agent": config.USER_AGENT, "Cache-Control": "no-cache"}, timeout=timeout)
+    except Exception as exc:
+        return None, f"no answer ({type(exc).__name__})"
+    status = _status_code(resp)
+    if status != 200:
+        return None, f"answered {status or 'nothing'}"
+    try:
+        body = bytes(resp.content)
+    except Exception:
+        return None, "answered 200 without a readable body"
+    if len(body) > MAX_BUNDLE_FILE:
+        return None, "answered with more than any asset can hold"
+    return body, ""
+
+
+def _compare(rel: str, against: str, archive: bytes, other: bytes | None, why: str) -> dict[str, str]:
+    entry = {"file": rel, "against": against}
+    if other is None:
+        return entry | {"result": "unreachable", "note": f"{rel}: {against} {why}"}
+    mine, theirs = _canonical(archive), _canonical(other)
+    if mine is None:
+        return entry | {"result": "unreadable", "note": f"{rel}: the archive's copy is not JSON"}
+    if theirs is None:
+        return entry | {"result": "unreadable", "note": f"{rel}: {against} is not JSON"}
+    if mine != theirs:
+        return entry | {"result": "differs", "note": f"{rel}: the archive and {against} differ"}
+    return entry | {"result": "same", "note": f"{rel}: the same as {against}"}
+
+
+def bundle_check(http: Any, base_url: str, bundle: Path, saved_stats: Path | None = None, *,
+                 sleep: Callable[[float], None] = time.sleep, retry_after: float = BUNDLE_RETRY_S,
+                 timeout: float = SMOKE_TIMEOUT_S) -> tuple[dict[str, Any], bytes | None]:
+    """Compare the unpacked archive's BUNDLE_FILES with the ones the live site
+    serves under /data/, as parsed JSON, and, when saved_stats is given, the
+    archive's stats.json with that file as well. A file the site does not
+    answer 200 for is fetched once more after retry_after seconds.
+
+    Returns (record, live stats.json bytes). record["ok"] is true only when
+    every comparison found the same value; a file missing from the archive,
+    an answer other than 200, or a body that is not JSON is never ok. Never
+    raises."""
+    base = base_url.rstrip("/")
+    files: list[dict[str, str]] = []
+    live_stats: bytes | None = None
+    try:
+        for rel in BUNDLE_FILES:
+            url = f"{base}/data/{rel}"
+            archive, note = _archive_file(bundle, rel)
+            if archive is None:
+                files.append({"file": rel, "against": url, "result": "missing", "note": note})
+                continue
+            body, why = _fetch_bytes(http, url, timeout)
+            if body is None:
+                sleep(retry_after)
+                body, why = _fetch_bytes(http, url, timeout)
+            if rel == "stats.json":
+                live_stats = body
+            files.append(_compare(rel, url, archive, body, why))
+        if saved_stats is not None:
+            archive, note = _archive_file(bundle, "stats.json")
+            if archive is None:
+                files.append({"file": "stats.json", "against": SAVED_LABEL, "result": "missing", "note": note})
+            else:
+                try:
+                    saved, why = saved_stats.read_bytes(), ""
+                except OSError as exc:
+                    saved, why = None, f"could not be read ({type(exc).__name__})"
+                files.append(_compare("stats.json", SAVED_LABEL, archive, saved, why))
+    except Exception as exc:
+        files.append({"file": "(all)", "against": base, "result": "error",
+                      "note": f"the check itself failed ({type(exc).__name__})"})
+    ok = bool(files) and all(f["result"] == "same" for f in files)
+    return {"ok": ok, "base_url": base_url, "files": files}, live_stats
 
 
 # -- R2 through the REST API --------------------------------------------------

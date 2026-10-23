@@ -91,7 +91,7 @@ marking, because a capped run has not seen the whole feed.
 | `social_card.py` | the card image attached to the digest, drawn with Pillow from the day's figures |
 | `bluesky.py` | the same digest and card on Bluesky over the AT Protocol, with a link facet (separate `post-bluesky` command) |
 | `zenodo.py` | the citable release: a new Zenodo version of the OGL CSVs per ESDC quarter, DOIs into `meta` (separate `deposit-zenodo` command) |
-| `nightly.py` | the workflow's restore, verify, status and pack commands (pack writes the R2 backup: a `VACUUM INTO` copy without the secondary indexes, checked, gzipped, refused above Wrangler's 300 MiB upload cap) |
+| `nightly.py` | the workflow's restore, verify, status and pack commands (pack writes the R2 backup: a `VACUUM INTO` copy without the secondary indexes, checked, gzipped, refused above Wrangler's 300 MiB upload cap), and `site-bundle-check` for the site-only deploy (`docs/site-deploy.md`) |
 
 ## Outputs
 ```

@@ -1,0 +1,339 @@
+# A site-only deploy: ships a change to the Worker's code or pages (a wording
+# fix, a layout fix, a page bug) in a few minutes, with the data the site
+# already serves and without the nightly refresh. docs/site-deploy.md has the
+# full account. Anything that changes the exported data or the pipeline still
+# goes out with the nightly run.
+#
+# Steps:
+# 1. Manual only (the Actions tab or the REST API, repository writers only),
+#    and only from main. It shares the nightly's concurrency group, so it
+#    waits for a running refresh and never deploys over one.
+# 2. Check out main, install the pipeline and the site's pinned Wrangler.
+# 3. Download static.tar.gz from R2 (a read): the data bundle the nightly
+#    saves after a deploy that passed its live check. site-bundle-check
+#    proves it is what the site serves (stats.json, search/facets.json and
+#    search/first.json, compared as parsed JSON) before it is copied to
+#    site/public/data. Any difference stops the run there.
+# 4. Record the Worker version serving traffic, check the three files again
+#    and keep the live stats.json, deploy, then run the nightly's smoke test
+#    and the bundle check against the live site and the kept stats.json. A
+#    failed deploy, a smoke test that finds server errors, or any difference
+#    rolls the Worker back to the recorded version and fails the run.
+# 5. Write nothing: no R2 upload or removal, no D1 command, no commit, no
+#    LAST_RUN.md, no run status. The nightly's gate and state never see this
+#    run. The run summary lists the versions and the files compared.
+#
+# Three measures keep it away from the data:
+# - Capability: every Cloudflare call uses the secret
+#   CLOUDFLARE_SITE_DEPLOY_TOKEN, a token with no R2 write and no D1 write,
+#   and only the steps that call Wrangler receive it. The nightly's token is
+#   never referenced.
+# - Code: the only Wrangler commands are a get of static.tar.gz from R2,
+#   deployments status, deploy and rollback; the only pipeline commands are
+#   live-version, smoke and site-bundle-check. pipeline/tests/test_site_deploy.py
+#   fails when this file gains another trigger, a wider permission, another
+#   secret or a command outside those lists.
+# - After the fact: the checks after the deploy, the automatic rollback, and
+#   a run that fails whenever anything could not be confirmed.
+#
+# Secrets: CLOUDFLARE_SITE_DEPLOY_TOKEN (docs/site-deploy.md lists its
+# permissions), CLOUDFLARE_ACCOUNT_ID (the one the nightly uses). Variables:
+# SITE_URL, CONTACT (the user agent of the checks).
+
+name: deploy-site
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "What this deploy ships (shown in the run summary)"
+        required: false
+        type: string
+        default: ""
+
+# Read the repository and nothing else: this run commits nothing and opens
+# no issue.
+permissions:
+  contents: read
+
+# The nightly's group, so a site deploy waits for a running refresh and a
+# refresh that starts meanwhile waits for it. GitHub keeps one waiting run per
+# group: a run queued while another waits replaces the waiting one
+# (docs/site-deploy.md).
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      LMIAWATCH_SITE_URL: ${{ vars.SITE_URL }}
+      LMIAWATCH_CONTACT: ${{ vars.CONTACT }}
+      SITE: ${{ vars.SITE_URL || 'https://lmiawatch.ca' }}
+      # The site's pinned Wrangler (package-lock.json), the binary the nightly
+      # uses for its R2 calls and its deploy.
+      WRANGLER: ${{ github.workspace }}/site/node_modules/.bin/wrangler
+      BUCKET: lmia-watch-data
+      WORK: ${{ github.workspace }}/data/site-deploy
+    steps:
+      # Fails in seconds, before anything is installed. This step is told
+      # only whether the token is set, never given the token. There is no
+      # fallback to the nightly's token.
+      - name: Check the deploy token and the branch
+        env:
+          TOKEN_SET: ${{ secrets.CLOUDFLARE_SITE_DEPLOY_TOKEN != '' }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          if [ "$TOKEN_SET" != "true" ]; then
+            echo "::error::The secret CLOUDFLARE_SITE_DEPLOY_TOKEN is not set, so nothing is deployed. This workflow never uses the nightly's token: create the site deploy token (docs/site-deploy.md) and add it as a repository secret."
+            exit 1
+          fi
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::The secret CLOUDFLARE_ACCOUNT_ID is not set, so nothing is deployed."
+            exit 1
+          fi
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Only main is deployed. Start this workflow from main (it was started from $GITHUB_REF)."
+            exit 1
+          fi
+          reason=$(printf '%s' "$REASON" | tr '\r\n|`' '    ' | cut -c1-200)
+          {
+            echo "### Site-only deploy"
+            echo ""
+            echo "- Commit: \`$GITHUB_SHA\`"
+            echo "- Reason: ${reason:-not given}"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # Editable, as in the nightly: config.py finds its files relative to
+      # its own path.
+      - name: Install the pipeline
+        run: pip install -e ./pipeline
+      - name: Install the site's tools
+        working-directory: site
+        run: npm ci
+
+      # One object read. "does not exist" ends the tries, since that is an
+      # answer: without the bundle there is no data to deploy with.
+      # --remote, as everywhere: without it Wrangler 4 reads a local
+      # simulated bucket on the runner.
+      - name: Download the static bundle from R2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_SITE_DEPLOY_TOKEN }}
+        run: |
+          mkdir -p "$WORK"
+          for attempt in 1 2 3; do
+            if "$WRANGLER" r2 object get --remote "$BUCKET/static.tar.gz" --file "$WORK/static.tar.gz" > "$WORK/get.log" 2>&1; then
+              ls -l "$WORK/static.tar.gz"
+              exit 0
+            fi
+            cat "$WORK/get.log"
+            if grep -qi "specified key does not exist" "$WORK/get.log"; then
+              echo "::error::static.tar.gz is not in R2. A site-only deploy needs the bundle a nightly run saved; wait for the next refresh."
+              exit 1
+            fi
+            sleep 20
+          done
+          exit 1
+
+      # The archive holds one folder, static/, as the nightly's bundle step
+      # packs it. The check fetches the same three files from the live site;
+      # any difference, missing file or answer other than 200 stops the run
+      # here, before anything is copied.
+      - name: Unpack the bundle and check it against the live site
+        run: |
+          rm -rf "$WORK/bundle"
+          mkdir -p "$WORK/bundle"
+          tar -xzf "$WORK/static.tar.gz" -C "$WORK/bundle" --no-same-owner
+          if [ ! -f "$WORK/bundle/static/stats.json" ]; then
+            echo "::error::The archive has no static/stats.json, so it is not the nightly's bundle."
+            exit 1
+          fi
+          python -m lmia_pipeline.nightly site-bundle-check --bundle "$WORK/bundle/static" --base-url "$SITE" \
+            --title "Before the deploy: the archive against the live site"
+
+      - name: Put the checked bundle in place as the site's data
+        run: |
+          rm -rf site/public/data
+          cp -r "$WORK/bundle/static" site/public/data
+          diff -rq "$WORK/bundle/static" site/public/data
+          echo "$(find site/public/data -type f | wc -l) data files in place."
+
+      # As in the nightly, deployments status names the version carrying the
+      # traffic, and live-version passes on only a well-formed id. Unlike the
+      # nightly, a version that cannot be recorded stops the run: a site-only
+      # deploy never goes out without a way back.
+      - name: Record the live Worker version
+        id: version
+        working-directory: site
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_SITE_DEPLOY_TOKEN }}
+        run: |
+          "$WRANGLER" deployments status --json > "$WORK/before.json" 2> "$WORK/before.log" || cat "$WORK/before.log"
+          python -m lmia_pipeline.nightly live-version --file "$WORK/before.json" --out "$WORK/version_before.txt"
+
+      # Right before the deploy: the three files once more, read from the
+      # folder the deploy uploads (a deploy from anywhere else since the first
+      # check would show here), and the live stats.json kept byte for byte
+      # for the check after the deploy. Written only when every file matched.
+      - name: Check again and keep the live stats.json
+        run: |
+          python -m lmia_pipeline.nightly site-bundle-check --bundle site/public/data --base-url "$SITE" \
+            --keep-live-stats "$WORK/stats.before.json" --title "Just before the deploy: the site's data against the live site"
+          test -s "$WORK/stats.before.json"
+
+      # The nightly's deploy from site/: the Worker's code from main, with
+      # site/public as its assets. The data files are the ones already live,
+      # so their content hashes match and only changed files are uploaded.
+      # Tried three times, as in the nightly.
+      - name: Deploy the Worker
+        id: deploy
+        working-directory: site
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_SITE_DEPLOY_TOKEN }}
+        run: |
+          for attempt in 1 2 3; do
+            if "$WRANGLER" deploy; then exit 0; fi
+            echo "deploy attempt $attempt failed; trying again in one minute"
+            sleep 60
+          done
+          exit 1
+
+      # The nightly's smoke test: home, search, data and one profile, each
+      # page that fails fetched again 30 seconds later. It exits 1 only for
+      # "broken" (a page answered 500 to 599 twice). The data date it looks
+      # for comes from the bundle's stats.json.
+      - name: Check the live site
+        id: smoke
+        if: ${{ !cancelled() && steps.deploy.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          python -m lmia_pipeline.nightly smoke --base-url "$SITE" --stats site/public/data/stats.json --out "$WORK/smoke.json"
+
+      # The same three files from the live site, now served by the new
+      # version, and the archive's stats.json against the copy kept before
+      # the deploy. A file that cannot be fetched counts as a difference: the
+      # check before the deploy fetched it minutes earlier.
+      - name: Check the live data after the deploy
+        id: check_after
+        if: ${{ !cancelled() && steps.deploy.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          python -m lmia_pipeline.nightly site-bundle-check --bundle site/public/data --base-url "$SITE" \
+            --saved-stats "$WORK/stats.before.json" --title "After the deploy: the site's data against the live site and the stats.json kept before"
+
+      # When the deploy failed (it may have gone part of the way), the smoke
+      # test exited 1, the data check after the deploy failed, or the run was
+      # stopped before those checks finished. The recorded version carries
+      # the same data, so a rollback costs nothing but the change itself. A
+      # rollback never touches D1 or R2. The id was checked as a version id
+      # and comes through the environment.
+      - name: Roll the Worker back when the deploy did not hold
+        id: rollback
+        if: ${{ always() && steps.version.outputs.version_id != '' && (steps.deploy.outcome == 'failure' || steps.deploy.outcome == 'cancelled' || steps.smoke.outcome == 'failure' || steps.smoke.outcome == 'cancelled' || steps.check_after.outcome == 'failure' || steps.check_after.outcome == 'cancelled') }}
+        working-directory: site
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_SITE_DEPLOY_TOKEN }}
+          VERSION_ID: ${{ steps.version.outputs.version_id }}
+        run: |
+          for attempt in 1 2 3; do
+            if "$WRANGLER" rollback "$VERSION_ID" --message "Site-only deploy did not pass its checks" --yes; then exit 0; fi
+            echo "rollback attempt $attempt failed; trying again in 30 seconds"
+            sleep 30
+          done
+          exit 1
+
+      # The version serving traffic now, for the summary. After a rollback it
+      # must be the recorded one again.
+      - name: Read the version now live
+        id: after
+        if: ${{ always() && steps.version.outputs.version_id != '' && steps.deploy.outcome != 'skipped' }}
+        continue-on-error: true
+        working-directory: site
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_SITE_DEPLOY_TOKEN }}
+        run: |
+          "$WRANGLER" deployments status --json > "$WORK/after.json" 2> "$WORK/after.log" || cat "$WORK/after.log"
+          python -m lmia_pipeline.nightly live-version --file "$WORK/after.json" --out "$WORK/version_after.txt"
+
+      # Last: the outcome in the run summary, and a failed run whenever
+      # anything was not confirmed, so GitHub's failed-workflow email goes
+      # out. A smoke verdict of "unverifiable" (an edge refusal, a page
+      # without the data date) fails the run without a rollback, as the
+      # nightly never rolls back on it; the operator looks at the pages.
+      - name: Summary and verdict
+        if: ${{ always() }}
+        env:
+          VERSION_BEFORE: ${{ steps.version.outputs.version_id }}
+          VERSION_AFTER: ${{ steps.after.outputs.version_id }}
+          DEPLOY: ${{ steps.deploy.outcome }}
+          SMOKE: ${{ steps.smoke.outputs.verdict }}
+          CHECK_AFTER: ${{ steps.check_after.outcome }}
+          ROLLBACK: ${{ steps.rollback.outcome }}
+        run: |
+          detail=""
+          if [ -f "$WORK/smoke.json" ]; then
+            detail=$(jq -r '.detail // ""' "$WORK/smoke.json" 2> /dev/null | tr '|' '/' | cut -c1-300 || true)
+          fi
+          case "$DEPLOY" in
+            ""|skipped) deploy="not run (an earlier step stopped the run)" ;;
+            *) deploy="$DEPLOY" ;;
+          esac
+          case "$ROLLBACK" in
+            success) rollback="rolled back to the recorded version" ;;
+            failure) rollback="FAILED: roll back by hand (docs/site-deploy.md)" ;;
+            *) rollback="not needed" ;;
+          esac
+          {
+            echo "#### Outcome"
+            echo ""
+            echo "| Step | Result |"
+            echo "|---|---|"
+            echo "| Version live before | \`${VERSION_BEFORE:-not recorded}\` |"
+            echo "| Deploy | $deploy |"
+            echo "| Smoke test | ${SMOKE:-not run}${detail:+: $detail} |"
+            echo "| Data check after the deploy | ${CHECK_AFTER:-not run} |"
+            echo "| Rollback | $rollback |"
+            echo "| Version live now | \`${VERSION_AFTER:-not read}\` |"
+            echo ""
+            echo "This run wrote nothing to R2, D1 or the repository."
+          } >> "$GITHUB_STEP_SUMMARY"
+          failed=0
+          if [ "$DEPLOY" != "success" ]; then
+            echo "::error::The deploy did not complete ($deploy); see the first failed step."
+            failed=1
+          fi
+          if [ "$DEPLOY" = "success" ] && [ "$SMOKE" != "ok" ]; then
+            echo "::error::The smoke test did not confirm the site (${SMOKE:-no verdict})${detail:+: $detail}"
+            failed=1
+          fi
+          if [ "$DEPLOY" = "success" ] && [ "$CHECK_AFTER" != "success" ]; then
+            echo "::error::The live data could not be confirmed as unchanged after the deploy."
+            failed=1
+          fi
+          if [ "$ROLLBACK" = "success" ]; then
+            echo "::error::The Worker was rolled back to $VERSION_BEFORE; the previous version, with the same data, is live."
+            failed=1
+            if [ -n "$VERSION_AFTER" ] && [ "$VERSION_AFTER" != "$VERSION_BEFORE" ]; then
+              echo "::error::After the rollback the live version is $VERSION_AFTER, not $VERSION_BEFORE."
+            fi
+          fi
+          if [ "$ROLLBACK" = "failure" ]; then
+            echo "::error::The rollback failed. Roll back by hand to $VERSION_BEFORE (docs/site-deploy.md)."
+            failed=1
+          fi
+          exit $failed

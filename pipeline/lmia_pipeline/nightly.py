@@ -27,6 +27,12 @@ one, and always leaves a status file the site's daily check can read.
   checks    the monthly expiry checks of the tokens and the domain.
   attention list the items needing attention and write the GitHub issue's
             texts; exits 1 when there are any.
+  site-bundle-check
+            for the site-only deploy (deploy-site.yml): compare the data
+            files of an unpacked static.tar.gz with the ones the live site
+            serves (resilience.bundle_check). Exits 1 on any difference, a
+            missing file or an answer other than 200, so that workflow
+            stops before its deploy or rolls it back after.
 
 The R2 transfers stay in the workflow, apart from the weekly snapshot's
 listing and download, which Wrangler has no command for; these commands read
@@ -605,6 +611,16 @@ def main(argv: list[str] | None = None) -> int:
     ck.add_argument("--domain", default=resilience.domain_of(config.SITE_URL),
                     help="the domain whose registrar record is read (default: the site's host)")
     ck.add_argument("--out", required=True)
+    bc = sub.add_parser("site-bundle-check", help="prove an unpacked static.tar.gz is what the live site serves")
+    bc.add_argument("--bundle", required=True, help="the unpacked archive's static folder (stats.json at its top)")
+    bc.add_argument("--base-url", required=True, help="the live site, whose /data/ files are fetched")
+    bc.add_argument("--saved-stats", default=None,
+                    help="stats.json as saved from the live site before the deploy; the archive's copy must match it too")
+    bc.add_argument("--keep-live-stats", default=None,
+                    help="write the live stats.json bytes here, only when every comparison matched")
+    bc.add_argument("--title", default="Data files compared", help="the heading of the run summary's table")
+    bc.add_argument("--retry-after", type=float, default=resilience.BUNDLE_RETRY_S,
+                    help="seconds before a file the site did not answer 200 for is fetched again")
     at = sub.add_parser("attention", help="list the items needing attention; exit 1 when there are any")
     at.add_argument("--status", required=True)
     at.add_argument("--run-url", required=True)
@@ -650,6 +666,8 @@ def main(argv: list[str] | None = None) -> int:
         return _checks(args)
     if args.command == "attention":
         return _attention(args)
+    if args.command == "site-bundle-check":
+        return _site_bundle_check(args)
 
     verify_result = None
     try:
@@ -742,6 +760,45 @@ def _attention(args: argparse.Namespace) -> int:
     for item in items:
         print("ATTENTION:", item)
     return 1 if items else 0
+
+
+def _summary(lines: list[str]) -> None:
+    """Lines for the run's summary page, when run inside a workflow."""
+    target = os.environ.get("GITHUB_STEP_SUMMARY")
+    if not target:
+        return
+    with open(target, "a", encoding="utf-8") as fh:
+        fh.write("\n".join(lines) + "\n\n")
+
+
+def _cell(text: Any) -> str:
+    return str(text).replace("|", "\\|")
+
+
+def _site_bundle_check(args: argparse.Namespace) -> int:
+    http = _session()
+    try:
+        record, live_stats = resilience.bundle_check(
+            http, args.base_url, Path(args.bundle), Path(args.saved_stats) if args.saved_stats else None,
+            retry_after=args.retry_after)
+    finally:
+        http.close()
+    files = record["files"]
+    for f in files:
+        (log.info if f["result"] == "same" else log.error)("site-bundle-check: %s", f["note"])
+    rows = [f"#### {_cell(args.title)}", "", "| File | Compared with | Result |", "|---|---|---|"]
+    rows += [f"| {_cell(f['file'])} | {_cell(f['against'])} | {_cell(f['result'])} |" for f in files]
+    failed = [f for f in files if f["result"] != "same"]
+    if failed:
+        rows += ["", f"{len(failed)} of {len(files)} comparisons failed: " + "; ".join(_cell(f["note"]) for f in failed)]
+        log.error("site-bundle-check: %d of %d comparisons failed", len(failed), len(files))
+    else:
+        log.info("site-bundle-check: %d comparisons, every file the same", len(files))
+    _summary(rows)
+    if record["ok"] and args.keep_live_stats and live_stats is not None:
+        Path(args.keep_live_stats).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.keep_live_stats).write_bytes(live_stats)
+    return 0 if record["ok"] else 1
 
 
 if __name__ == "__main__":

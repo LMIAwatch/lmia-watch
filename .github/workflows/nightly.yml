@@ -97,7 +97,9 @@ permissions:
 
 # Never let two runs overlap, even if one is delayed past the next schedule.
 # A retry queued behind a long run waits for it, then its gate reads the
-# status that run wrote.
+# status that run wrote. deploy-site.yml uses the same group, so a site-only
+# deploy never runs during a refresh (pipeline/tests/test_site_deploy.py
+# checks that both keep it).
 concurrency:
   group: nightly
   cancel-in-progress: false
