@@ -35,6 +35,7 @@ import csv
 import hashlib
 import io
 import logging
+import math
 import re
 import sqlite3
 import zipfile
@@ -184,6 +185,9 @@ def parse_table(data: bytes, keep: int = KEEP_QUARTERS) -> list[tuple]:
                 try:
                     number = float(value)
                 except ValueError:
+                    continue
+                # "NaN" and "inf" are floats too; a cell holding one is no value.
+                if not math.isfinite(number):
                     continue
                 quality = rec[i_status].strip()
                 codes, name, combined = where

@@ -35,7 +35,7 @@ import statistics
 from collections import Counter, defaultdict
 from pathlib import Path
 
-from .normalize import POSTAL_RE, PRUID_PROVINCE, fold_accents, period_end_date
+from .normalize import POSTAL_RE, PRUID_PROVINCE, fold_accents, period_end_date, period_quarters, period_sort_key
 
 THRESHOLD = 20
 TOP_EMPLOYERS = 20
@@ -158,7 +158,11 @@ def build(conn: sqlite3.Connection) -> Model:
         if cma and cma_name:
             m.cma_names[cma] = cma_name
     published = {r["resource_id"]: r["published"] for r in conn.execute("SELECT resource_id, published FROM esdc_resources")}
-    m.periods = sorted({r[0] for r in conn.execute("SELECT DISTINCT period FROM esdc_records")})
+    # In quarter order, and only periods that are quarters: a file whose period
+    # could not be read ("unknown") would otherwise sort after 2026Q1 as text
+    # and become every page's latest period.
+    m.periods = sorted((p for (p,) in conn.execute("SELECT DISTINCT period FROM esdc_records") if period_quarters(p)),
+                       key=lambda p: (period_sort_key(p), p))
     m.latest = m.periods[-1] if m.periods else ""
     quarterly = [p for p in m.periods if re.fullmatch(r"\d{4}Q[1-4]", p)]
     m.stream_periods = set(quarterly[-STREAM_QUARTERS:])

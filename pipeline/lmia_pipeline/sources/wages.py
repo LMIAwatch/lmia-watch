@@ -24,6 +24,7 @@ import csv
 import hashlib
 import io
 import logging
+import math
 import re
 import sqlite3
 
@@ -70,9 +71,10 @@ def _num(text: str | None) -> float | None:
         return None
     cleaned = text.replace("$", "").replace(",", "").strip()
     try:
-        return float(cleaned)
+        number = float(cleaned)
     except ValueError:
         return None
+    return number if math.isfinite(number) else None
 
 
 def parse_wages(data: bytes) -> tuple[list[tuple], str | None]:

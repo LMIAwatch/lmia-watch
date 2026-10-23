@@ -22,6 +22,7 @@ import csv
 import hashlib
 import io
 import logging
+import math
 import sqlite3
 import zipfile
 
@@ -56,6 +57,8 @@ def parse_table(data: bytes) -> list[tuple[str, str, float, str, str | None]]:
         try:
             rate = float(rec.get("VALUE") or "")
         except ValueError:
+            continue
+        if not math.isfinite(rate):
             continue
         # Statistics Canada drops leading zeros (St. John's is 2021S05031 for CMA 001).
         uid = dguid[len(CMA_PREFIX):].zfill(3)

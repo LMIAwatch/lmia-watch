@@ -275,3 +275,17 @@ def test_period_parsing():
     assert period_start_date("2026Q1") == "2026-01-01"
     assert period_end_date("2026Q1") == "2026-03-31"
     assert period_end_date("2017Q1-Q2") == "2017-06-30"
+
+
+def test_to_int_treats_non_finite_text_as_no_value():
+    from lmia_pipeline.normalize import to_int
+
+    assert to_int("1,200") == 1200 and to_int("12.7") == 12
+    assert to_int("Infinity") is None and to_int("-inf") is None and to_int("nan") is None
+
+
+def test_parse_noc_refuses_a_six_digit_number():
+    from lmia_pipeline.normalize import parse_noc
+
+    assert parse_noc("632001-Cooks") == (None, "632001-Cooks")
+    assert parse_noc("63200-Cooks") == ("63200", "Cooks")

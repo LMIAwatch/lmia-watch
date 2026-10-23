@@ -123,7 +123,9 @@ PROVINCE_NAMES: dict[str, str] = {
 POSTAL_RE = re.compile(
     r"\b([ABCEGHJ-NPRSTVXY]\d[ABCEGHJ-NPRSTV-Z])\s*(\d[ABCEGHJ-NPRSTV-Z]\d)\b", re.I
 )
-NOC_RE = re.compile(r"^\s*(?:NOC\s*)?(\d{4,5})\s*[-:.]?\s*(.*?)\s*$")
+# Four or five digits and not a sixth: a longer number is not a NOC code
+# and must not read as a five-digit code with a title starting in a digit.
+NOC_RE = re.compile(r"^\s*(?:NOC\s*)?(\d{4,5})(?!\d)\s*[-:.]?\s*(.*?)\s*$")
 PERIOD_RE = re.compile(r"(20\d\d)\s*[-_ ]?q([1-4])(?:\s*[-_ ]?q([1-4]))?", re.I)
 YEAR_RE = re.compile(r"(20\d\d)")
 
@@ -446,7 +448,9 @@ def to_int(value: object) -> int | None:
         return None
     try:
         return int(float(str(value).replace(",", "").strip()))
-    except ValueError:
+    except (ValueError, OverflowError):
+        # "nan" fails as a ValueError and "inf" as an OverflowError at int();
+        # neither is a count.
         return None
 
 

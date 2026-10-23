@@ -91,3 +91,10 @@ def test_a_failed_download_keeps_what_is_loaded(conn, fake_client, fixtures):
     wages.run(conn, client, now=NOW)
     assert conn.execute("SELECT resource_id FROM wage_tables").fetchone()[0] == "kept"
     assert conn.execute("SELECT ok FROM sources_log WHERE source = 'wages'").fetchone()[0] == 0
+
+
+def test_num_reads_dollar_amounts_and_refuses_non_finite_text():
+    from lmia_pipeline.sources.wages import _num
+
+    assert _num("$1,234.50") == 1234.5 and _num("") is None and _num(None) is None
+    assert _num("inf") is None and _num("NaN") is None
