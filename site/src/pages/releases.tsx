@@ -13,6 +13,7 @@ import { fmtInt, periodLabel, provinceName, streamLabel, t, tj, type Key, type L
 import { Badge, Layout, noDataPage, page } from "../layout";
 import { DESCRIPTION_MAX, SOCIAL_CARD, absoluteUrl, pageTitle, type Seo } from "../seo";
 import { ESDC_HISTORY_START_YEAR } from "../support";
+import { isBool, isListOf, isNum, isNumOrNull, isObj, isStr, isStrOrNull, optional } from "../valid";
 
 export interface Breakdown {
   k: string;
@@ -89,14 +90,43 @@ interface ReleaseIndex {
 // The period as the data writes it, in lower case with a hyphen after the year.
 export const RELEASE_SLUG_RE = /^\d{4}(?:-q[1-4](?:-q[1-4])?)?$/;
 
-const isObj = (v: unknown): v is Record<string, any> => !!v && typeof v === "object" && !Array.isArray(v);
-const isBlock = (v: unknown): boolean => isObj(v) && Array.isArray(v.prov) && isObj(v.stream) && Array.isArray(v.stream.rows);
+// A file is checked field by field as the page reads it, and one that fails
+// is treated like a missing one (a 404). prev, new and changes are null for
+// the first release, never absent.
 
-// A file without the fields the page reads is treated like a missing one.
+// lmias is null for a file that carries no LMIA counts.
+const isTotals = (v: unknown): v is Totals => isObj(v) && isNumOrNull(v.lmias) &&
+  (["positive_rows", "positions", "employers", "negative_rows", "negative_positions", "negative_employers"] as const).every((k) => isNum(v[k]));
+
+export const isBreakdownRow = (v: unknown): v is Breakdown =>
+  isObj(v) && isStr(v.k) && isNum(v.rows) && isNum(v.positions) && optional(v.employers, isNum);
+
+const isEmployer = (v: unknown): v is ReleaseEmployer => isObj(v) && isStr(v.id) && isStr(v.name) && isStrOrNull(v.city) &&
+  isStrOrNull(v.prov) && isStrOrNull(v.stream) && isNum(v.positions);
+
+// The change tables print both figures, so a row without them is unreadable.
+const isChange = (v: unknown): boolean => isEmployer(v) && isNum(v.prev) && isNum(v.change);
+
+const isBlock = (v: unknown): boolean => isObj(v) && isListOf(v.prov, isBreakdownRow) && isObj(v.stream) &&
+  isBool(v.stream.shown) && isListOf(v.stream.rows, isBreakdownRow);
+
+const isSource = (v: unknown): v is Source => isObj(v) && isStr(v.dataset) && isStr(v.name) && isStr(v.url) && isStr(v.page) &&
+  isStrOrNull(v.published) && isStr(v.sha256) && isNum(v.rows) && isStrOrNull(v.mirror);
+
 function isRelease(v: unknown): v is Release {
-  return isObj(v) && typeof v.period === "string" && isObj(v.totals) && Array.isArray(v.top) && isBlock(v.approvals) &&
-    isBlock(v.refusals) && Array.isArray(v.sources);
+  return isObj(v) && isStr(v.period) && isStr(v.slug) && isNum(v.quarters) && isStrOrNull(v.published) && isTotals(v.totals) &&
+    (v.prev === null || (isObj(v.prev) && isStr(v.prev.period) && isStr(v.prev.slug) && isNum(v.prev.quarters) && isTotals(v.prev.totals))) &&
+    (v.next === null || (isObj(v.next) && isStr(v.next.period) && isStr(v.next.slug))) &&
+    isListOf(v.top, isEmployer) &&
+    (v.new === null || (isObj(v.new) && isNum(v.new.count) && isNum(v.new.positions) && isListOf(v.new.top, isEmployer))) &&
+    (v.changes === null || (isObj(v.changes) && isListOf(v.changes.up, isChange) && isListOf(v.changes.down, isChange))) &&
+    isBlock(v.approvals) && isBlock(v.refusals) && isListOf(v.sources, isSource);
 }
+
+const isIndexRow = (v: unknown): boolean => isObj(v) && isStr(v.period) && isStr(v.slug) && isStrOrNull(v.published) &&
+  isNum(v.positive_rows) && isNum(v.positions) && isNum(v.employers) && isNum(v.negative_rows);
+
+const isReleaseIndex = (v: unknown): v is ReleaseIndex => isObj(v) && isListOf(v.releases, isIndexRow);
 
 export async function loadRelease(env: Env, slug: string): Promise<Release | null> {
   if (!RELEASE_SLUG_RE.test(slug)) return null;
@@ -203,8 +233,8 @@ export const BreakdownTable: FC<{
 
 export async function releasesIndexPage(c: Context<AppEnv>): Promise<Response> {
   const lang = c.get("lang");
-  const [stats, index] = await Promise.all([loadStats(c.env), loadJson<ReleaseIndex>(c.env, "releases/index.json")]);
-  if (!isObj(index) || !Array.isArray(index.releases)) return noDataPage(c, "rel.index_title");
+  const [stats, index] = await Promise.all([loadStats(c.env), loadJson<unknown>(c.env, "releases/index.json")]);
+  if (!isReleaseIndex(index)) return noDataPage(c, "rel.index_title");
   const n = (v: number) => fmtInt(v, lang);
   const title = t(lang, "rel.index_title");
   const seo: Seo = {

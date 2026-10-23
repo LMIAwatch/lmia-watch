@@ -12,6 +12,7 @@ import type { AppEnv } from "../env";
 import { decimal, fmtInt, periodLabel, provinceName, streamLabel, t, tj, tn, type Key, type Lang } from "../i18n";
 import { Badge, Layout, noDataPage, page } from "../layout";
 import { DESCRIPTION_MAX, SITE_ORIGIN, SOCIAL_CARD, absoluteUrl, pageTitle, type Seo } from "../seo";
+import { isListOf, isNum, isNumOrNull, isObj, isStr, isStrOrNull, optional } from "../valid";
 
 // -- shapes of the exported files -----------------------------------------------------
 
@@ -91,12 +92,71 @@ interface PlacesIndex {
   }[];
 }
 
-const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
+// -- checks ----------------------------------------------------------------------------
 
-// A file without the fields the page reads is treated like a missing one.
-export function wellFormed(v: unknown, lists: readonly string[]): boolean {
-  return isObject(v) && isObject(v.totals) && lists.every((k) => Array.isArray(v[k]));
+// Each file is checked field by field as the page reads it, and one that
+// fails is treated like a missing one. The parts shared with the occupation
+// pages are exported for occupations.tsx.
+
+const tuple = (v: unknown, ...checks: ((x: unknown) => boolean)[]): boolean =>
+  Array.isArray(v) && v.length === checks.length && checks.every((check, i) => check(v[i]));
+
+export const isBilingual = (v: unknown): v is Bilingual => isObj(v) && isStr(v.en) && isStr(v.fr);
+
+const isTotals = (v: unknown): v is Totals => isObj(v) &&
+  (["records", "approved", "positions", "refused", "refused_positions", "pending", "employers"] as const).every((k) => isNum(v[k]));
+
+const isQuarter = (v: unknown): boolean => tuple(v, isStr, isNum, isNum, isNum, isNum);
+const isStreamRow = (v: unknown): boolean => tuple(v, isStrOrNull, isNum, isNum);
+const isSeriesRow = (v: unknown): boolean => tuple(v, isStr, isNumOrNull, isStrOrNull, isNumOrNull, isStrOrNull);
+
+const isRecent = (v: unknown): v is Recent => isObj(v) && isStr(v.id) && isStr(v.name) && isStrOrNull(v.city) &&
+  isStrOrNull(v.prov) && isStr(v.date) && isStrOrNull(v.period) && isStr(v.status) && isNumOrNull(v.positions) && isStrOrNull(v.noc);
+
+const isPosted = (v: unknown): v is Posted =>
+  isObj(v) && isNumOrNull(v.hourly) && isNum(v.hourly_n) && isNumOrNull(v.annual) && isNum(v.annual_n);
+
+const isJobBank = (v: unknown): v is JobBankRef => isObj(v) && isNum(v.median) && isNum(v.annual) && isStr(v.level) && isStr(v.area);
+
+// The wage and vacancy figures are each present only when Statistics Canada published them.
+const isStatcan = (v: unknown): v is StatcanRef => isObj(v) && isStr(v.level) && isStr(v.area) && isStrOrNull(v.name) &&
+  optional(v.wage, isNum) && optional(v.wage_quarter, isStr) && optional(v.wage_quality, isStrOrNull) &&
+  optional(v.vacancies, isNum) && optional(v.vac_quarter, isStr) && optional(v.vac_quality, isStrOrNull) &&
+  optional(v.vacancies_year_before, isNum);
+
+export const isWageRow = (v: unknown): v is WageRow => isObj(v) && isPosted(v.posted) &&
+  (v.jobbank === null || isJobBank(v.jobbank)) && (v.statcan === null || isStatcan(v.statcan));
+
+// What an occupation file and a place file both carry.
+export function hasSharedParts(v: Record<string, any>): boolean {
+  return isTotals(v.totals) && isNum(v.threshold) && isListOf(v.quarters, isQuarter) && isListOf(v.streams, isStreamRow) &&
+    isListOf(v.stream_periods, isStr) && isObj(v.national_latest) && isStr(v.national_latest.period) &&
+    isNum(v.national_latest.positions) && isListOf(v.employers, isRecent) && isListOf(v.statcan_series, isSeriesRow) &&
+    (v.wage_table === null || (isObj(v.wage_table) && isStrOrNull(v.wage_table.revision))) && isStrOrNull(v.statcan_latest);
 }
+
+const isChildPlace = (v: unknown): v is ChildPlace => isObj(v) && isStr(v.slug) && isStr(v.name) && isNum(v.records);
+
+const isPlaceOccupation = (v: unknown): v is PlaceOccupation =>
+  isObj(v) && isStr(v.noc) && isBilingual(v.title) && isNum(v.records) && isNum(v.positions) && isWageRow(v);
+
+// cmas and cities are written for provinces only, cma for cities, lfs for
+// census metropolitan areas and cities.
+function isPlaceFile(v: unknown): v is PlaceFile {
+  return isObj(v) && (v.kind === "province" || v.kind === "cma" || v.kind === "city") && isStr(v.prov) && isStr(v.slug) &&
+    isStr(v.name) && isStrOrNull(v.occ_from) && hasSharedParts(v) &&
+    (v.region === null || (isObj(v.region) && isStr(v.region.name))) &&
+    (v.context === null || isStatcan(v.context)) && isListOf(v.occupations, isPlaceOccupation) &&
+    (v.cmas == null || isListOf(v.cmas, isChildPlace)) && (v.cities == null || isListOf(v.cities, isChildPlace)) &&
+    (v.cma == null || (isObj(v.cma) && isStr(v.cma.slug) && isStr(v.cma.name) && isStr(v.cma.prov))) &&
+    (v.lfs == null || (isObj(v.lfs) && isStr(v.lfs.month) && isNum(v.lfs.rate)));
+}
+
+const isProvinceRow = (v: unknown): boolean => isObj(v) && isStr(v.prov) && isNum(v.records) && isNum(v.positions) &&
+  isNum(v.latest_positions) && isNum(v.cities) && isListOf(v.top_cities, isChildPlace) && isListOf(v.cmas, isChildPlace);
+
+const isPlacesIndex = (v: unknown): v is PlacesIndex =>
+  isObj(v) && isNum(v.threshold) && isStr(v.latest) && isListOf(v.provinces, isProvinceRow);
 
 // -- small formats -------------------------------------------------------------------
 
@@ -470,9 +530,11 @@ export async function placesIndex(c: Context<AppEnv>): Promise<Response> {
   const lang = c.get("lang");
   const stats = await loadStats(c.env);
   if (!stats) return noDataPage(c, "places.index_title");
-  const idx = await loadJson<PlacesIndex>(c.env, "places/index.json");
+  // An unreadable index renders like a missing one: the page with its "not published yet" line.
+  const loaded = await loadJson<unknown>(c.env, "places/index.json");
+  const idx = isPlacesIndex(loaded) ? loaded : null;
   const n = (v: number) => fmtInt(v, lang);
-  const provinces = isObject(idx) && Array.isArray(idx.provinces) ? idx.provinces : [];
+  const provinces = idx ? idx.provinces : [];
   const title = t(lang, "places.index_title");
   const seo = sectionSeo("/places", t(lang, "places.index_seo_title"), t(lang, "places.index_description"),
     [{ name: t(lang, "common.home"), path: "/" }, { name: title }], provinces.length === 0);
@@ -560,15 +622,12 @@ export async function placePage(c: Context<AppEnv>): Promise<Response> {
   return renderPlace(c, `places/${raw.toLowerCase()}/${slug.toLowerCase()}.json`);
 }
 
-const PLACE_LISTS = ["quarters", "streams", "occupations", "employers", "statcan_series"] as const;
-
 async function renderPlace(c: Context<AppEnv>, file: string): Promise<Response> {
   const lang = c.get("lang");
   const stats = await loadStats(c.env);
   if (!stats) return noDataPage(c, "places.index_title");
-  const raw = await loadJson<PlaceFile>(c.env, file);
-  if (!wellFormed(raw, PLACE_LISTS)) return notFound(c, lang, stats.data_as_of, "places.not_found", "/places", "places.back_index");
-  const p = raw as PlaceFile;
+  const p = await loadJson<unknown>(c.env, file);
+  if (!isPlaceFile(p)) return notFound(c, lang, stats.data_as_of, "places.not_found", "/places", "places.back_index");
   const n = (v: number) => fmtInt(v, lang);
   const provName = provinceName(lang, p.prov);
   const name = p.kind === "province" ? provName : placeName(lang, p.name);

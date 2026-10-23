@@ -10,8 +10,13 @@ import { t, tj, type Lang } from "./i18n";
 
 const DOI = /^10\.\d{4,9}\/[A-Za-z0-9._;()/:-]+$/;
 
+// The other fields are printed as text (the year is cut from published or
+// version), so a record with one of another type is treated as absent too.
+const isTextOrNone = (v: unknown): boolean => v == null || typeof v === "string";
+
 export function validCitation(c: Citation | null | undefined): Citation | null {
   if (!c || typeof c !== "object" || typeof c.concept_doi !== "string" || !DOI.test(c.concept_doi)) return null;
+  if (typeof c.title !== "string" || ![c.doi, c.version, c.published].every(isTextOrNone)) return null;
   return c;
 }
 

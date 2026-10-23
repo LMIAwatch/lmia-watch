@@ -5,6 +5,7 @@ import type { AppEnv } from "../env";
 import { t, tj, type Key, type Lang } from "../i18n";
 import { Layout, fmtInt, noDataPage, page, periodLabel } from "../layout";
 import { datasetJsonLd, pageSeo } from "../seo";
+import { isListOf, isNum, isNumOrNull, isObj, isStr, isStrOrNull } from "../valid";
 
 // The changelog, newest first whatever order the entries are written in.
 // Add an entry here; the table sorts by date.
@@ -88,10 +89,17 @@ const SOURCE_LINKS: Record<"wages" | "lfs" | "boundaries" | "statcan" | "vacanci
   },
 };
 
+// The two lists of stats.json that only this page reads. They are checked here
+// rather than in loadStats, so a malformed row costs this page, not every page.
+const isResource = (r: unknown): boolean => isObj(r) && isStr(r.dataset) && isStr(r.period) && isStrOrNull(r.published) &&
+  isNum(r.rows_loaded) && isStr(r.loaded_at);
+const isRun = (r: unknown): boolean => isObj(r) && isStr(r.run_at) && isStr(r.source) && isStrOrNull(r.detail) &&
+  isNumOrNull(r.rows_new) && isNum(r.ok);
+
 export async function dataPage(c: Context<AppEnv>): Promise<Response> {
   const lang = c.get("lang");
   const stats = await loadStats(c.env);
-  if (!stats) return noDataPage(c, "nav.data");
+  if (!stats || !isListOf(stats.resources, isResource) || !isListOf(stats.runs, isRun)) return noDataPage(c, "nav.data");
   const na = t(lang, "common.na");
   // English shows the period code as stored (2026Q1); French shows the label.
   const latestPeriod = lang === "fr" ? periodLabel(stats.esdc_latest_period, lang) : stats.esdc_latest_period;

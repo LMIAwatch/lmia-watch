@@ -9,10 +9,12 @@ import { loadJson, loadStats } from "../data";
 import type { AppEnv } from "../env";
 import { fmtInt, periodLabel, provinceName, t, tn, type Lang } from "../i18n";
 import { Layout, noDataPage, page } from "../layout";
+import { isListOf, isNum, isObj, isStr, isStrOrNull } from "../valid";
 import {
   type Bilingual, type NationalLatest, type Posted, type Quarter, type Recent, type SeriesRow, type StatcanRef,
   type Totals, type WageRow, EmployerSection, JobSeekerNote, QuarterSection, SourcesNote, StreamSection, WageHead,
-  WageNote, jobBankSearch, money, notFound, placeName, sectionSeo, trendLines, wageCells, wageLine, wellFormed,
+  WageNote, hasSharedParts, isBilingual, isWageRow, jobBankSearch, money, notFound, placeName, sectionSeo, trendLines,
+  wageCells, wageLine,
 } from "./places";
 
 interface RegionRow extends WageRow {
@@ -56,7 +58,31 @@ interface OccupationIndex {
 }
 
 const NOC_RE = /^[0-9]{5}$/;
-const OCC_LISTS = ["quarters", "streams", "provinces", "regions", "employers", "statcan_series"] as const;
+
+// Each file is checked field by field as the page reads it; one that fails
+// reads as missing (the index's "not published yet" line, or a 404).
+
+const isRegion = (v: unknown): v is RegionRow =>
+  isObj(v) && isStr(v.name) && isStrOrNull(v.prov) && isNum(v.records) && isWageRow(v);
+
+// [province, records, approved positions, refused rows]
+const isProvinceRow = (v: unknown): boolean =>
+  Array.isArray(v) && v.length === 4 && isStr(v[0]) && isNum(v[1]) && isNum(v[2]) && isNum(v[3]);
+
+// The definition texts are null where the classification publishes none.
+function isOccupationFile(v: unknown): v is OccupationFile {
+  return isObj(v) && isStr(v.noc) && isBilingual(v.title) && isStr(v.teer) && isStrOrNull(v.from) &&
+    (v.definition === null || (isObj(v.definition) && isStrOrNull(v.definition.en) && isStrOrNull(v.definition.fr))) &&
+    (v.category_title === null || isBilingual(v.category_title)) && hasSharedParts(v) && isWageRow(v.national) &&
+    isListOf(v.regions, isRegion) && isListOf(v.provinces, isProvinceRow);
+}
+
+// The first digit of each code groups the index, so a code must be five digits.
+const isIndexRow = (v: unknown): boolean => isObj(v) && isStr(v.noc) && NOC_RE.test(v.noc) && isBilingual(v.title) &&
+  isNum(v.records) && isNum(v.positions) && isNum(v.latest_positions) && isNum(v.pending);
+
+const isOccupationIndex = (v: unknown): v is OccupationIndex => isObj(v) && isStrOrNull(v.from) && isStr(v.latest) &&
+  isObj(v.categories) && Object.values(v.categories).every(isBilingual) && isListOf(v.rows, isIndexRow);
 
 // The first sentence of the published definition: enough to say what the
 // occupation is without copying the classification text.
@@ -70,8 +96,10 @@ export async function occupationsIndex(c: Context<AppEnv>): Promise<Response> {
   const lang = c.get("lang");
   const stats = await loadStats(c.env);
   if (!stats) return noDataPage(c, "occ.index_title");
-  const idx = await loadJson<OccupationIndex>(c.env, "occupations/index.json");
-  const rows = idx && Array.isArray(idx.rows) ? idx.rows : [];
+  // An unreadable index renders like a missing one: the page with its "not published yet" line.
+  const loaded = await loadJson<unknown>(c.env, "occupations/index.json");
+  const idx = isOccupationIndex(loaded) ? loaded : null;
+  const rows = idx ? idx.rows : [];
   const n = (v: number) => fmtInt(v, lang);
   const title = t(lang, "occ.index_title");
   const from = periodLabel(idx?.from ?? "", lang);
@@ -158,11 +186,10 @@ export async function occupationPage(c: Context<AppEnv>): Promise<Response> {
   if (!NOC_RE.test(code)) return c.notFound();
   const stats = await loadStats(c.env);
   if (!stats) return noDataPage(c, "occ.index_title");
-  const raw = await loadJson<OccupationFile>(c.env, `occupations/${code}.json`);
-  if (!wellFormed(raw, OCC_LISTS) || !(raw as OccupationFile).title) {
+  const o = await loadJson<unknown>(c.env, `occupations/${code}.json`);
+  if (!isOccupationFile(o)) {
     return notFound(c, lang, stats.data_as_of, "occ.not_found", "/occupations", "occ.back_index");
   }
-  const o = raw as OccupationFile;
   const n = (v: number) => fmtInt(v, lang);
   const title = o.title[lang] || o.title.en;
   const heading = t(lang, "occ.heading", { title, noc: o.noc });

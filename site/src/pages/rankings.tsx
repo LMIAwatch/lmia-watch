@@ -11,8 +11,9 @@ import { decimal, fmtInt, periodLabel, t, tj, type Key, type Lang } from "../i18
 import { Layout, noDataPage, page } from "../layout";
 import { SOCIAL_CARD, pageTitle, type Seo } from "../seo";
 import { ESDC_HISTORY_START_YEAR } from "../support";
+import { isBool, isListOf, isNum, isObj, isStr, isStrOrNull, optional } from "../valid";
 import {
-  Breadcrumb, type Breakdown, Caveat, breadcrumbJsonLd, fitDescription, place, provLabel, streamName,
+  Breadcrumb, type Breakdown, Caveat, breadcrumbJsonLd, fitDescription, isBreakdownRow, place, provLabel, streamName,
 } from "./releases";
 
 interface Ranking {
@@ -34,11 +35,27 @@ const YEAR_RE = /^\d{4}$/;
 // A list of more periods than this is written as a range.
 const LIST_PERIODS = 4;
 
-const isObj = (v: unknown): v is Record<string, any> => !!v && typeof v === "object" && !Array.isArray(v);
+// A file is checked field by field as the page reads it; one that fails reads
+// as missing ("not published" for all years, a 404 for one year).
+const isOccupationRow = (v: unknown): boolean =>
+  isObj(v) && isStr(v.code) && isStrOrNull(v.title) && isNum(v.positions) && isNum(v.rows);
+
+const isEra = (v: unknown): boolean => isObj(v) && isStr(v.era) && isListOf(v.periods, isStr) && isNum(v.codes) &&
+  isNum(v.positions) && isListOf(v.rows, isOccupationRow);
+
+const isRankedEmployer = (v: unknown): boolean => isObj(v) && isStr(v.id) && isStr(v.name) && isStrOrNull(v.city) &&
+  isStrOrNull(v.prov) && isNum(v.positions) && isNum(v.rows);
+
+// The stream years are read only when the table is shown, but the export
+// writes the list (empty) either way.
+const isStreams = (v: unknown): boolean => isObj(v) && isBool(v.shown) && isListOf(v.years, isNum) &&
+  optional(v.positions, isNum) && isListOf(v.rows, isBreakdownRow);
 
 function isRanking(v: unknown): v is Ranking {
-  return isObj(v) && Array.isArray(v.years) && Array.isArray(v.periods) && isObj(v.totals) && Array.isArray(v.provinces) &&
-    isObj(v.streams) && Array.isArray(v.streams.rows) && Array.isArray(v.occupations) && Array.isArray(v.employers);
+  return isObj(v) && isListOf(v.years, isNum) && isListOf(v.periods, isStr) &&
+    isObj(v.totals) && isNum(v.totals.positions) && isNum(v.totals.rows) && isNum(v.totals.employers) &&
+    isListOf(v.provinces, isBreakdownRow) && isStreams(v.streams) && isListOf(v.occupations, isEra) &&
+    isListOf(v.no_occupation_periods, isStr) && isListOf(v.employers, isRankedEmployer);
 }
 
 function share(part: number, whole: number, lang: Lang): string {
