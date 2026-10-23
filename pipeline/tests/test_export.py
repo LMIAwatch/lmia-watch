@@ -1,5 +1,3 @@
-import sqlite3
-
 from lmia_pipeline import export, status
 from lmia_pipeline.db import apply_schema, upsert_employer
 
@@ -24,54 +22,6 @@ def seed(conn):
     return a, b
 
 
-def load_batches(out_dir) -> sqlite3.Connection:
-    target = sqlite3.connect(":memory:")
-    target.row_factory = sqlite3.Row
-    for name in sorted(p.name for p in out_dir.glob("*.sql")):
-        target.executescript((out_dir / name).read_text(encoding="utf-8"))
-    return target
-
-
-def test_d1_round_trip_and_incremental(conn, tmp_path):
-    a, b = seed(conn)
-    out = tmp_path / "d1"
-    manifest = export.export_d1(conn, out)
-    assert manifest["files"][0] == "000_schema.sql"
-    target = load_batches(out)
-    for table in ("employers", "esdc_records", "jobbank_postings", "jobbank_observations", "meta",
-                  "fsa_centroids", "employer_names", "esdc_resources", "indicators"):
-        src = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-        dst = target.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-        assert src == dst, table
-    row = target.execute("SELECT title FROM jobbank_postings WHERE posting_id = 5").fetchone()
-    assert row["title"] == "cook's helper"
-
-    # Until the apply is confirmed nothing moves; after it, only changes export.
-    manifest2 = export.export_d1(conn, out)
-    assert manifest2["row_counts"]["employers"] == 2
-    export.mark_synced(conn, out / "manifest.json")
-    manifest3 = export.export_d1(conn, out)
-    assert manifest3["row_counts"]["employers"] == 0
-    assert manifest3["row_counts"]["esdc_records"] == 0
-    assert manifest3["row_counts"]["meta"] == len(conn.execute("SELECT * FROM meta").fetchall())
-
-    conn.execute("UPDATE employers SET city = 'Lake Country', updated_at = '2026-10-13T00:00:00Z' WHERE id = ?", (a,))
-    manifest4 = export.export_d1(conn, out)
-    assert manifest4["row_counts"]["employers"] == 1
-    target2 = load_batches(out)
-    assert target2.execute("SELECT city FROM employers WHERE id = ?", (a,)).fetchone()[0] == "Lake Country"
-
-
-def test_full_export_resets(conn, tmp_path):
-    seed(conn)
-    out = tmp_path / "d1"
-    manifest = export.export_d1(conn, out, full=True)
-    assert manifest["full"] is True and "001_reset.sql" in manifest["files"]
-    text = (out / "001_reset.sql").read_text(encoding="utf-8")
-    assert "DELETE FROM employers;" in text
-    assert "employer_responses" not in text and "corrections" not in text
-
-
 def test_csv_and_mirror(conn, tmp_path):
     seed(conn)
     counts = export.export_csv(conn, tmp_path / "csv")
@@ -82,10 +32,3 @@ def test_csv_and_mirror(conn, tmp_path):
     assert header.startswith("id,display_name,province")
     assert export.export_mirror(conn, tmp_path / "mirror", cache_dir=tmp_path / "nocache") == 0
     assert (tmp_path / "mirror" / "SHA256SUMS").exists()
-
-
-def test_sql_literal_escaping():
-    assert export.sql_literal(None) == "NULL"
-    assert export.sql_literal("O'Brien") == "'O''Brien'"
-    assert export.sql_literal(3) == "3"
-    assert export.sql_literal(2.5) == "2.5"

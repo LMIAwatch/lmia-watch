@@ -2,6 +2,10 @@ import type { Lang } from "./i18n";
 
 export interface Env {
   DB: D1Database;
+  // The hosted search database (wrangler.jsonc, binding SEARCH), filled by
+  // the nightly sync. Optional: nothing reads it yet, and a page that does
+  // must answer without it.
+  SEARCH?: D1Database;
   DATA?: R2Bucket;
   ASSETS?: Fetcher;
   SCHEMA_SQL?: string;

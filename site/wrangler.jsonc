@@ -40,6 +40,15 @@
       "database_name": "lmia-watch",
       // Replace with the id printed by `wrangler d1 create lmia-watch` on the project account.
       "database_id": "2da1bc11-f9ae-431e-bef3-ce66b60f5bbd"
+    },
+    {
+      // The hosted search database (pipeline/search_schema.sql), written only
+      // by the nightly sync (docs/hosted-search.md). Kept apart from the forms
+      // database above so a full reload can never touch what readers sent.
+      // Nothing reads it yet.
+      "binding": "SEARCH",
+      "database_name": "lmia-watch-search",
+      "database_id": "a23fbf8b-de52-4182-91d3-cd4e8efd989a"
     }
   ],
   "r2_buckets": [

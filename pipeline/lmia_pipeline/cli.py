@@ -1,4 +1,5 @@
-"""Command line: `python -m lmia_pipeline run`, `mark-synced`, `post-digest`, `post-bluesky` and `deposit-zenodo`."""
+"""Command line: `python -m lmia_pipeline run`, `post-digest`, `post-bluesky`, `deposit-zenodo`,
+and the search database's `search-sync`, `search-check` and `search-synced`."""
 
 from __future__ import annotations
 
@@ -10,7 +11,7 @@ import sys
 from pathlib import Path
 from typing import Any, Callable
 
-from . import bluesky, config, export, export_static, indicators, migrate, social, status, zenodo
+from . import bluesky, config, export, export_static, indicators, migrate, search_db, social, status, zenodo
 from .db import connect, hours_since, log_run
 from .http import PoliteClient
 from .sources import esdc, geography, ircc, jobbank, lfs, registry_bc, registry_federal, registry_quebec, wages
@@ -61,18 +62,12 @@ def build_parser() -> argparse.ArgumentParser:
     run = sub.add_parser("run", help="collect, merge, compute and export")
     for stage in STAGES:
         run.add_argument(f"--{stage}", action="store_true", help=f"run only the {stage} stage (combinable)")
-    run.add_argument("--d1", action="store_true", help="also write D1 batches (the paid-plan path)")
-    run.add_argument("--full", action="store_true", help="with --d1: export every row, with a reset")
     run.add_argument("--limit", type=int, default=None, help="Job Bank list pages per facet (dev runs)")
     run.add_argument("--force", action="store_true", help="crawl Job Bank even if a pass ran in the last 20 hours (dev only)")
     run.add_argument("--detail-budget", type=int, default=600, help="Job Bank posting pages per run")
     run.add_argument("--registry-budget", type=int, default=registry_bc.DEFAULT_BUDGET,
                      help="OrgBook lookups per run (also capped at 15 minutes)")
     run.add_argument("--db", default=None, help="SQLite path (default data/lmia.sqlite)")
-
-    ms = sub.add_parser("mark-synced", help="record that the exported D1 batches were applied")
-    ms.add_argument("--manifest", default=None)
-    ms.add_argument("--db", default=None)
 
     pd = sub.add_parser("post-digest", help="post the daily digest of new postings to X")
     pd.add_argument("--db", default=None, help="SQLite path (default data/lmia.sqlite)")
@@ -89,6 +84,23 @@ def build_parser() -> argparse.ArgumentParser:
     dz.add_argument("--db", default=None, help="SQLite path (default data/lmia.sqlite)")
     dz.add_argument("--csv-dir", default=None, help="the CSV export (default data/out/csv)")
     dz.add_argument("--dry-run", action="store_true", help="check the files and print what would be deposited")
+
+    # The search database's nightly sync (search_db.py, docs/hosted-search.md):
+    # search-sync writes the batches, the workflow applies them with Wrangler
+    # and reads the row count back, search-check compares it, and only then
+    # search-synced records the ledger.
+    ss = sub.add_parser("search-sync", help="write the search database's changed rows as SQL batches and a manifest")
+    ss.add_argument("--db", default=None, help="SQLite path (default data/lmia.sqlite)")
+    ss.add_argument("--out", default=None, help="folder for the batches and manifest.json (default data/out/search)")
+    ss.add_argument("--full", action="store_true", help="a full reload: drop and recreate the tables, then send every row")
+    sd = sub.add_parser("search-synced", help="record the ledger entries of a manifest whose batches were all applied")
+    sd.add_argument("--db", default=None, help="SQLite path (default data/lmia.sqlite)")
+    sd.add_argument("--manifest", required=True)
+    sc = sub.add_parser("search-check", help="compare the row count read back from D1 with the manifest's expected total")
+    sc.add_argument("--manifest", required=True)
+    sc.add_argument("--count", type=int, required=True, help="SELECT COUNT(*) FROM search_rows, as D1 answered it")
+    sc.add_argument("--db", default=None,
+                    help="SQLite path; when given, a mismatch is noted there so a coming sync reloads in full")
     return parser
 
 
@@ -112,6 +124,9 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _main(args: argparse.Namespace) -> int:
+    # Needs no database unless the count disagrees.
+    if args.command == "search-check":
+        return _search_check(args)
     conn = connect(args.db)
     try:
         return _command(conn, args)
@@ -122,11 +137,6 @@ def _main(args: argparse.Namespace) -> int:
 
 
 def _command(conn: sqlite3.Connection, args: argparse.Namespace) -> int:
-
-    if args.command == "mark-synced":
-        n = export.mark_synced(conn, Path(args.manifest) if args.manifest else None)
-        log.info("recorded %d high-water marks", n)
-        return 0
 
     if args.command == "post-digest":
         outcome = social.run(conn, dry_run=args.dry_run, link=args.link, image=not args.no_image)
@@ -155,6 +165,29 @@ def _command(conn: sqlite3.Connection, args: argparse.Namespace) -> int:
         log.info("deposit-zenodo: %s", outcome)
         _outcome_file("zenodo", "last_outcome.txt", outcome)
         return 1 if outcome == "failed" else 0
+
+    # "failed" is written first and replaced only by search-synced, the last
+    # command of the sync, so a night that stops anywhere in between (a
+    # batch Wrangler could not apply, a count that disagrees, the step's time
+    # limit) reads as failed in the run status.
+    if args.command == "search-sync":
+        _outcome_file("search", search_db.OUTCOME, "failed")
+        manifest = search_db.sync(conn, Path(args.out) if args.out else None, full=args.full)
+        kind = f"full reload ({manifest['reason']})" if manifest["full"] else "changes only"
+        summary = (f"search-sync: {kind}: {manifest['upserts']} upserts, {manifest['deletes']} deletes, "
+                   f"{len(manifest['batches'])} batches, {manifest['bytes']} bytes, "
+                   f"{manifest['expected_total']} rows expected afterwards")
+        log.info("%s", summary)
+        print(summary)
+        return 0
+
+    if args.command == "search-synced":
+        manifest = search_db.read_manifest(Path(args.manifest))
+        counts = search_db.record_sync(conn, manifest)
+        outcome = "synced" if manifest["batches"] else "nothing to send"
+        log.info("search-synced: %s, ledger %s", outcome, counts)
+        _outcome_file("search", search_db.OUTCOME, outcome)
+        return 0
 
     selected = [s for s in STAGES if getattr(args, s)]
     stages = selected or STAGES
@@ -216,9 +249,29 @@ def _command(conn: sqlite3.Connection, args: argparse.Namespace) -> int:
         ok &= _stage(conn, "export_csv", lambda: export.export_csv(conn), "csv rows")
         ok &= _stage(conn, "export_mirror", lambda: export.export_mirror(conn), "mirror files")
         ok &= _stage(conn, "export", lambda: export_static.export_static(conn), "static files")
-        if args.d1:
-            ok &= _stage(conn, "export_d1", lambda: export.export_d1(conn, full=args.full)["row_counts"], "d1 rows")
     return 0 if ok else 1
+
+
+def _search_check(args: argparse.Namespace) -> int:
+    """Exit 1 when D1's row count differs from the manifest's expected total.
+
+    The workflow then leaves the ledger unrecorded, so the next night sends
+    the same changes again; with --db the mismatch is also noted, so a coming
+    sync reloads in full, which removes rows a resend cannot (search_db).
+    """
+    manifest = search_db.read_manifest(Path(args.manifest))
+    problem = search_db.count_check(int(manifest["expected_total"]), args.count)
+    if problem is None:
+        log.info("search-check: %d rows, as the manifest expects", args.count)
+        return 0
+    log.error("search-check: %s", problem)
+    if args.db:
+        conn = connect(args.db)
+        try:
+            search_db.request_reload(conn)
+        finally:
+            conn.close()
+    return 1
 
 
 def _stage(

@@ -3,8 +3,10 @@
 Cloudflare Worker (TypeScript, Hono) that renders the pages and the JSON API
 from the static JSON the pipeline exports. The data ships with the Worker as
 static assets, so page views cost nothing per row and the site fits the free
-plan. D1 holds only what visitors submit (responses and corrections); R2 holds
-the downloads.
+plan. D1 holds what visitors submit (responses and corrections) and, in a
+database of its own (`lmia-watch-search`, binding `SEARCH`), the search rows
+the nightly run sends (`../docs/hosted-search.md`; nothing reads them yet);
+R2 holds the downloads.
 
 ## Local development
 ```
@@ -67,6 +69,8 @@ the user agent and the About page point at the corrections form.
    `npx wrangler d1 execute lmia-watch --remote --file=../pipeline/schema.sql`
    (run it again after any change to the site-owned tables; every statement
    is `IF NOT EXISTS`),
+   `npx wrangler d1 create lmia-watch-search` (paste its id into the `SEARCH`
+   entry of `wrangler.jsonc`; the nightly run applies its schema and fills it),
    `npm run deploy`. `wrangler.jsonc` sets `workers_dev: false`, so the Worker
    has no address until a domain is attached; it is never published under the
    account's `workers.dev` subdomain.

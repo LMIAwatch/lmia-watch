@@ -15,6 +15,8 @@ CACHE_DIR = RAW_DIR / "cache"
 OUT_DIR = DATA_DIR / "out"
 DEFAULT_DB = DATA_DIR / "lmia.sqlite"
 SCHEMA_PATH = REPO_ROOT / "pipeline" / "schema.sql"
+# The hosted search database (D1 lmia-watch-search) has its own schema; see search_db.py.
+SEARCH_SCHEMA_PATH = REPO_ROOT / "pipeline" / "search_schema.sql"
 PACKAGE_DATA = Path(__file__).resolve().parent / "data"
 
 # The contact in the user agent is a URL (the site's corrections form), so the

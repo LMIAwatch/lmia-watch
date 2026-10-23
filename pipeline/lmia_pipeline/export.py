@@ -1,167 +1,17 @@
-"""Exports: CSV files for the Data page, the raw ESDC mirror, and D1 batches.
+"""Exports: CSV files for the Data page and the raw ESDC mirror.
 
-The D1 export is incremental. Each pipeline-owned table has a high-water
-column; rows past the mark recorded in d1_sync are written as INSERT OR
-REPLACE (or plain INSERT for append-only tables). The marks are written to a
-manifest, and `mark-synced` commits them only after the batches were applied,
-so a failed apply simply re-exports the same rows next time.
+The hosted search database has its own sync (search_db.py).
 """
 
 from __future__ import annotations
 
 import csv
 import hashlib
-import json
 import shutil
 import sqlite3
 from pathlib import Path
 
 from . import config
-from .db import log_run, now_iso
-
-# table -> (high-water column, mode). mode: replace | append | full
-TABLES: dict[str, tuple[str | None, str]] = {
-    "meta": (None, "full"),
-    "fsa_centroids": (None, "full"),
-    "employers": ("updated_at", "replace"),
-    "jobbank_postings": ("updated_at", "replace"),
-    "indicators": ("computed_at", "replace"),
-    "registry_matches": ("checked_at", "replace"),
-    "findings": ("fetched_at", "replace"),
-    "esdc_resources": ("loaded_at", "replace"),
-    "esdc_records": ("id", "append"),
-    "jobbank_observations": ("observed_at", "append"),
-    "employer_names": ("rowid", "append"),
-}
-ROWS_PER_STATEMENT = 40
-MAX_FILE_BYTES = 2 * 1024 * 1024
-
-
-def sql_literal(value: object) -> str:
-    if value is None:
-        return "NULL"
-    if isinstance(value, bool):
-        return "1" if value else "0"
-    if isinstance(value, int):
-        return str(value)
-    if isinstance(value, float):
-        return repr(value)
-    text = str(value).replace("'", "''").replace("\x00", "")
-    return f"'{text}'"
-
-
-class _BatchWriter:
-    def __init__(self, out_dir: Path, start_index: int) -> None:
-        self.out_dir = out_dir
-        self.index = start_index
-        self.files: list[str] = []
-        self._buf: list[str] = []
-        self._size = 0
-        self._name = ""
-
-    def start(self, name: str) -> None:
-        self.flush()
-        self._name = name
-
-    def add(self, statement: str) -> None:
-        if self._size + len(statement) > MAX_FILE_BYTES and self._buf:
-            self.flush()
-        self._buf.append(statement)
-        self._size += len(statement) + 1
-
-    def flush(self) -> None:
-        if not self._buf:
-            return
-        path = self.out_dir / f"{self.index:03d}_{self._name}.sql"
-        path.write_text("\n".join(self._buf) + "\n", encoding="utf-8")
-        self.files.append(path.name)
-        self.index += 1
-        self._buf = []
-        self._size = 0
-
-
-def _columns(conn: sqlite3.Connection, table: str) -> list[str]:
-    return [r["name"] for r in conn.execute(f"PRAGMA table_info({table})")]
-
-
-def _insert_statements(table: str, columns: list[str], rows: list[sqlite3.Row], verb: str):
-    cols = ", ".join(columns)
-    for i in range(0, len(rows), ROWS_PER_STATEMENT):
-        chunk = rows[i:i + ROWS_PER_STATEMENT]
-        values = ",\n".join("(" + ", ".join(sql_literal(r[c]) for c in columns) + ")" for r in chunk)
-        yield f"{verb} INTO {table} ({cols}) VALUES\n{values};"
-
-
-def export_d1(conn: sqlite3.Connection, out_dir: Path | None = None, *, full: bool = False) -> dict:
-    out = out_dir or (config.OUT_DIR / "d1")
-    if out.exists():
-        for old in out.glob("*.sql"):
-            old.unlink()
-    out.mkdir(parents=True, exist_ok=True)
-    stamp = now_iso()
-
-    shutil.copyfile(config.SCHEMA_PATH, out / "000_schema.sql")
-    files = ["000_schema.sql"]
-    writer = _BatchWriter(out, 1)
-    if full:
-        writer.start("reset")
-        for table in reversed(list(TABLES)):
-            writer.add(f"DELETE FROM {table};")
-        writer.flush()
-
-    marks = {r["table_name"]: r["high_water"] for r in conn.execute("SELECT table_name, high_water FROM d1_sync")}
-    new_marks: dict[str, str] = {}
-    counts: dict[str, int] = {}
-    for table, (hw_col, mode) in TABLES.items():
-        columns = _columns(conn, table)
-        select_cols = ", ".join(columns)
-        if mode == "full" or full or hw_col is None or table not in marks:
-            rows = conn.execute(f"SELECT {select_cols} FROM {table}").fetchall()
-        else:
-            rows = conn.execute(
-                f"SELECT {select_cols} FROM {table} WHERE {hw_col} > ?", (marks[table],)
-            ).fetchall()
-        counts[table] = len(rows)
-        if hw_col is not None:
-            top = conn.execute(f"SELECT MAX({hw_col}) AS m FROM {table}").fetchone()["m"]
-            if top is not None:
-                new_marks[table] = str(top)
-        if not rows:
-            continue
-        verb = "INSERT OR IGNORE" if mode == "append" and table == "employer_names" else (
-            "INSERT OR REPLACE" if mode != "append" else "INSERT OR IGNORE"
-        )
-        writer.start(table)
-        for stmt in _insert_statements(table, columns, rows, verb):
-            writer.add(stmt)
-        writer.flush()
-    files.extend(writer.files)
-
-    manifest = {
-        "generated_at": stamp,
-        "full": full,
-        "files": files,
-        "row_counts": counts,
-        "high_water": new_marks,
-    }
-    (out / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-    log_run(conn, "export", detail=f"d1 files={len(files)} rows={sum(counts.values())} full={full}",
-            rows_in=sum(counts.values()))
-    return manifest
-
-
-def mark_synced(conn: sqlite3.Connection, manifest_path: Path | None = None) -> int:
-    path = manifest_path or (config.OUT_DIR / "d1" / "manifest.json")
-    manifest = json.loads(path.read_text(encoding="utf-8"))
-    marks = manifest.get("high_water", {})
-    for table, value in marks.items():
-        conn.execute(
-            "INSERT INTO d1_sync (table_name, high_water) VALUES (?, ?) "
-            "ON CONFLICT(table_name) DO UPDATE SET high_water = excluded.high_water",
-            (table, value),
-        )
-    conn.commit()
-    return len(marks)
 
 
 # -- CSV and mirror ---------------------------------------------------------

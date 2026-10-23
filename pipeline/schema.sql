@@ -15,7 +15,9 @@ CREATE TABLE IF NOT EXISTS meta (
 -- count_pending, count_approved_records, count_approved_positions,
 -- count_refused_records, count_findings
 -- pipeline-only keys: normalize_version (the name normalization employer ids
--- were derived with; see migrate.py)
+-- were derived with; see migrate.py), search_full_at (date of the last full
+-- reload of the search database) and search_reload_due (date its row count
+-- last disagreed; see search_db.py)
 
 -- One row per merged employer. Identity = normalized legal name + province:
 -- the part of a name before "dba", "o/a" and similar markers is the legal name.
@@ -206,10 +208,18 @@ CREATE TABLE IF NOT EXISTS sources_log (
 -- Pipeline-local bookkeeping. Lives only in the local SQLite file; never
 -- exported to D1 and never read by the site.
 -- ---------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS d1_sync (
-  table_name TEXT PRIMARY KEY,
-  high_water TEXT NOT NULL                       -- last exported updated_at / id / observed_at per table
+-- The hosted search sync's ledger (search_db.py): every row of the D1 search
+-- database (search_schema.sql) as last confirmed there, by key, with its rid
+-- and content hash. Tonight's rows are compared with it, so only changed rows
+-- are sent; written only after the workflow applied every batch and read back
+-- the expected row count.
+CREATE TABLE IF NOT EXISTS search_sync (
+  key TEXT PRIMARY KEY,                          -- 'e:<esdc_records.id>' or 'p:<posting_id>'
+  rid INTEGER NOT NULL,                          -- search_rows.rid
+  hash TEXT NOT NULL                             -- search_db.row_hash of the row as sent
 );
+-- High-water marks of a D1 copy of the whole database that was never used.
+DROP TABLE IF EXISTS d1_sync;
 
 -- Employer ids retired by a normalization change (migrate.py) or by an ESDC
 -- file read again under a newer parser (sources/esdc.py), each with the id

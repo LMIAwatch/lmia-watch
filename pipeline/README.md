@@ -19,8 +19,9 @@ python -m lmia_pipeline run --db ../data/lmia.sqlite            # every stage
 python -m lmia_pipeline run --esdc                               # one stage
 python -m lmia_pipeline run --jobbank --limit 1 --detail-budget 2  # dev-sized Job Bank run
 python -m lmia_pipeline run --export                             # csv, mirror and static JSON
-python -m lmia_pipeline run --export --d1 --full                 # paid-plan path: D1 batches too
-python -m lmia_pipeline mark-synced                              # after D1 batches were applied
+python -m lmia_pipeline search-sync --db ../data/lmia.sqlite     # search database: changed rows as SQL batches
+python -m lmia_pipeline search-check --manifest ../data/out/search/manifest.json --count 487547
+python -m lmia_pipeline search-synced --db ../data/lmia.sqlite --manifest ../data/out/search/manifest.json
 python -m lmia_pipeline post-digest --dry-run                    # print the daily X post, send nothing
 python -m lmia_pipeline post-bluesky --dry-run                   # print the daily Bluesky post, send nothing
 python -m lmia_pipeline deposit-zenodo --dry-run                 # list what a Zenodo deposit would hold
@@ -37,6 +38,12 @@ when a new ESDC quarter is loaded, when `ZENODO_TOKEN` is set
 (`ZENODO_SANDBOX=true` for the sandbox). Setup: `../docs/zenodo.md`.
 Both write their outcome under `data/out/` and exit 1 on a failure, for the
 workflow's run status; neither raises.
+`search-sync` writes the rows of the hosted search database (D1
+`lmia-watch-search`) whose content changed since the ledger in the SQLite file
+as SQL batches plus `manifest.json` (`--full` drops and recreates the tables
+first and sends every row); the workflow applies them with Wrangler, reads
+the row count back for `search-check`, and only then runs `search-synced`,
+which records the ledger. Operator guide: `../docs/hosted-search.md`.
 Stage order: esdc, ircc, jobbank, registry (BC, federal, Quebec), wages, lfs,
 vacancies, geography, indicators and status, export.
 Before any stage, `run` compares `meta.normalize_version` with
@@ -68,9 +75,10 @@ marking, because a capped run has not seen the whole feed.
 | `sources/geography.py` | 2021 Census boundaries; places every forward sortation area in an economic region and a census metropolitan area (`fsa_regions`) |
 | `indicators.py` | the rules (version in `RULES_VERSION`) |
 | `status.py` | employer rollups, the status lifecycle, meta counters |
-| `export.py` | CSV files, the raw-file mirror with checksums, optional D1 batches |
+| `export.py` | CSV files and the raw-file mirror with checksums |
 | `export_static.py` | the JSON files the site serves |
 | `places.py` | the occupation and place pages: one JSON file per page, and their sitemap entries |
+| `search_db.py` | the hosted search database (`../pipeline/search_schema.sql`): its rows, the content-hash ledger, the nightly batches and manifest, the ledger record after the apply (separate `search-sync`, `search-check` and `search-synced` commands) |
 | `social.py` | the daily X digest: compose, save to `data/out/social/`, post (separate `post-digest` command) |
 | `social_card.py` | the card image attached to the digest, drawn with Pillow from the day's figures |
 | `bluesky.py` | the same digest and card on Bluesky over the AT Protocol, with a link facet (separate `post-bluesky` command) |
@@ -88,8 +96,9 @@ data/out/static/        the JSON the site serves as static assets (see export_st
                           clusters/*.json, areas/<FSA>.json, profiles/<abc>.json,
                           aliases/<abc>.json (retired employer id to live id),
                           occupations/*.json, places/**/*.json (places.py)
-data/out/d1/            only with `run --export --d1`: batches for a paid D1 database,
-                        plus manifest.json and the `mark-synced` command
+data/out/search/        written by `search-sync`: batch-0001.sql and on (at most 5 MB or
+                        5,000 statements each, up to 100 rows per upsert statement),
+                        manifest.json, last_outcome.txt
 ```
 The static export is deterministic (sorted keys and rows), so an unchanged file
 keeps its bytes and the deploy skips it. Each file stays under the 25 MiB
@@ -106,8 +115,9 @@ apostrophes inside words, drops other punctuation and "and"/"et", joins runs
 of single letters, spells the jurisdiction of a numbered company one way, and
 strips legal suffixes. Changing any of this means bumping `NORMALIZE_VERSION`;
 the next run then re-derives ids (`migrate.py`), records each retired id in
-`employer_aliases`, and needs a full D1 re-export on the paid-plan path
-(`run --export --d1 --full`). An ESDC file read again under a newer parser
+`employer_aliases`; the search database needs nothing extra, since the
+employer id is part of each search row's hash and the next `search-sync`
+sends every row whose id changed. An ESDC file read again under a newer parser
 records an alias too, when a row it files under a new id (a province read
 from its block) leaves the old employer with nothing. The static export writes
 the aliases, chains followed to the live id, as `aliases/<abc>.json`, sharded

@@ -24,9 +24,10 @@ employers table from the records themselves:
 The pipeline runs this once, when meta.normalize_version is older than
 normalize.NORMALIZE_VERSION. Running it again on a migrated database changes
 nothing. The site's own tables in D1 (employer_responses, corrections) keep
-the ids they were written with; there were none when version 2 shipped. A
-paid-plan D1 copy needs a full re-export (run --export --d1 --full) after a
-migration, because ids disappear.
+the ids they were written with; there were none when version 2 shipped. The
+hosted search database needs no step of its own: the employer id is part of
+each search row's hash, so the next sync resends every row whose id changed
+(search_db.py).
 """
 
 from __future__ import annotations

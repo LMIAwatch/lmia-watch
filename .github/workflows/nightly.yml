@@ -8,7 +8,8 @@
 #
 # Steps: restore the SQLite file from R2, run every pipeline stage (the
 # pipeline itself skips Job Bank if it already ran within the last 20 hours),
-# check the database and the export, deploy the Worker with that data as its
+# check the database and the export, send the changed rows to the search
+# database (D1 lmia-watch-search), deploy the Worker with that data as its
 # assets, post the daily digest to X and to Bluesky when their secrets exist,
 # deposit a new ESDC quarter on Zenodo when its token exists, save the
 # database and the public files back to R2, and write the run status.
@@ -25,6 +26,8 @@
 #   kept as the previous one before it is replaced.
 # - The status file is written whatever happened, so the site's daily check
 #   always has something current to read.
+# - A search database sync that fails is reported (search_sync: failed) and
+#   sent again the next night; it never stops the run.
 #
 # Secrets on the project account: CLOUDFLARE_API_TOKEN (Workers + R2 + D1),
 # CLOUDFLARE_ACCOUNT_ID. Optional: X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN,
@@ -158,6 +161,41 @@ jobs:
         run: |
           python -m lmia_pipeline.nightly verify --db data/lmia.sqlite --static data/out/static \
             --started-file data/out/run_started.txt --restore data/out/restore.json --out data/out/verify.json
+
+      # The search database (docs/hosted-search.md): D1 lmia-watch-search,
+      # apart from the forms database. search-sync writes the rows whose
+      # content hash differs from the ledger in the SQLite file (every row on
+      # a first load or a full reload) as SQL batches and a manifest. The
+      # schema goes first (every statement IF NOT EXISTS), then each batch in
+      # manifest order, one Wrangler call each; D1 rolls back a batch that
+      # fails, and the step stops there with every earlier batch applied in
+      # full. The row count is then read back and compared with the manifest,
+      # and only a match records the ledger, so a night that stopped anywhere
+      # is sent again the next night. Runs only when both checks passed: the
+      # ledger lives in the database, and a database that is not saved below
+      # would come back the next night with a ledger behind D1. Before the R2
+      # save, so the ledger travels with the database. Nothing reads this
+      # database yet; a failure shows as search_sync: failed in the run status
+      # and never stops the run. A first load or a full reload sends about
+      # 50 batches; a normal night sends one.
+      - name: Sync the search database
+        id: search
+        if: ${{ !cancelled() && steps.verify.outputs.export_ok == 'true' && steps.verify.outputs.db_ok == 'true' }}
+        continue-on-error: true
+        timeout-minutes: 60
+        working-directory: site
+        run: |
+          out=../data/out/search
+          python -m lmia_pipeline search-sync --db ../data/lmia.sqlite --out "$out"
+          "$WRANGLER" d1 execute lmia-watch-search --remote --yes --file ../pipeline/search_schema.sql
+          for batch in $(python -c 'import json, sys; print(" ".join(json.load(open(sys.argv[1]))["batches"]))' "$out/manifest.json"); do
+            echo "Applying $batch"
+            "$WRANGLER" d1 execute lmia-watch-search --remote --yes --file "$out/$batch"
+          done
+          "$WRANGLER" d1 execute lmia-watch-search --remote --json --command "SELECT COUNT(*) AS n FROM search_rows" > "$out/count.json"
+          count=$(python -c 'import json, sys; print(int(json.load(open(sys.argv[1]))[0]["results"][0]["n"]))' "$out/count.json")
+          python -m lmia_pipeline search-check --db ../data/lmia.sqlite --manifest "$out/manifest.json" --count "$count"
+          python -m lmia_pipeline search-synced --db ../data/lmia.sqlite --manifest "$out/manifest.json"
 
       - name: Bundle the static data for the site
         id: bundle
@@ -324,9 +362,10 @@ jobs:
 
       # What the daily check in the Worker reads: when the run finished, which
       # stages and steps succeeded, what the checks found, and the outcomes of
-      # the X post, the Bluesky post and the Zenodo deposit. Written whatever
-      # happened above. The Bluesky and Zenodo commands write "failed" before
-      # they start, so a step stopped by its time limit still reads as failed.
+      # the X post, the Bluesky post, the Zenodo deposit and the search
+      # database sync. Written whatever happened above. The Bluesky, Zenodo
+      # and search-sync commands write "failed" before they start, so a step
+      # stopped by its time limit still reads as failed.
       - name: Write the run status
         if: ${{ always() }}
         run: |
@@ -335,6 +374,7 @@ jobs:
             --outcome data/out/social/last_outcome.txt \
             --bluesky-outcome data/out/social/bluesky_outcome.txt \
             --zenodo-outcome data/out/zenodo/last_outcome.txt \
+            --search-outcome data/out/search/last_outcome.txt \
             --step "restore=${{ steps.restore.outcome }}" --step "pipeline=${{ steps.pipeline.outcome }}" \
             --step "verify=${{ steps.verify.outcome }}" --step "deploy=${{ steps.deploy.outcome }}" \
             --step "save_db=${{ steps.save_db.outcome }}" --step "save_files=${{ steps.save_files.outcome }}" \
@@ -367,6 +407,10 @@ jobs:
             echo "" >> LAST_RUN.md
             echo "Zenodo deposit: $(cat data/out/zenodo/last_outcome.txt)" >> LAST_RUN.md
           fi
+          if [ -f data/out/search/last_outcome.txt ]; then
+            echo "" >> LAST_RUN.md
+            echo "Search database sync: $(cat data/out/search/last_outcome.txt)" >> LAST_RUN.md
+          fi
           git config user.name "LMIA Watch"
           git config user.email "ops@lmiawatch.invalid"
           git add LAST_RUN.md
@@ -398,6 +442,8 @@ jobs:
               items.append(f"Bluesky post: {s['bluesky_post']}")
           if s.get("zenodo_deposit") == "failed":
               items.append("Zenodo deposit: failed (tried again next run)")
+          if s.get("search_sync") == "failed":
+              items.append("Search database sync: failed (sent again next run)")
           for i in items:
               print("ATTENTION:", i)
           sys.exit(1 if items else 0)

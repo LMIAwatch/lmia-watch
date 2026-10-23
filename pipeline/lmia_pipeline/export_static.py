@@ -163,6 +163,9 @@ ESDC_SQL = (
     "SELECT id, list, period, employer_id, employer_raw, province, stream, city, postal_code, noc_code, noc_title, "
     "lmias, positions, resource_id FROM esdc_records"
 )
+# The postings search shows: a lapsed one (the flag gone from Job Bank) is
+# left out. Shared with search_db, so the hosted search holds the same set.
+SEARCHED_POSTINGS = "flag_current IN ('requested', 'approved')"
 
 
 def _sort_rows(rows: list[dict]) -> list[dict]:
@@ -175,7 +178,7 @@ def _prov(row: dict) -> str:
 
 
 def search_latest(conn: sqlite3.Connection, latest: str, ind: dict[str, list[str]]) -> list[dict]:
-    rows = [posting_row(p, ind) for p in conn.execute(POSTING_SQL + " WHERE flag_current IN ('requested', 'approved')")]
+    rows = [posting_row(p, ind) for p in conn.execute(POSTING_SQL + f" WHERE {SEARCHED_POSTINGS}")]
     rows += [esdc_row(r, ind) for r in conn.execute(ESDC_SQL + " WHERE period = ?", (latest,))]
     return _sort_rows(rows)
 
@@ -185,7 +188,7 @@ def search_province(conn: sqlite3.Connection, prov: str, ind: dict[str, list[str
     where = "province IS NULL" if prov == UNKNOWN_PROVINCE else "province = ?"
     params: tuple = () if prov == UNKNOWN_PROVINCE else (prov,)
     postings = _sort_rows([posting_row(p, ind) for p in conn.execute(
-        POSTING_SQL + f" WHERE flag_current IN ('requested', 'approved') AND {where}", params)])
+        POSTING_SQL + f" WHERE {SEARCHED_POSTINGS} AND {where}", params)])
     by_year: dict[str, list[dict]] = defaultdict(list)
     for r in conn.execute(ESDC_SQL + f" WHERE {where} AND period >= ?", (*params, SEARCH_FROM_PERIOD)):
         by_year[r["period"][:4]].append(esdc_row(r, ind))
