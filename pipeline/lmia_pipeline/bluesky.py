@@ -1,10 +1,10 @@
 """Daily Bluesky post: the same digest and card as the X post, with the link.
 
-Why the AT Protocol over plain HTTPS rather than a client library: three
-calls cover it (createSession, uploadBlob, createRecord), and requests is
-already a dependency. The account signs in with an app password, which the
-owner can revoke from the account settings at any time without touching the
-account password.
+Why the AT Protocol over plain HTTPS rather than a client library: four
+calls cover it (createSession, listRecords, uploadBlob, createRecord), and
+requests is already a dependency. The account signs in with an app password,
+which the owner can revoke from the account settings at any time without
+touching the account password.
 
 Why the link: posting to Bluesky is free, so the post carries the search link
 that X would bill at a higher rate. A Bluesky client links only the byte
@@ -15,6 +15,14 @@ or a mention.
 Why it never raises, and the meta key: as in social.py. The date of the Job
 Bank pass last posted is stored under its own key, so the X and Bluesky posts
 each go out at most once per pass, independently of each other.
+
+Why it reads the account's recent posts first: a post can go through while
+its answer is lost (a timeout after createRecord), which leaves the meta key
+unset, and a re-run would post the same text again. The account's own feed
+is the record that cannot be lost, so a recent post with tonight's exact text
+counts as posted. The listing is public and asked without a token. When it
+cannot be read the post goes out as it did before the check, so an outage of
+the listing alone never stops a night's post.
 """
 
 from __future__ import annotations
@@ -28,6 +36,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping
+from urllib.parse import urlencode
 
 from . import config, social
 from .db import get_meta, set_meta
@@ -39,6 +48,10 @@ SERVICE = "https://bsky.social"
 SESSION_URL = f"{SERVICE}/xrpc/com.atproto.server.createSession"
 UPLOAD_URL = f"{SERVICE}/xrpc/com.atproto.repo.uploadBlob"
 RECORD_URL = f"{SERVICE}/xrpc/com.atproto.repo.createRecord"
+LIST_URL = f"{SERVICE}/xrpc/com.atproto.repo.listRecords"
+# Posts read back before posting: a re-run comes the same night, so tonight's
+# post, if it went out, is among the newest few.
+RECENT_POSTS = 25
 # app.bsky.feed.post allows 300 graphemes of text; an image blob may be at most 1,000,000 bytes.
 MAX_GRAPHEMES = 300
 MAX_IMAGE_BYTES = 1_000_000
@@ -127,10 +140,44 @@ def _body(resp: Any) -> str:
         return "(no body)"
 
 
+class Existing(str):
+    """The at:// URI of a post with tonight's text that was already on the account."""
+
+
+def recent_post(http: Any, repo: str, text: str, timeout: float) -> str | None:
+    """The URI of one of the account's newest posts whose text is exactly text.
+
+    None when there is none, and when the listing cannot be read: the caller
+    then posts, so a listing fault never costs a night's post. The request
+    carries no token (listRecords is public), so none can reach a URL or a log.
+    """
+    url = LIST_URL + "?" + urlencode({"repo": repo, "collection": "app.bsky.feed.post", "limit": RECENT_POSTS})
+    try:
+        resp = http.get(url, headers={"User-Agent": config.USER_AGENT}, timeout=timeout)
+        status = _status(resp)
+        if not 200 <= status < 300:
+            log.warning("bluesky: recent posts not readable, HTTP %s; posting without the check: %s", status, _body(resp))
+            return None
+        records = resp.json()["records"]
+        if not isinstance(records, list):
+            raise ValueError("records is not a list")
+    except Exception as exc:
+        log.warning("bluesky: recent posts not readable (%s), posting without the check: %s",
+                    type(exc).__name__, str(exc)[:200])
+        return None
+    for rec in records:
+        value = rec.get("value") if isinstance(rec, dict) else None
+        if isinstance(value, dict) and value.get("text") == text:
+            return str(rec.get("uri") or "unknown")
+    return None
+
+
 def send_post(text: str, link: str, creds: Credentials, *, session: Any | None = None, timeout: float = 30,
               image: bytes | None = None, alt: str | None = None) -> str | None:
-    """Sign in, upload the card, create the post. The new post's at:// URI, or
-    None when the sign-in or the post failed. A failed upload posts the text alone."""
+    """Sign in, check the recent posts, upload the card, create the post. The
+    new post's at:// URI; an Existing URI when a recent post already has this
+    text (nothing is sent); None when the sign-in or the post failed. A failed
+    upload posts the text alone."""
     try:
         import requests
     except ImportError:
@@ -158,6 +205,9 @@ def send_post(text: str, link: str, creds: Credentials, *, session: Any | None =
         return None
     auth = dict(headers, Authorization=f"Bearer {token}")
 
+    existing = recent_post(http, did, text, timeout)
+    if existing is not None:
+        return Existing(existing)
     blob = _upload(http, auth, image, timeout) if image else None
     record = post_record(text, link, blob=blob, alt=alt)
     try:
@@ -257,5 +307,9 @@ def _run(
     set_meta(conn, LAST_POST_KEY, digest.data_date)
     set_meta(conn, LAST_POST_URI_KEY, uri)
     conn.commit()
+    if isinstance(uri, Existing):
+        log.info("bluesky: %s already carries the post for the Job Bank pass of %s; nothing posted", uri,
+                 digest.data_date)
+        return "already posted"
     log.info("bluesky: posted %s for the Job Bank pass of %s", uri, digest.data_date)
     return "posted"

@@ -1,5 +1,7 @@
 """The daily Bluesky post, against a stub session: nothing here reaches the network."""
 
+from urllib.parse import parse_qs, urlsplit
+
 import pytest
 import requests
 
@@ -15,17 +17,29 @@ BLOB = {"$type": "blob", "ref": {"$link": "bafkreiexample"}, "mimeType": "image/
 
 
 class FakeBsky:
-    """Stands in for requests.Session: records each request, answers per endpoint or raises."""
+    """Stands in for requests.Session: records each request, answers per endpoint or raises.
+
+    POSTs go to `calls`; the one GET, the public listing of recent posts, goes
+    to `gets` and answers `listing` (no recent posts unless told)."""
 
     def __init__(self, *, session: FakeJSON | Exception | None = None, upload: FakeJSON | Exception | None = None,
-                 record: FakeJSON | Exception | None = None) -> None:
+                 record: FakeJSON | Exception | None = None, listing: FakeJSON | Exception | None = None) -> None:
         self.answers = {
             bluesky.SESSION_URL: session or FakeJSON(200, {"accessJwt": "access-jwt-value", "refreshJwt": "r", "did": DID,
                                                             "handle": "lmiawatch.ca"}),
             bluesky.UPLOAD_URL: upload or FakeJSON(200, {"blob": BLOB}),
             bluesky.RECORD_URL: record or FakeJSON(200, {"uri": f"at://{DID}/app.bsky.feed.post/3kexample", "cid": "bafy"}),
         }
+        self.listing = listing or FakeJSON(200, {"records": []})
         self.calls: list[dict] = []
+        self.gets: list[dict] = []
+
+    def get(self, url, headers=None, timeout=None):
+        self.gets.append({"url": url, "headers": headers or {}})
+        assert url.split("?", 1)[0] == bluesky.LIST_URL
+        if isinstance(self.listing, Exception):
+            raise self.listing
+        return self.listing
 
     def post(self, url, json=None, data=None, headers=None, timeout=None):
         self.calls.append({"url": url, "json": json, "data": data, "headers": headers or {}})
@@ -212,3 +226,74 @@ def test_cli_writes_the_outcome_and_exits_1_on_failure(tmp_path, monkeypatch):
     assert (tmp_path / "out" / "social" / "bluesky_outcome.txt").read_text(encoding="utf-8").strip() == "posted"
     # The X outcome file is X's alone.
     assert not (tmp_path / "out" / "social" / "last_outcome.txt").exists()
+
+
+# -- the account's recent posts, read before posting -------------------------
+
+
+def tonight(conn) -> str:
+    return bluesky.compose(social.collect(conn), social.search_link())
+
+
+def listed(*texts, uri_base=f"at://{DID}/app.bsky.feed.post/"):
+    return FakeJSON(200, {"records": [
+        {"uri": f"{uri_base}{i}", "cid": "bafy", "value": {"$type": "app.bsky.feed.post", "text": t,
+                                                         "createdAt": "2026-10-18T00:20:00.000Z"}}
+        for i, t in enumerate(texts)
+    ], "cursor": "c"})
+
+
+def test_a_recent_post_with_tonights_text_counts_as_posted(conn, tmp_path):
+    seed(conn)
+    text = tonight(conn)
+    # The post went out but its answer was lost, so meta holds no date.
+    fake = FakeBsky(listing=listed("Yesterday's digest", text))
+    assert bluesky.run(conn, out_dir=tmp_path, env=CREDS, session=fake) == "already posted"
+    # Signed in to learn the account's did, then nothing uploaded or created.
+    assert fake.urls() == [bluesky.SESSION_URL]
+    assert get_meta(conn, "bsky_last_post_date") == "2026-10-17"
+    assert get_meta(conn, "bsky_last_post_uri") == f"at://{DID}/app.bsky.feed.post/1"
+    # The listing is public: the repo, the collection and the count, and no token anywhere in it.
+    (listing,) = fake.gets
+    query = parse_qs(urlsplit(listing["url"]).query)
+    assert query == {"repo": [DID], "collection": ["app.bsky.feed.post"], "limit": ["25"]}
+    assert "Authorization" not in listing["headers"] and listing["headers"]["User-Agent"].startswith("LMIAWatch/")
+    assert "access-jwt-value" not in str(listing) and "abcd-efgh" not in str(listing)
+    # The next run stops at the date in meta, before signing in.
+    again = FakeBsky(listing=listed(text))
+    assert bluesky.run(conn, out_dir=tmp_path, env=CREDS, session=again) == "already posted"
+    assert again.calls == [] and again.gets == []
+
+
+def test_a_listing_without_tonights_exact_text_posts_as_before(conn, tmp_path):
+    seed(conn)
+    text = tonight(conn)
+    # The whole text is compared: tonight's text cut short, or with more after it, is another post.
+    fake = FakeBsky(listing=FakeJSON(200, {"records": [
+        None, {"uri": "at://x/1", "value": "not an object"}, {"uri": "at://x/2", "value": {"text": text[:-1]}},
+        {"uri": "at://x/3", "value": {"text": text + " "}}, {"uri": "at://x/4"},
+    ]}))
+    assert bluesky.run(conn, out_dir=tmp_path, env=CREDS, session=fake) == "posted"
+    assert fake.urls() == [bluesky.SESSION_URL, bluesky.UPLOAD_URL, bluesky.RECORD_URL]
+    assert len(fake.gets) == 1 and fake.record()["text"] == text
+    assert get_meta(conn, "bsky_last_post_uri") == f"at://{DID}/app.bsky.feed.post/3kexample"
+
+
+@pytest.mark.parametrize("listing", [
+    FakeJSON(500, {"error": "InternalServerError"}),
+    FakeJSON(400, {"error": "InvalidRequest", "message": "Could not find repo"}),
+    requests.ConnectionError("unreachable"),
+    requests.Timeout("read timed out"),
+    FakeJSON(200, None, text="<html>bad gateway</html>"),
+    FakeJSON(200, {"cursor": "c"}),
+    FakeJSON(200, {"records": "not a list"}),
+])
+def test_a_listing_that_cannot_be_read_still_posts(conn, tmp_path, listing, caplog):
+    seed(conn)
+    fake = FakeBsky(listing=listing)
+    assert bluesky.run(conn, out_dir=tmp_path, env=CREDS, session=fake) == "posted"
+    assert fake.urls().count(bluesky.RECORD_URL) == 1
+    assert get_meta(conn, "bsky_last_post_date") == "2026-10-17"
+    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert any("recent posts not readable" in r.getMessage() for r in warnings)
+    assert "abcd-efgh-ijkl-mnop" not in caplog.text and "access-jwt-value" not in caplog.text

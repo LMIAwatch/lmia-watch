@@ -131,10 +131,16 @@ a home connection.
    long, employers are dropped from the end first, then the province line.
    The link is made clickable with a link facet over its exact bytes; nothing
    else in the text becomes a link or a mention.
-4. It signs in with the app password, uploads the card (Bluesky allows up to
-   1,000,000 bytes; the card is about 75 KB) and creates the post with the
-   card and its alt text. When the upload fails the text goes out alone.
-5. A refused sign-in or post exits 1, so the step shows red while the
+4. It signs in with the app password and reads the account's 25 newest
+   posts (the public `listRecords` call, sent without the session token).
+   When one of them has exactly tonight's text, the post went out on an
+   earlier try whose answer was lost: the job records that post's address
+   and date, reports `already posted` and sends nothing. When the listing
+   cannot be read, it posts as usual.
+5. It uploads the card (Bluesky allows up to 1,000,000 bytes; the card is
+   about 75 KB) and creates the post with the card and its alt text. When
+   the upload fails the text goes out alone.
+6. A refused sign-in or post exits 1, so the step shows red while the
    refresh carries on. The outcome is recorded as `bluesky_post` in the run
    status, the workflow's last step lists it, the Worker's daily check emails
    the alert address, and LAST_RUN.md records it.
@@ -146,6 +152,8 @@ delete the app password in the account's settings.
 
 - Posts, images and alt text through the AT Protocol (createSession,
   uploadBlob, createRecord): `docs.bsky.app/docs/advanced-guides/posts`
+- Reading a repository's records (listRecords, no authentication):
+  `docs.bsky.app/docs/api/com-atproto-repo-list-records`
 - Link facets and their UTF-8 byte offsets: `docs.bsky.app/docs/advanced-guides/post-richtext`
 - Bots and the self-label: `docs.bsky.app/docs/starter-templates/bots`
 - Custom domain handles: `bsky.social/about/blog/4-28-2023-domain-handle-tutorial`
