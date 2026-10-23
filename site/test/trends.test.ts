@@ -246,6 +246,13 @@ describe("Job Bank pending, night by night", () => {
     expect(page.match(/<tr>/g)?.length).toBe(301);
   });
 
+  it("calls a change too small for one decimal about the same", async () => {
+    const two = { points: [{ date: "2026-10-22", n: 4362 }, { date: "2026-10-23", n: 4361 }], first: "2026-10-22", latest: "2026-10-23" };
+    const page = await html("/trends/pending", testEnv(assetsWith({ ...FILES, "trends/pending.json": two })));
+    expect(text(page)).toContain("Latest complete pass, 2026-10-23: 4,361 postings, against 4,362 on 2026-10-22 (about the same).");
+    expect(text(await html("/trends/pending?lang=fr", testEnv(assetsWith({ ...FILES, "trends/pending.json": two }))))).toContain("(à peu près inchangé)");
+  });
+
   it("starts with a single point", async () => {
     const one = { points: [{ date: "2026-10-18", n: 4279 }], first: "2026-10-18", latest: "2026-10-18" };
     const page = await html("/trends/pending", testEnv(assetsWith({ ...FILES, "trends/pending.json": one })));

@@ -152,6 +152,8 @@ const pctText = (lang: Lang, v: number) => decimal(lang, Math.abs(v).toFixed(1))
 function changeText(lang: Lang, c: { change: number; pct: number | null }): string {
   if (c.change === 0) return t(lang, "trends.change_same");
   if (c.pct === null) return t(lang, "trends.change_from_zero");
+  // A change too small to show at one decimal ("down 0.0 percent") reads as no change.
+  if (Math.abs(c.pct) < 0.05) return t(lang, "trends.change_flat");
   return t(lang, c.pct > 0 ? "trends.change_up" : "trends.change_down", { pct: pctText(lang, c.pct) });
 }
 

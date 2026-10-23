@@ -1963,6 +1963,7 @@ const STRINGS = {
   "trends.change_up": { en: "up {pct} percent", fr: "en hausse de {pct} %" },
   "trends.change_down": { en: "down {pct} percent", fr: "en baisse de {pct} %" },
   "trends.change_same": { en: "no change", fr: "aucune variation" },
+  "trends.change_flat": { en: "about the same", fr: "à peu près inchangé" },
   "trends.change_from_zero": { en: "from zero", fr: "à partir de zéro" },
 
   "trends.notes_title": { en: "About These Series", fr: "À propos de ces séries" },
