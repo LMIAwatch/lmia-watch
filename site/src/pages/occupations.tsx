@@ -7,19 +7,39 @@
 import type { Context } from "hono";
 import { loadJson, loadStats } from "../data";
 import type { AppEnv } from "../env";
-import { fmtInt, periodLabel, provinceName, t, tn, type Lang } from "../i18n";
+import { decimal, fmtInt, numberLocale, periodLabel, provinceName, t, tj, tn, type Key, type Lang } from "../i18n";
 import { Layout, noDataPage, page } from "../layout";
-import { isListOf, isNum, isObj, isStr, isStrOrNull } from "../valid";
+import { isListOf, isNum, isNumOrNull, isObj, isStr, isStrOrNull } from "../valid";
 import {
-  type Bilingual, type NationalLatest, type Posted, type Quarter, type Recent, type SeriesRow, type StatcanRef,
-  type Totals, type WageRow, EmployerSection, JobSeekerNote, QuarterSection, SourcesNote, StreamSection, WageHead,
-  WageNote, hasSharedParts, isBilingual, isWageRow, jobBankSearch, money, notFound, placeName, sectionSeo, trendLines,
-  wageCells, wageLine,
+  type Bilingual, type JobBankRef, type NationalLatest, type Posted, type Quarter, type Recent, type SeriesRow,
+  type StatcanRef, type Totals, type WageRow, EmployerSection, JobSeekerNote, QuarterSection, SourcesNote, StreamSection,
+  WageHead, WageNote, hasSharedParts, isBilingual, isJobBank, isStatcan, isWageRow, jobBankCell, jobBankSearch, money,
+  notFound, placeName, sectionSeo, statcanCell, trendLines, tuple, wageCells, wageLine,
 } from "./places";
 
 interface RegionRow extends WageRow {
   er: string; name: string; prov: string | null; records: number; positions: number; refused: number;
 }
+
+type Quartiles = [number, number, number];
+type MonthRow = [string, number, number, number | null]; // YYYY-MM, postings, hourly postings, median posted minimum
+
+// What LMIA-flagged postings offered, one table per area (pipeline/lmia_pipeline/offered.py).
+interface OfferedTable {
+  postings: number;
+  hourly_n: number;
+  other: [string, number][]; // [unit as the parser stores it, postings]
+  unstated: number;
+  min: Quartiles | null;     // [25th, median, 75th]; null below the threshold
+  max: Quartiles | null;
+  months: MonthRow[];
+}
+
+interface OfferedRegion extends OfferedTable {
+  er: string; name: string; prov: string | null; jobbank: JobBankRef | null; statcan: StatcanRef | null;
+}
+
+interface Offered { threshold: number; since: string | null; national: OfferedTable; regions: OfferedRegion[] }
 
 interface OccupationFile {
   noc: string;
@@ -39,6 +59,7 @@ interface OccupationFile {
   national: WageRow;
   statcan_series: SeriesRow[];
   regions: RegionRow[];
+  offered: Offered;
   national_latest: NationalLatest;
   employers: Recent[];
   wage_table: { revision: string | null; name: string } | null;
@@ -69,12 +90,32 @@ const isRegion = (v: unknown): v is RegionRow =>
 const isProvinceRow = (v: unknown): boolean =>
   Array.isArray(v) && v.length === 4 && isStr(v[0]) && isNum(v[1]) && isNum(v[2]) && isNum(v[3]);
 
+const MONTH_RE = /^[0-9]{4}-(0[1-9]|1[0-2])$/;
+const isMonth = (v: unknown): boolean => isStr(v) && MONTH_RE.test(v);
+
+// Quartiles out of order would misstate the spread, so they fail like a wrong type.
+const isQuartiles = (v: unknown): boolean =>
+  v === null || (tuple(v, isNum, isNum, isNum) && (v as Quartiles)[0] <= (v as Quartiles)[1] && (v as Quartiles)[1] <= (v as Quartiles)[2]);
+
+const isMonthRow = (v: unknown): boolean => tuple(v, isMonth, isNum, isNum, isNumOrNull);
+
+const isOfferedTable = (v: unknown): v is OfferedTable => isObj(v) && isNum(v.postings) && isNum(v.hourly_n) &&
+  isNum(v.unstated) && isListOf(v.other, (u) => tuple(u, isStr, isNum)) && isQuartiles(v.min) && isQuartiles(v.max) &&
+  isListOf(v.months, isMonthRow);
+
+const isOfferedRegion = (v: unknown): v is OfferedRegion => isObj(v) && isStr(v.er) && isStr(v.name) &&
+  isStrOrNull(v.prov) && (v.jobbank === null || isJobBank(v.jobbank)) && (v.statcan === null || isStatcan(v.statcan)) &&
+  isOfferedTable(v);
+
+const isOffered = (v: unknown): v is Offered => isObj(v) && isNum(v.threshold) && (v.since === null || isMonth(v.since)) &&
+  isOfferedTable(v.national) && isListOf(v.regions, isOfferedRegion);
+
 // The definition texts are null where the classification publishes none.
 function isOccupationFile(v: unknown): v is OccupationFile {
   return isObj(v) && isStr(v.noc) && isBilingual(v.title) && isStr(v.teer) && isStrOrNull(v.from) &&
     (v.definition === null || (isObj(v.definition) && isStrOrNull(v.definition.en) && isStrOrNull(v.definition.fr))) &&
     (v.category_title === null || isBilingual(v.category_title)) && hasSharedParts(v) && isWageRow(v.national) &&
-    isListOf(v.regions, isRegion) && isListOf(v.provinces, isProvinceRow);
+    isListOf(v.regions, isRegion) && isListOf(v.provinces, isProvinceRow) && isOffered(v.offered);
 }
 
 // The first digit of each code groups the index, so a code must be five digits.
@@ -83,6 +124,171 @@ const isIndexRow = (v: unknown): boolean => isObj(v) && isStr(v.noc) && NOC_RE.t
 
 const isOccupationIndex = (v: unknown): v is OccupationIndex => isObj(v) && isStrOrNull(v.from) && isStr(v.latest) &&
   isObj(v.categories) && Object.values(v.categories).every(isBilingual) && isListOf(v.rows, isIndexRow);
+
+// -- what LMIA postings offered ------------------------------------------------------
+
+// Job Bank's wage report for an occupation sits under an internal id the
+// records do not carry, so the link opens Job Bank's wage search, where the
+// NOC code finds the report.
+const WAGE_REPORT: Record<Lang, string> = {
+  en: "https://www.jobbank.gc.ca/trend-analysis/search-wages",
+  fr: "https://www.guichetemplois.gc.ca/analyse-tendances/recherche-salaires",
+};
+
+const OTHER_UNIT: Record<string, Key> = {
+  YEAR: "occ.offered_year", WEEK: "occ.offered_week", BIWEEK: "occ.offered_biweek", SEMIMONTH: "occ.offered_semimonth",
+  MONTH: "occ.offered_month", DAY: "occ.offered_day",
+};
+
+const MONTH_FORMAT: Partial<Record<Lang, Intl.DateTimeFormat>> = {};
+
+// "2026-10" as "October 2026" or "octobre 2026".
+function monthLabel(month: string, lang: Lang): string {
+  const format = (MONTH_FORMAT[lang] ??= new Intl.DateTimeFormat(numberLocale(lang), { month: "long", year: "numeric", timeZone: "UTC" }));
+  return format.format(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1, 1));
+}
+
+const dollars = (v: number, lang: Lang): string => t(lang, "money", { amount: decimal(lang, v.toFixed(2)) });
+
+// A withheld figure says so; "n/a" stays for a table with no hourly posting at all.
+function withheldOr(lang: Lang, hourly: number): string {
+  return hourly === 0 ? t(lang, "common.na") : t(lang, "occ.offered_withheld");
+}
+
+function quartileText(lang: Lang, q: Quartiles | null, hourly: number): string {
+  return q ? q.map((v) => dollars(v, lang)).join(" / ") : withheldOr(lang, hourly);
+}
+
+// Postings in other units are counted under the unit as stored; an unknown
+// unit is shown in its own words rather than dropped. The own-property check
+// keeps a unit named like an object built-in ("constructor") from reading as a key.
+function otherText(lang: Lang, table: OfferedTable): string {
+  const parts = table.other.map(([unit, count]) => {
+    const n = fmtInt(count, lang);
+    return Object.hasOwn(OTHER_UNIT, unit) ? t(lang, OTHER_UNIT[unit], { n }) : `${n} ${unit.toLowerCase()}`;
+  });
+  if (table.unstated) parts.push(t(lang, "occ.offered_unstated", { n: fmtInt(table.unstated, lang) }));
+  return parts.length ? parts.join(", ") : "0";
+}
+
+function offeredCells(lang: Lang, table: OfferedTable, jobbank: JobBankRef | null, statcan: StatcanRef | null) {
+  return [
+    <td data-label={t(lang, "occ.offered_col_postings")} class="mono num">{fmtInt(table.postings, lang)}</td>,
+    <td data-label={t(lang, "occ.offered_col_hourly")} class="mono num">{fmtInt(table.hourly_n, lang)}</td>,
+    <td data-label={t(lang, "occ.offered_col_min")} class="mono"><span>{quartileText(lang, table.min, table.hourly_n)}</span></td>,
+    <td data-label={t(lang, "occ.offered_col_max")} class="mono"><span>{quartileText(lang, table.max, table.hourly_n)}</span></td>,
+    <td data-label={t(lang, "occ.offered_col_other")}><span>{otherText(lang, table)}</span></td>,
+    jobBankCell(lang, jobbank),
+    statcanCell(lang, statcan),
+  ];
+}
+
+const MonthHead = ({ lang, area }: { lang: Lang; area: boolean }) => (
+  <thead>
+    <tr>
+      {area ? <th>{t(lang, "occ.col_area")}</th> : null}
+      <th>{t(lang, "occ.offered_col_month")}</th>
+      <th class="num">{t(lang, "occ.offered_col_postings")}</th>
+      <th class="num">{t(lang, "occ.offered_col_hourly")}</th>
+      <th class="num">{t(lang, "occ.offered_col_median")}</th>
+    </tr>
+  </thead>
+);
+
+function monthCells(lang: Lang, [month, postings, hourly, median]: MonthRow) {
+  return [
+    <td data-label={t(lang, "occ.offered_col_month")}>{monthLabel(month, lang)}</td>,
+    <td data-label={t(lang, "occ.offered_col_postings")} class="mono num">{fmtInt(postings, lang)}</td>,
+    <td data-label={t(lang, "occ.offered_col_hourly")} class="mono num">{fmtInt(hourly, lang)}</td>,
+    <td data-label={t(lang, "occ.offered_col_median")} class="mono num">{median !== null ? dollars(median, lang) : withheldOr(lang, hourly)}</td>,
+  ];
+}
+
+// Under the wage block: the spread of what flagged postings advertised, beside
+// the same references, with every count shown and the figures only from
+// enough postings.
+const OfferedSection = ({ lang, o }: { lang: Lang; o: OccupationFile }) => {
+  const off = o.offered;
+  const nat = off.national;
+  const rest = nat.postings - off.regions.reduce((sum, r) => sum + r.postings, 0);
+  const regionName = (r: OfferedRegion) => <span>{placeName(lang, r.name)}{r.prov ? <span class="muted">, {r.prov}</span> : null}</span>;
+  const report = <a href={WAGE_REPORT[lang]} rel="noopener">{t(lang, "occ.offered_report_link")}</a>;
+  return (
+    <section id="offered">
+      <h2>{t(lang, "occ.offered")}</h2>
+      <p class="muted small">{t(lang, "occ.offered_lead")}</p>
+      <p class="small">{tj(lang, "occ.offered_report", { link: report, noc: o.noc })}</p>
+      {nat.postings === 0 ? <p class="muted small">{t(lang, "occ.offered_none")}</p> : (
+        <>
+          <div class="table-wrap bordered">
+            <table class="restack">
+              <thead>
+                <tr>
+                  <th>{t(lang, "occ.col_area")}</th>
+                  <th class="num">{t(lang, "occ.offered_col_postings")}</th>
+                  <th class="num">{t(lang, "occ.offered_col_hourly")}</th>
+                  <th>{t(lang, "occ.offered_col_min")}</th>
+                  <th>{t(lang, "occ.offered_col_max")}</th>
+                  <th>{t(lang, "occ.offered_col_other")}</th>
+                  <th>{t(lang, "places.col_jobbank")}</th>
+                  <th>{t(lang, "places.col_statcan_wage")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td data-label={t(lang, "occ.col_area")}><strong>Canada</strong></td>
+                  {offeredCells(lang, nat, o.national.jobbank, o.national.statcan)}
+                </tr>
+                {off.regions.map((r) => (
+                  <tr>
+                    <td data-label={t(lang, "occ.col_area")}>{regionName(r)}</td>
+                    {offeredCells(lang, r, r.jobbank, r.statcan)}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {rest > 0 ? (
+            <p class="muted small">
+              {tn(lang, "occ.offered_rest_one", "occ.offered_rest_many", rest, { n: fmtInt(rest, lang), threshold: off.threshold })}
+            </p>
+          ) : null}
+          <h3>{t(lang, "occ.offered_months")}</h3>
+          <p class="muted small">
+            {t(lang, "occ.offered_months_note", { since: off.since ? monthLabel(off.since, lang) : t(lang, "common.na"), threshold: off.threshold })}
+          </p>
+          <div class="table-wrap bordered">
+            <table class="restack">
+              <MonthHead lang={lang} area={false} />
+              <tbody>
+                {[...nat.months].reverse().map((m) => <tr>{monthCells(lang, m)}</tr>)}
+              </tbody>
+            </table>
+          </div>
+          {off.regions.length ? (
+            <details class="top-gap">
+              <summary>{t(lang, "occ.offered_months_regions")}</summary>
+              <div class="table-wrap bordered">
+                <table class="restack">
+                  <MonthHead lang={lang} area={true} />
+                  <tbody>
+                    {off.regions.flatMap((r) => [...r.months].reverse().map((m) => (
+                      <tr>
+                        <td data-label={t(lang, "occ.col_area")}>{regionName(r)}</td>
+                        {monthCells(lang, m)}
+                      </tr>
+                    )))}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          ) : null}
+        </>
+      )}
+      <p class="muted small">{t(lang, "occ.offered_note", { threshold: off.threshold })}</p>
+    </section>
+  );
+};
 
 // The first sentence of the published definition: enough to say what the
 // occupation is without copying the classification text.
@@ -287,6 +493,8 @@ export async function occupationPage(c: Context<AppEnv>): Promise<Response> {
         <WageNote lang={lang} wageTable={o.wage_table} statcanLatest={o.statcan_latest} />
         {posted.hourly_n + posted.annual_n === 0 ? <p class="muted small">{t(lang, "occ.no_posted")}</p> : null}
       </section>
+
+      <OfferedSection lang={lang} o={o} />
 
       {o.statcan_series.length ? (
         <section>

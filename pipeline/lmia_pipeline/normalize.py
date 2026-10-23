@@ -386,8 +386,13 @@ def parse_salary_text(raw: str | None) -> tuple[float | None, float | None, str 
         return None, None, None
     lower = text.lower()
     unit = None
-    for word, code in (("hour", "HOUR"), ("annual", "YEAR"), ("year", "YEAR"),
-                       ("week", "WEEK"), ("month", "MONTH"), ("bi-week", "BIWEEK"), ("day", "DAY")):
+    # The compound words come first: "week" sits inside "bi-weekly" and "month"
+    # inside "semi-monthly", so checked later they would read as weekly or
+    # monthly pay, at twice or half the period.
+    for word, code in (("bi-week", "BIWEEK"), ("biweek", "BIWEEK"), ("bi week", "BIWEEK"),
+                       ("semi-month", "SEMIMONTH"), ("semimonth", "SEMIMONTH"), ("semi month", "SEMIMONTH"),
+                       ("hour", "HOUR"), ("annual", "YEAR"), ("year", "YEAR"),
+                       ("week", "WEEK"), ("month", "MONTH"), ("daily", "DAY"), ("day", "DAY")):
         if word in lower:
             unit = code
             break

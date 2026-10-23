@@ -149,6 +149,20 @@ describe("formats", () => {
     expect(fmtWage(null, null, null, "fr")).toBe("s.o.");
   });
 
+  it("has a French unit for every unit the pipeline stores", () => {
+    // normalize.parse_salary_text writes HOUR, YEAR, WEEK, MONTH, BIWEEK,
+    // SEMIMONTH and DAY; the posting pages' schema.org unitText adds WEEKLY and
+    // BIWEEKLY. Without a key, fmtWage would print the English code on a French row.
+    for (const unit of ["HOUR", "YEAR", "WEEK", "MONTH", "BIWEEK", "SEMIMONTH", "DAY", "WEEKLY", "BIWEEKLY"]) {
+      expect(allKeys(), unit).toContain(`wage.unit.${unit}`);
+      expect(nbsp(fmtWage(20, 20, unit, "fr")), unit).not.toMatch(/[a-z]{4,}ly|week|month|hour/i);
+    }
+    expect(nbsp(fmtWage(700, 700, "WEEKLY", "fr"))).toBe("700,00 $/semaine");
+    expect(nbsp(fmtWage(1500, 1500, "BIWEEKLY", "fr"))).toBe("1500,00 $/deux semaines");
+    expect(nbsp(fmtWage(2000, 2000, "SEMIMONTH", "fr"))).toBe("2000,00 $/demi-mois");
+    expect(fmtWage(1500, 1500, "BIWEEKLY", "en")).toBe("$1500.00 biweek");
+  });
+
   it("names provinces and streams in French", () => {
     expect(provinceName("fr", "BC")).toBe("Colombie-Britannique");
     expect(provinceName("fr", "PE")).toBe("Île-du-Prince-Édouard");

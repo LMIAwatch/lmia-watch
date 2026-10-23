@@ -98,7 +98,7 @@ interface PlacesIndex {
 // fails is treated like a missing one. The parts shared with the occupation
 // pages are exported for occupations.tsx.
 
-const tuple = (v: unknown, ...checks: ((x: unknown) => boolean)[]): boolean =>
+export const tuple = (v: unknown, ...checks: ((x: unknown) => boolean)[]): boolean =>
   Array.isArray(v) && v.length === checks.length && checks.every((check, i) => check(v[i]));
 
 export const isBilingual = (v: unknown): v is Bilingual => isObj(v) && isStr(v.en) && isStr(v.fr);
@@ -116,10 +116,10 @@ const isRecent = (v: unknown): v is Recent => isObj(v) && isStr(v.id) && isStr(v
 const isPosted = (v: unknown): v is Posted =>
   isObj(v) && isNumOrNull(v.hourly) && isNum(v.hourly_n) && isNumOrNull(v.annual) && isNum(v.annual_n);
 
-const isJobBank = (v: unknown): v is JobBankRef => isObj(v) && isNum(v.median) && isNum(v.annual) && isStr(v.level) && isStr(v.area);
+export const isJobBank = (v: unknown): v is JobBankRef => isObj(v) && isNum(v.median) && isNum(v.annual) && isStr(v.level) && isStr(v.area);
 
 // The wage and vacancy figures are each present only when Statistics Canada published them.
-const isStatcan = (v: unknown): v is StatcanRef => isObj(v) && isStr(v.level) && isStr(v.area) && isStrOrNull(v.name) &&
+export const isStatcan = (v: unknown): v is StatcanRef => isObj(v) && isStr(v.level) && isStr(v.area) && isStrOrNull(v.name) &&
   optional(v.wage, isNum) && optional(v.wage_quarter, isStr) && optional(v.wage_quality, isStrOrNull) &&
   optional(v.vacancies, isNum) && optional(v.vac_quarter, isStr) && optional(v.vac_quality, isStrOrNull) &&
   optional(v.vacancies_year_before, isNum);
@@ -383,6 +383,26 @@ export const StreamSection = ({ lang, streams, periods }: { lang: Lang; streams:
   );
 };
 
+// The two reference cells, shared with the occupation pages' table of what
+// postings offered so both tables state the references the same way: the
+// Job Bank median in the unit Job Bank uses for the occupation, Statistics
+// Canada's figure hourly, each marked when it is not the area's own.
+export function jobBankCell(lang: Lang, jb: JobBankRef | null) {
+  return (
+    <td data-label={t(lang, "places.col_jobbank")} class="mono">
+      <span>{jb ? <>{money(jb.median, jb.annual === 1, lang)}{jb.level !== "region" ? <span class="muted"> ({t(lang, jb.level === "province" ? "places.level_province" : "places.level_canada")})</span> : null}</> : t(lang, "common.na")}</span>
+    </td>
+  );
+}
+
+export function statcanCell(lang: Lang, sc: StatcanRef | null) {
+  return (
+    <td data-label={t(lang, "places.col_statcan_wage")} class="mono">
+      <span>{sc?.wage !== undefined ? <>{money(sc.wage, false, lang)}{quality(lang, sc.wage_quality)}{sc.level !== "region" ? <span class="muted"> ({t(lang, sc.level === "province" ? "places.level_province" : "places.level_canada")})</span> : null}</> : t(lang, "common.na")}</span>
+    </td>
+  );
+}
+
 export function wageCells(lang: Lang, row: WageRow) {
   const jb = row.jobbank;
   const sc = row.statcan;
@@ -393,12 +413,8 @@ export function wageCells(lang: Lang, row: WageRow) {
     <td data-label={t(lang, "places.col_posted")} class="mono">
       <span>{posted !== null && count ? <>{money(posted, annual, lang)} <span class="muted">({fmtInt(count, lang)})</span></> : t(lang, "common.na")}</span>
     </td>,
-    <td data-label={t(lang, "places.col_jobbank")} class="mono">
-      <span>{jb ? <>{money(jb.median, annual, lang)}{jb.level !== "region" ? <span class="muted"> ({t(lang, jb.level === "province" ? "places.level_province" : "places.level_canada")})</span> : null}</> : t(lang, "common.na")}</span>
-    </td>,
-    <td data-label={t(lang, "places.col_statcan_wage")} class="mono">
-      <span>{sc?.wage !== undefined ? <>{money(sc.wage, false, lang)}{quality(lang, sc.wage_quality)}{sc.level !== "region" ? <span class="muted"> ({t(lang, sc.level === "province" ? "places.level_province" : "places.level_canada")})</span> : null}</> : t(lang, "common.na")}</span>
-    </td>,
+    jobBankCell(lang, jb),
+    statcanCell(lang, sc),
     <td data-label={t(lang, "places.col_vacancies")} class="mono num">
       <span>{sc?.vacancies !== undefined ? <>{fmtInt(sc.vacancies, lang)}{quality(lang, sc.vac_quality)}</> : t(lang, "common.na")}</span>
     </td>,

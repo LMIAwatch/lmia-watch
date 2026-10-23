@@ -78,6 +78,7 @@ marking, because a capped run has not seen the whole feed.
 | `export.py` | CSV files and the raw-file mirror with checksums |
 | `export_static.py` | the JSON files the site serves |
 | `places.py` | the occupation and place pages: one JSON file per page, and their sitemap entries |
+| `offered.py` | what LMIA-flagged postings offered, for the occupation pages: quartiles of the hourly posted minimum and maximum, other units counted, a monthly series, nationally and by economic region, withheld under 10 postings (`docs/occupations.md`) |
 | `search_db.py` | the hosted search database (`../pipeline/search_schema.sql`): its rows, the content-hash ledger, the nightly batches and manifest, the ledger record after the apply (separate `search-sync`, `search-check` and `search-synced` commands) |
 | `social.py` | the daily X digest: compose, save to `data/out/social/`, post (separate `post-digest` command) |
 | `social_card.py` | the card image attached to the digest, drawn with Pillow from the day's figures |

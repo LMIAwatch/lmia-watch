@@ -11,6 +11,7 @@ import facets from "./fixtures/facets.json";
 import feedIndex from "./fixtures/feeds-index.json";
 import occIndex from "./fixtures/occupations-index.json";
 import occ63200 from "./fixtures/occupation-63200.json";
+import occ65201 from "./fixtures/occupation-65201.json";
 import mb from "./fixtures/place-mb.json";
 import winnipeg from "./fixtures/place-mb-winnipeg.json";
 import winnipegCma from "./fixtures/place-mb-winnipeg-cma.json";
@@ -44,6 +45,8 @@ const CASES: { file: string; data: unknown; paths: string[] }[] = [
   { file: "trends/pending.json", data: pending, paths: ["/trends/pending"] },
   { file: "occupations/index.json", data: occIndex, paths: ["/occupations"] },
   { file: "occupations/63200.json", data: occ63200, paths: ["/occupations/63200"] },
+  // Published tables of what postings offered, with a regional row, so the region fields are fuzzed too.
+  { file: "occupations/65201.json", data: occ65201, paths: ["/occupations/65201"] },
   { file: "places/index.json", data: placesIndex, paths: ["/places"] },
   { file: "places/mb.json", data: mb, paths: ["/places/mb"] },
   { file: "places/mb/winnipeg.json", data: winnipeg, paths: ["/places/mb/winnipeg"] },

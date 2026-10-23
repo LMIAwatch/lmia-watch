@@ -264,6 +264,18 @@ def test_parse_salary_text():
     assert parse_salary_text(None) == (None, None, None)
 
 
+def test_parse_salary_text_reads_compound_units_before_their_parts():
+    # "week" sits inside "bi-weekly" and "month" inside "semi-monthly".
+    for text in ("$1,500.00 bi-weekly", "$1,500.00 biweekly", "$1,500.00 Bi Weekly"):
+        assert parse_salary_text(text) == (1500.0, 1500.0, "BIWEEK"), text
+    for text in ("$2,000.00 semi-monthly", "$2,000.00 semimonthly"):
+        assert parse_salary_text(text) == (2000.0, 2000.0, "SEMIMONTH"), text
+    assert parse_salary_text("$700.00 weekly") == (700.0, 700.0, "WEEK")
+    assert parse_salary_text("$3,000.00 monthly") == (3000.0, 3000.0, "MONTH")
+    assert parse_salary_text("$150.00 daily") == (150.0, 150.0, "DAY")
+    assert parse_salary_text("$1,500 to $1,700 bi-weekly (40 hours per week)") == (1500.0, 1700.0, "BIWEEK")
+
+
 def test_period_parsing():
     assert period_from_text("2026Q1 employers with a positive LMIA, NOC 2021") == "2026Q1"
     assert period_from_text("2023Q4 employers with a positive LMIA, by program stream, NOC 2011") == "2023Q4"

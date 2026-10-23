@@ -1,11 +1,15 @@
 // Occupation and place pages against fixture JSON written by the pipeline's
 // exporter from its own test seed (pipeline/tests/test_places.py), with the
-// record threshold set to 3 there, so Manitoba is above it and BC below.
+// record threshold set to 3 there, so Manitoba is above it and BC below. The
+// occupation files come from the seed of pipeline/tests/test_offered.py, which
+// adds the nightly observations behind the tables of what postings offered
+// (63200 under their threshold of 10, 65201 above it, 85101 with none).
 import { describe, expect, it } from "vitest";
 import { app } from "../src/index";
 import { emptyAssets, fakeAssets, testEnv } from "./assets";
 import occIndex from "./fixtures/occupations-index.json";
 import occ63200 from "./fixtures/occupation-63200.json";
+import occ65201 from "./fixtures/occupation-65201.json";
 import occ85101 from "./fixtures/occupation-85101.json";
 import bc from "./fixtures/place-bc.json";
 import mb from "./fixtures/place-mb.json";
@@ -16,6 +20,7 @@ import placesIndex from "./fixtures/places-index.json";
 const FILES: Record<string, unknown> = {
   "occupations/index.json": occIndex,
   "occupations/63200.json": occ63200,
+  "occupations/65201.json": occ65201,
   "occupations/85101.json": occ85101,
   "places/index.json": placesIndex,
   "places/mb.json": mb,
@@ -135,6 +140,161 @@ describe("occupation pages", () => {
   });
 });
 
+describe("what LMIA postings offered", () => {
+  // Section text only, so a figure is matched in this section and not the wage block above it.
+  async function section(path: string): Promise<string> {
+    const html = await text(path);
+    return /<section id="offered">[\s\S]*?<\/section>/.exec(html)?.[0] ?? "";
+  }
+
+  it("publishes the national and regional tables beside the two references", async () => {
+    const html = await section("/occupations/65201");
+    expect(html).toContain("<h2>What LMIA Postings Offered</h2>");
+    expect(html).toContain("A posted range is the wage an employer advertised, which may differ from the pay a worker receives.");
+    expect(html).toContain('<a href="https://www.jobbank.gc.ca/trend-analysis/search-wages" rel="noopener">Job Bank\'s wage report</a> and search for NOC 65201.');
+    // Canada: 19 postings, 15 hourly; quartiles worked out by hand in the pipeline's test.
+    expect(html).toContain('<td data-label="Postings" class="mono num">19</td><td data-label="Hourly postings" class="mono num">15</td>');
+    expect(html).toContain("<span>$16.75 / $18.00 / $20.00</span>");
+    expect(html).toContain("<span>$18.00 / $21.00 / $23.50</span>");
+    expect(html).toContain("<span>1 every two weeks, 1 per week, 1 per year, 1 with no wage</span>");
+    expect(html).toContain('$16.20/h<span class="muted"> (national figure)</span>');
+    expect(html).toContain('$17.10/h<span class="muted"> (national figure)</span>');
+    // Winnipeg holds 12 and gets its row, with its own regional references; Kelowna's 4 and the 3 unplaced do not.
+    expect(html).toContain("<span>$17.00 / $18.00 / $19.50</span>");
+    expect(html).toContain("<span>$18.50 / $21.00 / $23.50</span>");
+    expect(html).toContain("<span>$15.80/h</span>");
+    expect(html).toContain("<span>$16.40/h</span>");
+    expect(html.match(/<span>Winnipeg<span class="muted">, MB<\/span><\/span>/g)?.length).toBe(1 + 4);
+    expect(html).not.toContain("Kelowna");
+    expect(html).toContain("7 of these postings lie in economic regions with fewer than 10 postings of this occupation");
+    // The monthly series, newest first: only October holds ten hourly postings.
+    expect(html).toContain("from September 2026, when the nightly archive begins");
+    expect(html).toContain('<td data-label="Month">October 2026</td><td data-label="Postings" class="mono num">15</td><td data-label="Hourly postings" class="mono num">12</td><td data-label="Median posted minimum, hourly" class="mono num">$18.00</td>');
+    expect(html).toContain('<td data-label="Month">November 2026</td><td data-label="Postings" class="mono num">2</td><td data-label="Hourly postings" class="mono num">1</td><td data-label="Median posted minimum, hourly" class="mono num">withheld</td>');
+    expect(html).toContain('<td data-label="Month">December 2026</td><td data-label="Postings" class="mono num">0</td><td data-label="Hourly postings" class="mono num">0</td><td data-label="Median posted minimum, hourly" class="mono num">n/a</td>');
+    expect(html.indexOf('"Month">December 2026<')).toBeLessThan(html.indexOf('"Month">September 2026<'));
+    expect(html).toContain("<summary>Show the months by economic region</summary>");
+    // The caveat: what is counted, the units rule, the threshold, and that the bases differ.
+    expect(html).toContain("a flag that lapsed later still counts");
+    expect(html).toContain("is counted under its unit and never converted to an hourly rate");
+    expect(html).toContain("Figures from fewer than 10 hourly postings are withheld and the count is shown");
+    expect(html).toContain("They are measured on other bases");
+    expect(html).not.toContain(EM_DASH);
+    expect(html).not.toMatch(/\{\w+\}/);
+  });
+
+  it("sits under the wage block", async () => {
+    const html = await text("/occupations/65201");
+    const wages = html.indexOf("<h2>Wages by Economic Region</h2>");
+    const offered = html.indexOf("<h2>What LMIA Postings Offered</h2>");
+    expect(wages).toBeGreaterThan(0);
+    expect(offered).toBeGreaterThan(wages);
+    expect(offered).toBeLessThan(html.indexOf("<h2>Job Vacancies in Canada, Statistics Canada</h2>"));
+  });
+
+  it("reads in French", async () => {
+    const html = await section("/occupations/65201?lang=fr");
+    expect(html).toContain("<h2>Ce que les offres visées par une EIMT proposaient</h2>");
+    expect(html).toContain("Une fourchette affichée est le salaire annoncé par l’employeur, qui peut différer de la rémunération versée au travailleur.");
+    expect(html).toContain('<a href="https://www.guichetemplois.gc.ca/analyse-tendances/recherche-salaires" rel="noopener">rapport sur les salaires du Guichet-Emplois</a> et chercher la CNP 65201.');
+    expect(html).toContain("<span>16,75 $ / 18,00 $ / 20,00 $</span>");
+    expect(html).toContain("<span>17,00 $ / 18,00 $ / 19,50 $</span>");
+    expect(html).toContain("<span>1 aux deux semaines, 1 par semaine, 1 par année, 1 sans salaire</span>");
+    expect(html).toContain('15,80 $/h');
+    expect(html).toContain("7 de ces offres se trouvent dans des régions économiques comptant moins de 10 offres de cette profession");
+    expect(html).toContain('<td data-label="Mois">octobre 2026</td>');
+    expect(html).toContain("depuis septembre 2026, début des relevés nocturnes");
+    expect(html).toContain(">non diffusé</td>");
+    expect(html).toContain("Les chiffres tirés de moins de 10 offres horaires ne sont pas diffusés et le nombre est indiqué");
+    expect(html).toContain("Ils reposent sur d’autres bases");
+    expect(html).not.toContain("What LMIA Postings Offered");
+    expect(html).not.toContain("withheld");
+    expect(html).not.toContain(EM_DASH);
+    expect(html).not.toMatch(/\{\w+\}/);
+  });
+
+  it("shows the count and withholds the figures under the threshold", async () => {
+    const html = await section("/occupations/63200");
+    expect(html).toContain('<td data-label="Postings" class="mono num">3</td><td data-label="Hourly postings" class="mono num">3</td>');
+    expect(html.match(/<span>withheld<\/span>/g)?.length).toBe(2);
+    expect(html).not.toMatch(/\$\d+\.\d\d \/ /);
+    expect(html).toContain("3 of these postings lie in economic regions with fewer than 10 postings");
+    expect(html).not.toContain("<summary>Show the months by economic region</summary>");
+    const fr = await section("/occupations/63200?lang=fr");
+    expect(fr.match(/<span>non diffusé<\/span>/g)?.length).toBe(2);
+  });
+
+  it("says so when no flagged posting with the occupation has been read", async () => {
+    const html = await section("/occupations/85101");
+    expect(html).toContain("No posting flagged for an LMIA with this occupation code has been read yet");
+    expect(html).not.toContain("<table");
+    expect(html).toContain("Job Bank's wage report");
+    const fr = await section("/occupations/85101?lang=fr");
+    expect(fr).toContain("Aucune offre visée par une EIMT portant ce code de profession n’a encore été lue");
+  });
+
+  it("treats a file with a malformed table as missing", async () => {
+    const serve = (file: unknown) => ({
+      fetch: async (input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        if (new URL(url).pathname === "/data/occupations/65201.json") {
+          return new Response(JSON.stringify(file), { headers: { "content-type": "application/json" } });
+        }
+        return assets.fetch(input as Request);
+      },
+    }) as unknown as Fetcher;
+    const broken: [string, (o: any) => void][] = [
+      ["offered removed", (o) => delete o.offered],
+      ["offered null", (o) => { o.offered = null; }],
+      ["threshold as text", (o) => { o.offered.threshold = "10"; }],
+      ["since not a month", (o) => { o.offered.since = "2026-13"; }],
+      ["since as a quarter", (o) => { o.offered.since = "2026Q4"; }],
+      ["postings missing", (o) => delete o.offered.national.postings],
+      ["hourly count as text", (o) => { o.offered.national.hourly_n = "15"; }],
+      ["unstated null", (o) => { o.offered.national.unstated = null; }],
+      ["quartiles out of order", (o) => { o.offered.national.min = [20, 18, 16.75]; }],
+      ["two quartiles", (o) => { o.offered.national.max = [18, 21]; }],
+      ["a quartile as text", (o) => { o.offered.national.min = [16.75, "18.00", 20]; }],
+      ["other unit without a count", (o) => { o.offered.national.other = [["YEAR"]]; }],
+      ["other as an object", (o) => { o.offered.national.other = { YEAR: 1 }; }],
+      ["month row short", (o) => { o.offered.national.months[1] = ["2026-10", 15, 12]; }],
+      ["month median as text", (o) => { o.offered.national.months[1][3] = "18.00"; }],
+      ["month label malformed", (o) => { o.offered.national.months[0][0] = "Sept 2026"; }],
+      ["months missing", (o) => delete o.offered.national.months],
+      ["regions not a list", (o) => { o.offered.regions = {}; }],
+      ["region name missing", (o) => delete o.offered.regions[0].name],
+      ["region Job Bank reference empty", (o) => { o.offered.regions[0].jobbank = {}; }],
+      ["region StatCan reference junk", (o) => { o.offered.regions[0].statcan = "x"; }],
+      ["region quartiles junk", (o) => { o.offered.regions[0].min = [null, 18, 19.5]; }],
+      ["region months junk", (o) => { o.offered.regions[0].months = [null]; }],
+    ];
+    for (const [label, mutate] of broken) {
+      const copy = JSON.parse(JSON.stringify(occ65201));
+      mutate(copy);
+      const res = await get("/occupations/65201", testEnv(serve(copy)));
+      expect(res.status, label).toBe(404);
+      expect(await res.text(), label).toContain("Occupation Not Found");
+    }
+    // Withheld figures, no regions and an empty archive are all well formed.
+    const fine: [string, (o: any) => void][] = [
+      ["withheld", (o) => { o.offered.national.min = null; o.offered.national.max = null; }],
+      ["no regions", (o) => { o.offered.regions = []; }],
+      ["no archive", (o) => { o.offered.since = null; o.offered.national.months = []; }],
+      ["an unknown unit", (o) => { o.offered.national.other = [["FORTNIGHT", 2]]; }],
+      ["a unit named like a built-in", (o) => { o.offered.national.other = [["constructor", 1]]; }],
+    ];
+    for (const [label, mutate] of fine) {
+      const copy = JSON.parse(JSON.stringify(occ65201));
+      mutate(copy);
+      const res = await get("/occupations/65201", testEnv(serve(copy)));
+      expect(res.status, label).toBe(200);
+      const html = await res.text();
+      if (label === "an unknown unit") expect(html).toContain("<span>2 fortnight, 1 with no wage</span>");
+      if (label === "a unit named like a built-in") expect(html).toContain("<span>1 constructor, 1 with no wage</span>");
+    }
+  });
+});
+
 describe("place pages", () => {
   it("read a province's figures", async () => {
     const html = await text("/places/mb");
@@ -217,8 +377,9 @@ describe("place pages", () => {
 });
 
 describe("every new page", () => {
-  const PAGES = ["/occupations", "/occupations/63200", "/occupations/85101", "/places", "/places/mb", "/places/bc", "/places/mb/winnipeg", "/places/mb/winnipeg-cma"];
-  const SENTINELS = ["Approved positions", "What the Figures Show", "Looking for Work", "Stream Mix", "Census Metropolitan Areas", "Job Bank median", "not a job offer", "Records by"];
+  const PAGES = ["/occupations", "/occupations/63200", "/occupations/65201", "/occupations/85101", "/places", "/places/mb", "/places/bc", "/places/mb/winnipeg", "/places/mb/winnipeg-cma"];
+  const SENTINELS = ["Approved positions", "What the Figures Show", "Looking for Work", "Stream Mix", "Census Metropolitan Areas", "Job Bank median", "not a job offer", "Records by",
+    "What LMIA Postings Offered", "withheld"];
 
   it("fills every placeholder, has no em-dash and runs no inline script", async () => {
     for (const base of PAGES) {

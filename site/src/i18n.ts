@@ -72,6 +72,11 @@ const STRINGS = {
   "wage.unit.MONTH": { en: " month", fr: "/mois" },
   "wage.unit.DAY": { en: " day", fr: "/jour" },
   "wage.unit.BIWEEK": { en: " biweek", fr: "/deux semaines" },
+  // The posting pages give schema.org's unitText, spelled WEEKLY and BIWEEKLY,
+  // and the list-page parser writes SEMIMONTH for semi-monthly pay.
+  "wage.unit.WEEKLY": { en: " week", fr: "/semaine" },
+  "wage.unit.BIWEEKLY": { en: " biweek", fr: "/deux semaines" },
+  "wage.unit.SEMIMONTH": { en: " semi-month", fr: "/demi-mois" },
   "size.mb": { en: "{n} MB", fr: "{n} Mo" },
 
   // -- statuses, indicators, columns -------------------------------------------
@@ -1931,6 +1936,53 @@ const STRINGS = {
   },
   "occ.provinces": { en: "Records by Province", fr: "Dossiers par province" },
   "occ.search": { en: "See every record for NOC {noc} in search", fr: "Voir tous les dossiers de la CNP {noc} dans la recherche" },
+  "occ.offered": { en: "What LMIA Postings Offered", fr: "Ce que les offres visées par une EIMT proposaient" },
+  "occ.offered_lead": {
+    en: "Wages advertised on Job Bank postings for this occupation that carried an LMIA flag, requested or approved, when a nightly pass saw them. A posted range is the wage an employer advertised, which may differ from the pay a worker receives.",
+    fr: "Salaires annoncés dans les offres du Guichet-Emplois pour cette profession qui portaient une mention EIMT, demandée ou approuvée, lors d'un passage nocturne. Une fourchette affichée est le salaire annoncé par l'employeur, qui peut différer de la rémunération versée au travailleur.",
+  },
+  "occ.offered_report": {
+    en: "For the prevailing wage, see {link} and search for NOC {noc}.",
+    fr: "Pour le salaire courant, consulter le {link} et chercher la CNP {noc}.",
+  },
+  "occ.offered_report_link": { en: "Job Bank's wage report", fr: "rapport sur les salaires du Guichet-Emplois" },
+  "occ.offered_col_postings": { en: "Postings", fr: "Offres" },
+  "occ.offered_col_hourly": { en: "Hourly postings", fr: "Offres horaires" },
+  "occ.offered_col_min": { en: "Posted minimum, hourly (25th / median / 75th)", fr: "Minimum affiché, horaire (25e / médiane / 75e)" },
+  "occ.offered_col_max": { en: "Posted maximum, hourly (25th / median / 75th)", fr: "Maximum affiché, horaire (25e / médiane / 75e)" },
+  "occ.offered_col_other": { en: "Other units or no wage", fr: "Autres unités ou sans salaire" },
+  "occ.offered_withheld": { en: "withheld", fr: "non diffusé" },
+  "occ.offered_year": { en: "{n} per year", fr: "{n} par année" },
+  "occ.offered_week": { en: "{n} per week", fr: "{n} par semaine" },
+  "occ.offered_biweek": { en: "{n} every two weeks", fr: "{n} aux deux semaines" },
+  "occ.offered_month": { en: "{n} per month", fr: "{n} par mois" },
+  "occ.offered_semimonth": { en: "{n} twice a month", fr: "{n} deux fois par mois" },
+  "occ.offered_day": { en: "{n} per day", fr: "{n} par jour" },
+  "occ.offered_unstated": { en: "{n} with no wage", fr: "{n} sans salaire" },
+  "occ.offered_rest_one": {
+    en: "{n} of these postings lies in an economic region with fewer than {threshold} postings of this occupation, or has no postal code that places it, and counts in the Canada row only.",
+    fr: "{n} de ces offres se trouve dans une région économique comptant moins de {threshold} offres de cette profession, ou n'a pas de code postal qui la situe, et n'est comptée que dans la ligne du Canada.",
+  },
+  "occ.offered_rest_many": {
+    en: "{n} of these postings lie in economic regions with fewer than {threshold} postings of this occupation, or have no postal code that places them, and count in the Canada row only.",
+    fr: "{n} de ces offres se trouvent dans des régions économiques comptant moins de {threshold} offres de cette profession, ou n'ont pas de code postal qui les situe, et ne sont comptées que dans la ligne du Canada.",
+  },
+  "occ.offered_none": {
+    en: "No posting flagged for an LMIA with this occupation code has been read yet; posting pages are read a few hundred a night.",
+    fr: "Aucune offre visée par une EIMT portant ce code de profession n'a encore été lue; les pages d'offres sont lues à raison de quelques centaines par nuit.",
+  },
+  "occ.offered_months": { en: "By Month", fr: "Par mois" },
+  "occ.offered_months_note": {
+    en: "Postings by the month (UTC) in which they were first seen, from {since}, when the nightly archive begins, with the median hourly posted minimum where a month holds at least {threshold} hourly postings.",
+    fr: "Offres selon le mois (UTC) où elles ont été vues pour la première fois, depuis {since}, début des relevés nocturnes, avec le minimum horaire affiché médian lorsque le mois compte au moins {threshold} offres horaires.",
+  },
+  "occ.offered_col_month": { en: "Month", fr: "Mois" },
+  "occ.offered_col_median": { en: "Median posted minimum, hourly", fr: "Minimum affiché médian, horaire" },
+  "occ.offered_months_regions": { en: "Show the months by economic region", fr: "Afficher les mois par région économique" },
+  "occ.offered_note": {
+    en: "Counted: Job Bank postings with this occupation's NOC 2021 code, read from the posting page, that carried an LMIA flag, requested or approved, when a nightly pass saw them; a flag that lapsed later still counts. Each posting counts once, in the month it was first seen. Quartiles use hourly postings only: a quarter of the postings offered less than the 25th percentile and a quarter more than the 75th (linear interpolation between ranks). A posting stated per year, week, two weeks or month is counted under its unit and never converted to an hourly rate. Figures from fewer than {threshold} hourly postings are withheld and the count is shown; an economic region gets a row once it holds {threshold} postings. The Job Bank median and Statistics Canada's average offered wage are read as in the wage table above, for the same area. They are measured on other bases (wages in the occupation, wages offered on all vacancies) and are shown for context.",
+    fr: "Comptées : offres du Guichet-Emplois portant le code CNP 2021 de cette profession, lu sur la page de l'offre, qui avaient une mention EIMT, demandée ou approuvée, lors d'un passage nocturne; une mention retirée par la suite n'enlève pas l'offre. Chaque offre est comptée une fois, dans le mois où elle a été vue pour la première fois. Les quartiles ne portent que sur les offres horaires : un quart des offres proposaient moins que le 25e centile et un quart plus que le 75e (interpolation linéaire entre les rangs). Une offre exprimée par année, par semaine, aux deux semaines ou par mois est comptée selon son unité et n'est jamais convertie en taux horaire. Les chiffres tirés de moins de {threshold} offres horaires ne sont pas diffusés et le nombre est indiqué; une région économique obtient une ligne dès qu'elle compte {threshold} offres. La médiane du Guichet-Emplois et le salaire horaire moyen offert de Statistique Canada sont lus comme dans le tableau des salaires ci-dessus, pour la même zone. Ils reposent sur d'autres bases (salaires dans la profession, salaires offerts pour l'ensemble des postes vacants) et sont donnés à titre de contexte.",
+  },
 
   // --- household exclusion ---
   "data.change_households": {

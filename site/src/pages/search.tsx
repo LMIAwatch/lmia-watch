@@ -25,7 +25,7 @@ export const SEARCH_CLIENT_KEYS: readonly Key[] = [
   "common.na", "common.see_posting",
   "period.quarter", "period.range",
   "wage.range", "wage.single", "wage.unit.HOUR", "wage.unit.YEAR", "wage.unit.WEEK", "wage.unit.MONTH",
-  "wage.unit.DAY", "wage.unit.BIWEEK",
+  "wage.unit.DAY", "wage.unit.BIWEEK", "wage.unit.WEEKLY", "wage.unit.BIWEEKLY", "wage.unit.SEMIMONTH",
   "size.mb",
   "search.records_one", "search.records_many", "search.so_far", "search.note_latest", "search.note_since",
   "search.no_match", "search.showing", "search.page_of",

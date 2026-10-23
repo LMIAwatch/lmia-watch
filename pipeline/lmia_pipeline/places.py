@@ -24,6 +24,10 @@ punctuation and "Saint"/"St"; it gets a page at THRESHOLD records or more. A
 census metropolitan area is found from each record's postal area through
 fsa_regions. A page under THRESHOLD records is marked noindex by the site and
 left out of the sitemap.
+
+Each occupation file also carries "offered": what LMIA-flagged postings
+offered, by occupation and by economic region, from the nightly archive of
+observations (offered.py holds the rules and its own threshold of 10).
 """
 
 from __future__ import annotations
@@ -35,6 +39,7 @@ import statistics
 from collections import Counter, defaultdict
 from pathlib import Path
 
+from . import offered
 from .normalize import POSTAL_RE, PRUID_PROVINCE, fold_accents, period_end_date, period_quarters, period_sort_key
 
 THRESHOLD = 20
@@ -131,6 +136,7 @@ class Model:
         self.updated = ""
         self.cma_names: dict[str, str] = {}
         self.er_names: dict[str, str] = {}
+        self.offered = offered.Archive()
 
 
 def _places_for(m: Model, prov: str | None, city: str | None, fsa: str | None,
@@ -240,6 +246,8 @@ def build(conn: sqlite3.Connection) -> Model:
                 elif kind == "cma":
                     agg.prov_votes[r["province"]] += 1
 
+    flagged = offered.flagged(conn)
+    m.offered = offered.Archive(*offered.span(conn))
     for p in conn.execute(
         "SELECT posting_id, employer_id, employer_raw, title, noc_code, street, city, province, postal_code, wage_min, "
         "wage_max, wage_unit, vacancies, date_posted, first_seen, flag_current FROM jobbank_postings ORDER BY posting_id"):
@@ -259,6 +267,8 @@ def build(conn: sqlite3.Connection) -> Model:
         scopes = _places_for(m, p["province"], p["city"], fsa, regions)
         if noc:
             scopes.append((m.occ[noc], "occ"))
+            if p["posting_id"] in flagged:
+                m.offered.add(noc, area[0] if area else None, p["first_seen"], p["wage_unit"], p["wage_min"], p["wage_max"])
         for agg, kind in scopes:
             agg.records += 1
             agg.postings += 1
@@ -376,6 +386,33 @@ def _posted(samples: dict[str, list[float]] | None) -> dict:
             "annual": _median(samples["YEAR"]), "annual_n": len(samples["YEAR"])}
 
 
+def _offered(m: Model, refs: References, noc: str) -> dict:
+    """The national table, then each economic region holding enough postings, busiest first.
+
+    Each regional table carries the Job Bank median and Statistics Canada's
+    offered wage for its own area, so it reads beside them like the wage block;
+    a region may not be among that block's fifteen.
+    """
+    months = m.offered.months()
+    regions = []
+    cells = m.offered.regional.get(noc, {})
+    for er, cell in sorted(cells.items(), key=lambda kv: (-kv[1].postings, kv[0])):
+        if cell.postings < offered.THRESHOLD:
+            continue
+        regions.append({
+            "er": er, "name": m.er_names.get(er) or refs.area_names.get(er) or er, "prov": PRUID_PROVINCE.get(er[:2]),
+            **offered.table(cell, months),
+            "jobbank": refs.jobbank(noc, er),
+            "statcan": refs.statcan(noc, er),
+        })
+    return {
+        "threshold": offered.THRESHOLD,
+        "since": months[0] if months else None,
+        "national": offered.table(m.offered.national.get(noc), months),
+        "regions": regions,
+    }
+
+
 # -- page assembly ---------------------------------------------------------------
 
 def _quarters(agg: Agg, periods: list[str]) -> list[list]:
@@ -457,6 +494,7 @@ def occupation_page(m: Model, refs: References, noc: str, agg: Agg, names: dict,
             }
             for er, v in regions
         ],
+        "offered": _offered(m, refs, noc),
         "national_latest": _national_latest(m),
         "employers": _recent(agg, names),
         "wage_table": refs.wage_table,
@@ -568,6 +606,7 @@ def _fingerprint(conn: sqlite3.Connection) -> tuple:
         THRESHOLD, id(conn), conn.total_changes,
         tuple(conn.execute("SELECT COUNT(*), MAX(id) FROM esdc_records").fetchone()),
         tuple(conn.execute("SELECT COUNT(*), MAX(updated_at) FROM jobbank_postings").fetchone()),
+        tuple(conn.execute("SELECT COUNT(*), MAX(observed_at) FROM jobbank_observations").fetchone()),
         conn.execute("SELECT COUNT(*) FROM fsa_regions").fetchone()[0],
     )
 
