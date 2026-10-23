@@ -26,7 +26,24 @@ and never reaches the site.
 A published version cannot be deleted, only superseded by the next one, so
 nothing is published until every file has uploaded and the metadata is set.
 A failure on the way discards the draft and reports "failed"; the quarter is
-not recorded, so the next night tries again. Never raises.
+not recorded, so the next night tries again.
+
+Meta can miss a version Zenodo did publish: a publish whose answer was lost
+(a timeout or a 5xx after the publish went through, when the discard is
+refused), or a deposit followed by a failed database save, after which the
+next run restores the night before's database. So before any draft is made
+the run asks Zenodo what is already published. With a record in meta it
+reads the newest version of that series; with none it lists the token's
+depositions, all versions, and keeps the published ones with this TITLE. A
+published version whose metadata version is the quarter is adopted: its ids
+and DOIs go into meta as a fresh deposit's would, and the outcome is
+"already deposited". Without meta, a published version of another quarter
+is the record the new version builds on, so a lost database never starts a
+second concept record. Drafts are never adopted; a leftover draft of a new
+version is the one Zenodo hands back for the next version. When Zenodo
+cannot answer, nothing is deposited that night and the outcome is "failed",
+because a deposit made without the check could publish the quarter twice.
+Never raises.
 """
 
 from __future__ import annotations
@@ -73,6 +90,11 @@ KEYWORDS = [
 ]
 UPLOAD_TIMEOUT = (30, 900)
 TIMEOUT = 60
+# The deposition listing, read when meta holds no record. The project's
+# account holds a handful of depositions, so a listing longer than this is an
+# answer that cannot be trusted, and the check fails rather than deposit.
+LIST_PAGE_SIZE = 100
+LIST_MAX_PAGES = 50
 
 
 def meta_keys(sandbox: bool) -> dict[str, str]:
@@ -223,6 +245,35 @@ def _body(resp: Any) -> str:
         return "(no body)"
 
 
+def _latest_id(dep: Mapping) -> str | None:
+    """The record id in links.latest, which points at the newest published
+    version of the deposition's series; None when Zenodo does not say."""
+    links = dep.get("links")
+    m = re.search(r"/records/(\d+)$", str((links if isinstance(links, dict) else {}).get("latest") or ""))
+    return m.group(1) if m else None
+
+
+def _published(dep: Mapping) -> bool:
+    # submitted is Zenodo's "has been published" flag. state is "done", or
+    # "inprogress" while the owner edits a published version on the web page;
+    # either way the version and its DOI exist.
+    return dep.get("submitted") is True and dep.get("state") in ("done", "inprogress")
+
+
+def _holds(dep: Mapping, period: str) -> bool:
+    """A published version whose metadata version is the quarter."""
+    meta = dep.get("metadata")
+    return _published(dep) and isinstance(meta, dict) and str(meta.get("version") or "") == period
+
+
+def _is_ours(dep: Any) -> bool:
+    """A published version of this series, as the deposition listing shows it."""
+    if not isinstance(dep, dict) or not str(dep.get("id") or "").isdigit():
+        return False
+    meta = dep.get("metadata")
+    return _published(dep) and isinstance(meta, dict) and meta.get("title") == TITLE
+
+
 class Client:
     """The legacy deposit API, which Zenodo still serves for scripted uploads.
     The token goes in a header, so no URL logged here carries it, and only to
@@ -280,12 +331,32 @@ class Client:
         from the one recorded when a version was published by hand on the web
         page. The recorded id when Zenodo does not say."""
         try:
-            link = ((self.deposition(record_id).get("links") or {}).get("latest") or "")
+            return _latest_id(self.deposition(record_id)) or record_id
         except DepositError as exc:
             log.warning("zenodo: %s; versioning from record %s", exc, record_id)
             return record_id
-        m = re.search(r"/records/(\d+)$", str(link))
-        return m.group(1) if m else record_id
+
+    def newest(self, record_id: str) -> dict:
+        """The newest published version of the record's series, read in full.
+        Unlike latest, a failure raises: the answer decides whether tonight's
+        quarter is deposited at all. Only the record id is taken from the link,
+        so the request still goes to the API host."""
+        dep = self.deposition(record_id)
+        latest = _latest_id(dep)
+        return self.deposition(latest) if latest and latest != str(dep.get("id")) else dep
+
+    def depositions(self) -> list[dict]:
+        """Every deposition the token can see, every version of each, page by page."""
+        found: list[dict] = []
+        for page in range(1, LIST_MAX_PAGES + 1):
+            body = self._call("GET", f"{self.base}/deposit/depositions?size={LIST_PAGE_SIZE}&page={page}"
+                              "&all_versions=true", what="list the depositions")
+            if not isinstance(body, list):
+                raise DepositError("list the depositions: the answer is not a list")
+            found.extend(d for d in body if isinstance(d, dict))
+            if len(body) < LIST_PAGE_SIZE:
+                return found
+        raise DepositError(f"list the depositions: still more after {LIST_MAX_PAGES} pages")
 
     def new_version(self, record_id: str) -> dict:
         record_id = self.latest(record_id)
@@ -336,6 +407,34 @@ def _truthy(value: str | None) -> bool:
     return (value or "").strip().lower() in ("1", "true", "yes")
 
 
+def check(client: Client, record_id: str | None, period: str) -> tuple[dict | None, str | None]:
+    """What Zenodo already holds, asked before any draft is made. Returns the
+    published version that holds the period, when one does, and the record
+    the new version builds on (None to create the first record). Raises
+    DepositError when Zenodo cannot answer."""
+    if record_id:
+        newest = client.newest(record_id)
+        return (newest if _holds(newest, period) else None), record_id
+    # No record in meta: a first deposit, or a database restored from before
+    # one. The listing shows every version, so a version of the quarter is
+    # found even when a newer one exists; the newest wins any tie.
+    ours = sorted((d for d in client.depositions() if _is_ours(d)), key=lambda d: int(d["id"]), reverse=True)
+    held = next((d for d in ours if _holds(d, period)), None)
+    return held, (str(ours[0]["id"]) if ours else None)
+
+
+def _record(conn: sqlite3.Connection, keys: dict[str, str], period: str, dep: Mapping, fallback_id: str,
+            published_on: str) -> None:
+    set_meta(conn, keys["period"], period)
+    set_meta(conn, keys["record_id"], str(dep.get("record_id") or dep.get("id") or fallback_id))
+    set_meta(conn, keys["published"], published_on)
+    for key, field in (("doi", "doi"), ("concept_doi", "conceptdoi"), ("concept_recid", "conceptrecid")):
+        value = dep.get(field)
+        if value:
+            set_meta(conn, keys[key], str(value))
+    conn.commit()
+
+
 def run(
     conn: sqlite3.Connection,
     csv_dir: Path | None = None,
@@ -346,7 +445,10 @@ def run(
     echo: Callable[[str], None] = print,
     now: datetime | None = None,
 ) -> str:
-    """Deposit tonight's files when a new quarter is loaded. Returns the outcome; never raises."""
+    """Deposit tonight's files when a new quarter is loaded. Returns the outcome,
+    one of "deposited", "already deposited" (Zenodo held the quarter and meta
+    now records it), "no new quarter", "no data", "no token", "dry run" and
+    "failed"; never raises."""
     try:
         return _run(conn, csv_dir or (config.OUT_DIR / "csv"), dry_run=dry_run, env=env, session=session,
                     echo=echo, now=now)
@@ -399,6 +501,26 @@ def _run(conn: sqlite3.Connection, csv_dir: Path, *, dry_run: bool, env: Mapping
         session = requests.Session()
     client = Client(SANDBOX_API if sandbox else PRODUCTION_API, token, session)
 
+    # Meta can miss a version Zenodo published (a lost publish answer, a lost
+    # database save), and a second version of a quarter is permanent, so
+    # Zenodo's own record decides before any draft is made.
+    try:
+        held, base = check(client, record_id, period)
+    except DepositError as exc:
+        log.error("zenodo: %s not deposited on %s: what is already published could not be checked: %s",
+                  period, where, exc)
+        return "failed"
+    if held is not None:
+        published_on = str((held.get("metadata") or {}).get("publication_date") or today)
+        _record(conn, keys, period, held, str(held.get("id")), published_on)
+        log.info("zenodo: %s is already published on %s as record %s (%s%s); recorded it, nothing deposited",
+                 period, where, get_meta(conn, keys["record_id"]), DOI_URL, held.get("doi") or "?")
+        return "already deposited"
+    if base and base != record_id:
+        log.info("zenodo: no record in meta; record %s on %s carries this title, so %s goes up as a new "
+                 "version of its series", base, where, period)
+    record_id = base
+
     draft_id: str | None = None
     try:
         draft = client.new_version(record_id) if record_id else client.create()
@@ -428,14 +550,7 @@ def _run(conn: sqlite3.Connection, csv_dir: Path, *, dry_run: bool, env: Mapping
             published = client.deposition(draft_id)
         except DepositError as exc:
             log.warning("zenodo: published, but %s", exc)
-    set_meta(conn, keys["period"], period)
-    set_meta(conn, keys["record_id"], str(published.get("record_id") or published.get("id") or draft_id))
-    set_meta(conn, keys["published"], today)
-    for key, field in (("doi", "doi"), ("concept_doi", "conceptdoi"), ("concept_recid", "conceptrecid")):
-        value = published.get(field)
-        if value:
-            set_meta(conn, keys[key], str(value))
-    conn.commit()
+    _record(conn, keys, period, published, str(draft_id), today)
     doi = published.get("doi")
     if doi:
         log.info("zenodo: deposited %s on %s as %s%s (all versions: %s%s)", period, where, DOI_URL, doi, DOI_URL,

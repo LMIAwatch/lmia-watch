@@ -2,6 +2,7 @@
 
 import csv
 import json
+import logging
 import re
 
 import pytest
@@ -18,7 +19,10 @@ SANDBOX = zenodo.SANDBOX_API
 class FakeZenodo:
     """A small in-memory deposit API: depositions, their files, versions and publishing.
     `fail` maps a call name (create, newversion, list, delete_file, upload, metadata,
-    publish, discard) to an HTTP status or an exception to answer with instead."""
+    publish, discard, read for one deposition, depositions for the listing) to an HTTP
+    status or an exception to answer with instead. publish_lost publishes and then
+    answers with the status or raises the exception, as when the answer is lost on the
+    way back. Like Zenodo, it refuses to delete a published deposition."""
 
     def __init__(self, base: str = PROD, *, fail: dict | None = None, thin_publish: bool = False) -> None:
         self.base = base
@@ -39,7 +43,7 @@ class FakeZenodo:
 
     def _view(self, dep: dict) -> dict:
         view = {
-            "id": dep["id"], "submitted": dep["submitted"], "state": dep["state"],
+            "id": dep["id"], "submitted": dep["submitted"], "state": dep["state"], "metadata": dict(dep["metadata"]),
             "links": {"bucket": f"{self.base}/files/bucket-{dep['id']}", "latest_draft": dep.get("latest_draft")},
         }
         series = [d["id"] for d in self.deps.values() if d["concept"] == dep["concept"] and d["submitted"]]
@@ -66,6 +70,17 @@ class FakeZenodo:
             if "create" in self.fail:
                 return self._answer("create", FakeJSON(201, {}))
             return FakeJSON(201, self._view(self._new(None, [])))
+        if method == "GET" and path.partition("?")[0] == "/deposit/depositions":
+            query = dict(p.split("=", 1) for p in path.partition("?")[2].split("&") if "=" in p)
+            listed = sorted(self.deps.values(), key=lambda d: -d["id"])
+            if query.get("all_versions") not in ("true", "1"):
+                newest = {}
+                for d in listed:
+                    newest.setdefault(d["concept"], d)
+                listed = list(newest.values())
+            size, page = int(query.get("size", 10)), int(query.get("page", 1))
+            page_of = [self._view(d) for d in listed[(page - 1) * size:page * size]]
+            return self._answer("depositions", FakeJSON(200, page_of))
         m = re.fullmatch(r"/deposit/depositions/(\d+)(/.*)?", path)
         b = re.fullmatch(r"/files/bucket-(\d+)/(.+)", path)
         if b:
@@ -79,20 +94,27 @@ class FakeZenodo:
         dep = self.deps[int(m.group(1))]
         rest = m.group(2) or ""
         if method == "GET" and rest == "":
-            return FakeJSON(200, self._view(dep))
+            return self._answer("read", FakeJSON(200, self._view(dep)))
         if method == "PUT" and rest == "":
             answer = self._answer("metadata", FakeJSON(200, self._view(dep)))
             if answer.status_code < 300:
                 dep["metadata"] = json["metadata"]
             return answer
         if method == "DELETE" and rest == "":
+            if dep["submitted"]:
+                return FakeJSON(403, {"status": 403, "message": "a published deposition cannot be deleted"})
             answer = self._answer("discard", FakeJSON(201, None, text=""))
             if answer.status_code < 300:
                 del self.deps[dep["id"]]
             return answer
         if method == "POST" and rest == "/actions/newversion":
             existing = [d for d in self.deps.values() if d["concept"] == dep["concept"] and not d["submitted"]]
-            draft = existing[0] if existing else self._new(dep["concept"], list(dep["uploads"]))
+            if existing:
+                draft = existing[0]
+            else:
+                # Zenodo starts the new version with the previous one's files and metadata.
+                draft = self._new(dep["concept"], list(dep["uploads"]))
+                draft["metadata"] = dict(dep["metadata"])
             dep["latest_draft"] = f"{self.base}/deposit/depositions/{draft['id']}"
             return self._answer("newversion", FakeJSON(201, self._view(dep)))
         if method == "GET" and rest == "/files":
@@ -108,6 +130,8 @@ class FakeZenodo:
             answer = self._answer("publish", FakeJSON(202, {}))
             if answer.status_code < 300:
                 dep["submitted"], dep["state"] = True, "done"
+                if "publish_lost" in self.fail:
+                    return self._answer("publish_lost", answer)
                 if not self.thin_publish:
                     return FakeJSON(202, self._view(dep))
             return answer
@@ -115,6 +139,12 @@ class FakeZenodo:
 
     def published(self) -> list[dict]:
         return [d for d in self.deps.values() if d["submitted"]]
+
+    def add_published(self, concept: int | None = None, **metadata) -> dict:
+        """A version published outside the pipeline: by hand on the web page, or another dataset."""
+        dep = self._new(concept, [])
+        dep.update(submitted=True, state="done", metadata=metadata)
+        return dep
 
 
 def write_csvs(folder, period="2026Q1"):
@@ -343,3 +373,201 @@ def test_cli_writes_the_outcome_and_exits_1_only_on_failure(tmp_path, monkeypatc
     assert outcome.read_text(encoding="utf-8").strip() == "failed"
     assert cli.main(["deposit-zenodo", "--db", str(db), "--csv-dir", str(tmp_path / "csv"), "--dry-run"]) == 0
     assert outcome.read_text(encoding="utf-8").strip() == "dry run"
+
+
+# -- a version Zenodo published that meta does not know of ---------------------
+
+
+def zenodo_meta(conn) -> dict:
+    return {r["key"]: r["value"] for r in conn.execute("SELECT key, value FROM meta WHERE key LIKE 'zenodo%'")}
+
+
+def lose_meta(conn, restore: dict | None = None) -> None:
+    """The night's database save failed, so the next run starts from an older copy."""
+    conn.execute("DELETE FROM meta WHERE key LIKE 'zenodo%'")
+    for key, value in (restore or {}).items():
+        set_meta(conn, key, value)
+    conn.commit()
+
+
+def versions_of(api: FakeZenodo, period: str) -> list[dict]:
+    return [d for d in api.published() if d["metadata"].get("version") == period]
+
+
+def assert_recorded(conn, dep: dict) -> None:
+    """Meta holds the version as a fresh deposit of it would have left it."""
+    assert get_meta(conn, "zenodo_period") == dep["metadata"]["version"]
+    assert get_meta(conn, "zenodo_record_id") == str(dep["id"])
+    assert get_meta(conn, "zenodo_doi") == f"10.5281/zenodo.{dep['id']}"
+    assert get_meta(conn, "zenodo_concept_doi") == f"10.5281/zenodo.{dep['concept']}"
+    assert get_meta(conn, "zenodo_concept_recid") == str(dep["concept"])
+    assert get_meta(conn, "zenodo_published") == dep["metadata"]["publication_date"]
+
+
+@pytest.mark.parametrize("answer", [504, TimeoutError("read timed out")], ids=["504", "timeout"])
+@pytest.mark.parametrize("quarter", ["first", "next"])
+def test_a_publish_whose_answer_was_lost_is_adopted_the_next_night(conn, csvs, quarter, answer, caplog):
+    caplog.set_level(logging.INFO, logger="lmia_pipeline.zenodo")
+    set_meta(conn, "esdc_latest_period", "2026Q1")
+    api = FakeZenodo()
+    if quarter == "next":
+        assert zenodo.run(conn, csvs, env=env(), session=api) == "deposited"
+        set_meta(conn, "esdc_latest_period", "2026Q2")
+        write_csvs(csvs, period="2026Q2")
+    period = get_meta(conn, "esdc_latest_period")
+    before = zenodo_meta(conn)
+    api.fail = {"publish_lost": answer}
+    assert zenodo.run(conn, csvs, env=env(), session=api) == "failed"
+    # Zenodo published it and refused the discard; meta knows nothing of it.
+    (dep,) = versions_of(api, period)
+    assert zenodo_meta(conn) == before
+    assert "the next run reuses or replaces it" in caplog.text
+    api.fail = {}
+    calls = len(api.calls)
+    assert zenodo.run(conn, csvs, env=env(), session=api) == "already deposited"
+    assert versions_of(api, period) == [dep] and len(api.published()) == (1 if quarter == "first" else 2)
+    assert {m for m, _ in api.calls[calls:]} == {"GET"}
+    assert_recorded(conn, dep)
+    assert "is already published on zenodo.org" in caplog.text and TOKEN not in caplog.text
+    assert zenodo.run(conn, csvs, env=env(), session=api) == "no new quarter"
+
+
+@pytest.mark.parametrize("restore", [True, False], ids=["older-meta", "no-meta"])
+def test_a_deposit_whose_database_save_was_lost_is_adopted_not_repeated(conn, csvs, restore):
+    set_meta(conn, "esdc_latest_period", "2026Q1")
+    api = FakeZenodo()
+    assert zenodo.run(conn, csvs, env=env(), session=api) == "deposited"
+    night_before = zenodo_meta(conn)
+    set_meta(conn, "esdc_latest_period", "2026Q2")
+    write_csvs(csvs, period="2026Q2")
+    assert zenodo.run(conn, csvs, env=env(), session=api) == "deposited"
+    (q2,) = versions_of(api, "2026Q2")
+    lose_meta(conn, night_before if restore else None)
+    calls = len(api.calls)
+    assert zenodo.run(conn, csvs, env=env(), session=api) == "already deposited"
+    assert len(api.published()) == 2 and versions_of(api, "2026Q2") == [q2]
+    assert {m for m, _ in api.calls[calls:]} == {"GET"}
+    assert_recorded(conn, q2)
+
+
+def test_a_first_deposit_whose_database_save_was_lost_starts_no_second_record(conn, csvs, monkeypatch):
+    monkeypatch.setattr(zenodo, "LIST_PAGE_SIZE", 2)
+    set_meta(conn, "esdc_latest_period", "2026Q1")
+    api = FakeZenodo()
+    assert zenodo.run(conn, csvs, env=env(), session=api) == "deposited"
+    (dep,) = api.published()
+    # Newer depositions of other datasets, one with the same version string,
+    # push ours to a later page of the listing.
+    for i in range(3):
+        api.add_published(title=f"Another dataset {i}", version="2026Q1", publication_date="2026-10-01")
+    lose_meta(conn)
+    calls = len(api.calls)
+    assert zenodo.run(conn, csvs, env=env(), session=api) == "already deposited"
+    pages = [url for _, url in api.calls[calls:]]
+    assert len(pages) == 3 and all("/deposit/depositions?" in u and "all_versions=true" in u for u in pages)
+    assert len({d["concept"] for d in api.published() if d["metadata"].get("title") == zenodo.TITLE}) == 1
+    assert_recorded(conn, dep)
+    assert zenodo.run(conn, csvs, env=env(), session=api) == "no new quarter"
+
+
+@pytest.mark.parametrize("known", ["adopted", "by-title"])
+def test_a_new_quarter_after_a_lost_record_is_a_new_version_of_the_same_concept(conn, csvs, known):
+    set_meta(conn, "esdc_latest_period", "2026Q1")
+    api = FakeZenodo()
+    assert zenodo.run(conn, csvs, env=env(), session=api) == "deposited"
+    first = int(get_meta(conn, "zenodo_record_id"))
+    lose_meta(conn)
+    if known == "adopted":
+        assert zenodo.run(conn, csvs, env=env(), session=api) == "already deposited"
+    set_meta(conn, "esdc_latest_period", "2026Q2")
+    write_csvs(csvs, period="2026Q2")
+    calls = len(api.calls)
+    assert zenodo.run(conn, csvs, env=env(), session=api) == "deposited"
+    old, new = api.published()
+    assert new["concept"] == old["concept"] == first and new["metadata"]["version"] == "2026Q2"
+    assert ("POST", f"{PROD}/deposit/depositions") not in api.calls[calls:]
+    assert ("POST", f"{PROD}/deposit/depositions/{first}/actions/newversion") in api.calls[calls:]
+    assert new["files"] == {}
+    assert_recorded(conn, new)
+
+
+@pytest.mark.parametrize("quarter", ["first", "next"])
+def test_a_leftover_draft_holding_the_quarter_is_never_adopted(conn, csvs, quarter):
+    set_meta(conn, "esdc_latest_period", "2026Q1")
+    api = FakeZenodo()
+    if quarter == "next":
+        assert zenodo.run(conn, csvs, env=env(), session=api) == "deposited"
+        set_meta(conn, "esdc_latest_period", "2026Q2")
+        write_csvs(csvs, period="2026Q2")
+    period = get_meta(conn, "esdc_latest_period")
+    api.fail = {"publish": 500, "discard": 500}
+    assert zenodo.run(conn, csvs, env=env(), session=api) == "failed"
+    (draft,) = [d for d in api.deps.values() if not d["submitted"]]
+    assert draft["metadata"]["version"] == period
+    lose_meta(conn)
+    api.fail = {}
+    assert zenodo.run(conn, csvs, env=env(), session=api) == "deposited"
+    (dep,) = versions_of(api, period)
+    # A first record cannot be versioned, so a new one is made as before; a
+    # new version's leftover draft is the one Zenodo hands back.
+    assert (dep["id"] == draft["id"]) == (quarter == "next")
+    assert_recorded(conn, dep)
+
+
+def test_a_version_being_edited_on_the_web_page_still_counts_as_published(conn, csvs):
+    set_meta(conn, "esdc_latest_period", "2026Q1")
+    api = FakeZenodo()
+    assert zenodo.run(conn, csvs, env=env(), session=api) == "deposited"
+    (dep,) = api.published()
+    dep["state"] = "inprogress"
+    lose_meta(conn)
+    assert zenodo.run(conn, csvs, env=env(), session=api) == "already deposited"
+    assert api.published() == [dep]
+
+
+@pytest.mark.parametrize("fault", [500, ConnectionError("unreachable"), 200], ids=["refused", "unreachable", "not-a-list"])
+def test_a_first_deposit_whose_check_fails_deposits_nothing(conn, csvs, fault, caplog):
+    set_meta(conn, "esdc_latest_period", "2026Q1")
+    api = FakeZenodo(fail={"depositions": fault})
+    assert zenodo.run(conn, csvs, env=env(), session=api) == "failed"
+    assert api.deps == {} and [m for m, _ in api.calls] == ["GET"]
+    assert zenodo_meta(conn) == {}
+    assert "could not be checked" in caplog.text and TOKEN not in caplog.text
+    api.fail = {}
+    assert zenodo.run(conn, csvs, env=env(), session=api) == "deposited"
+
+
+def test_a_new_version_whose_check_fails_deposits_nothing(conn, csvs, caplog):
+    set_meta(conn, "esdc_latest_period", "2026Q1")
+    api = FakeZenodo()
+    assert zenodo.run(conn, csvs, env=env(), session=api) == "deposited"
+    first = get_meta(conn, "zenodo_record_id")
+    before = zenodo_meta(conn)
+    set_meta(conn, "esdc_latest_period", "2026Q2")
+    write_csvs(csvs, period="2026Q2")
+    api.fail = {"read": 503}
+    calls = len(api.calls)
+    assert zenodo.run(conn, csvs, env=env(), session=api) == "failed"
+    assert api.calls[calls:] == [("GET", f"{PROD}/deposit/depositions/{first}")]
+    assert len(api.deps) == 1 and zenodo_meta(conn) == before
+    assert "could not be checked" in caplog.text and "HTTP 503" in caplog.text and TOKEN not in caplog.text
+
+
+def test_a_listing_that_never_ends_is_a_failed_check(conn, csvs, monkeypatch):
+    monkeypatch.setattr(zenodo, "LIST_PAGE_SIZE", 1)
+    monkeypatch.setattr(zenodo, "LIST_MAX_PAGES", 2)
+    set_meta(conn, "esdc_latest_period", "2026Q1")
+    api = FakeZenodo()
+    for i in range(3):
+        api.add_published(title=f"Another dataset {i}", version="1")
+    assert zenodo.run(conn, csvs, env=env(), session=api) == "failed"
+    assert [m for m, _ in api.calls] == ["GET", "GET"] and len(api.deps) == 3
+
+
+def test_already_deposited_exits_0_and_is_written_as_the_outcome(tmp_path, monkeypatch):
+    db = tmp_path / "lmia.sqlite"
+    connect(db).close()
+    monkeypatch.setattr(config, "OUT_DIR", tmp_path / "out")
+    monkeypatch.setattr(zenodo, "run", lambda *args, **kwargs: "already deposited")
+    assert cli.main(["deposit-zenodo", "--db", str(db)]) == 0
+    assert (tmp_path / "out" / "zenodo" / "last_outcome.txt").read_text(encoding="utf-8").strip() == "already deposited"

@@ -233,7 +233,9 @@ jobs:
       # the recorded DOIs travel with the database. Skipped without
       # ZENODO_TOKEN; ZENODO_SANDBOX=true sends it to sandbox.zenodo.org. A
       # failure discards the draft, is reported in the run status, and is
-      # tried again the next night; it never stops the save.
+      # tried again the next night; it never stops the save. Before any draft
+      # the step asks Zenodo what it already holds, so a version whose publish
+      # answer or database save was lost is adopted, never published twice.
       - name: Deposit a new ESDC quarter on Zenodo (only when ZENODO_TOKEN is set)
         id: zenodo
         if: ${{ !cancelled() && steps.deploy.outcome == 'success' }}

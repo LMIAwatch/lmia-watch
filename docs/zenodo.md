@@ -123,6 +123,14 @@ the list of versions, and citation formats.
   emails), and the Worker's daily check emails the alert address. The quarter
   is not recorded, so the next night tries again. The database save and the
   rest of the run carry on either way.
+- A version Zenodo published that the database does not know of (the answer
+  to the publish was lost on the way back, or the night's database save
+  failed after the deposit and the run restored the night before's copy):
+  before making a draft, the job asks Zenodo what it already holds and adopts
+  a published version of the quarter instead of depositing a second one,
+  recording its DOIs and writing `already deposited` as `zenodo_deposit`.
+  When Zenodo cannot answer that question, nothing is deposited that night
+  and the outcome is `failed`.
 - A version with a mistake: correct the data, then either wait for the next
   quarter or publish a corrected version by hand on the record's page (New
   version). The nightly job always builds on the newest version, including
