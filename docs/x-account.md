@@ -32,6 +32,10 @@ rules.
    When the credits run out, X refuses the post, the step logs it, and the
    site refresh carries on as usual. Topping up is a manual step.
 
+7. Reading through the API is billed too, so the nightly audience roll-up
+   (`docs/search-engines.md`, section 6) records the Bluesky follower count
+   and leaves the X one out.
+
 This is the one part of the project that is not free. Decide on it before
 step 2.
 

@@ -5,10 +5,11 @@ import { fmtInt, provinceName, streamLabel, t, tj, type Key, type Lang } from ".
 import { Layout, page } from "../layout";
 import { SITE_ORIGIN, SOCIAL_CARD, type Seo, pageTitle } from "../seo";
 
-// The pipeline writes the feeds as static files under /data/feeds/ (feeds.py),
-// so a feed reader's poll never reaches the Worker. This page reads only the
-// small index of what was written: scoped feeds come and go with the data,
-// the four national feeds are always there.
+// The pipeline writes the feeds as static files under /data/feeds/ (feeds.py).
+// A reader's poll passes through the Worker only to be counted (index.tsx
+// serves the file from the assets binding with a short cache). This page
+// reads only the small index of what was written: scoped feeds come and go
+// with the data, the four national feeds are always there.
 
 export const FEED_EVENTS = ["pending", "approved", "findings", "quarters"] as const;
 export type FeedEvent = (typeof FEED_EVENTS)[number];

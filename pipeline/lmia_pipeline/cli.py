@@ -1,5 +1,5 @@
 """Command line: `python -m lmia_pipeline run`, `post-digest`, `post-bluesky`, `deposit-zenodo`,
-and the search database's `search-sync`, `search-check` and `search-synced`."""
+the search database's `search-sync`, `search-check` and `search-synced`, and `rollup-views`."""
 
 from __future__ import annotations
 
@@ -8,10 +8,11 @@ import csv
 import logging
 import sqlite3
 import sys
+from datetime import date
 from pathlib import Path
 from typing import Any, Callable
 
-from . import bluesky, config, export, export_static, indicators, migrate, search_db, social, status, zenodo
+from . import bluesky, config, export, export_static, indicators, migrate, search_db, social, status, views_rollup, zenodo
 from .db import connect, hours_since, log_run
 from .http import PoliteClient
 from .sources import esdc, geography, ircc, jobbank, lfs, registry_bc, registry_federal, registry_quebec, wages
@@ -101,6 +102,16 @@ def build_parser() -> argparse.ArgumentParser:
     sc.add_argument("--count", type=int, required=True, help="SELECT COUNT(*) FROM search_rows, as D1 answered it")
     sc.add_argument("--db", default=None,
                     help="SQLite path; when given, a mismatch is noted there so a coming sync reloads in full")
+
+    # The audience counts (views_rollup.py, docs/search-engines.md section 6):
+    # the days Analytics Engine still holds and summary.csv lacks, as files
+    # the workflow uploads to R2. Needs CLOUDFLARE_ANALYTICS_TOKEN and
+    # CLOUDFLARE_ACCOUNT_ID; without the token it does nothing.
+    rv = sub.add_parser("rollup-views", help="save the audience counts of finished UTC days as CSV files")
+    rv.add_argument("--out", default=None,
+                    help="folder holding summary.csv; the day files go beside it (default data/out/views)")
+    rv.add_argument("--day", default=None,
+                    help="roll up this UTC day only (YYYY-MM-DD, within the last 90 days); default: every day due")
     return parser
 
 
@@ -127,6 +138,9 @@ def _main(args: argparse.Namespace) -> int:
     # Needs no database unless the count disagrees.
     if args.command == "search-check":
         return _search_check(args)
+    # Reads only the API and its own files.
+    if args.command == "rollup-views":
+        return _rollup_views(args)
     conn = connect(args.db)
     try:
         return _command(conn, args)
@@ -250,6 +264,17 @@ def _command(conn: sqlite3.Connection, args: argparse.Namespace) -> int:
         ok &= _stage(conn, "export_mirror", lambda: export.export_mirror(conn), "mirror files")
         ok &= _stage(conn, "export", lambda: export_static.export_static(conn), "static files")
     return 0 if ok else 1
+
+
+def _rollup_views(args: argparse.Namespace) -> int:
+    """Exit 1 only when the roll-up failed. The workflow writes the outcome
+    for the run status itself, after the uploads, because a night counts as
+    rolled up only once its files are in R2."""
+    day = date.fromisoformat(args.day) if args.day else None
+    outcome = views_rollup.run(Path(args.out) if args.out else None, day=day)
+    log.info("rollup-views: %s", outcome)
+    print(f"rollup-views: {outcome}")
+    return 1 if outcome == "failed" else 0
 
 
 def _search_check(args: argparse.Namespace) -> int:

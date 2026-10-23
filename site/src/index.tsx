@@ -105,6 +105,33 @@ app.post("/hooks/kofi", kofiWebhook);
 app.get("/robots.txt", robotsTxt);
 app.get("/:file{sitemap(?:-[0-9]+)?\\.xml}", sitemapFile);
 
+// The Atom feeds (feeds.py) are static files, but wrangler.jsonc runs the
+// Worker first for /data/feeds/* so the measure middleware counts each poll
+// and the subscriber count a reader states (views.ts). The file comes from
+// the assets binding as it would have been served, the reader's conditional
+// headers included so a reader that has the file still gets a 304, with a
+// short cache added. A path with no file gets the site's 404 page, as it did
+// when such a request fell through to the Worker.
+const FEED_CACHE = "public, max-age=300";
+app.get("/data/feeds/*", async (c) => {
+  if (!c.env.ASSETS) return c.notFound();
+  let res: Response;
+  try {
+    res = await c.env.ASSETS.fetch(c.req.raw);
+  } catch (e) {
+    console.error(`feed ${c.req.path}: ${String(e).slice(0, 200)}`);
+    c.header("Retry-After", "300");
+    c.header("Cache-Control", "no-store");
+    return c.body(null, 503);
+  }
+  if (res.status === 404) return c.notFound();
+  // The binding's headers cannot be changed in place, and the middleware
+  // above adds its own after this returns.
+  const headers = new Headers(res.headers);
+  if (res.status === 200 || res.status === 304) headers.set("Cache-Control", FEED_CACHE);
+  return new Response(res.body, { status: res.status, headers });
+});
+
 app.get("/downloads/:file{.+}", async (c) => {
   const file = c.req.param("file");
   const allowed = DOWNLOADS.some((d) => d.file === file) || /^mirror\/[A-Za-z0-9._-]+$/.test(file);

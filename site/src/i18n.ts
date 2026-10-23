@@ -1238,8 +1238,8 @@ const STRINGS = {
   "limits.too_many": { en: "Too many requests from this address. Try again in a minute.", fr: "Trop de requêtes depuis cette adresse. Réessayez dans une minute." },
   // --- measurement, citation and bluesky ---
   "data.views_note": {
-    en: "The site counts the pages it serves in aggregate, on its own server: for each response it keeps the kind of page, the language, the country reported by Cloudflare's network, the name of the referring website and the response status. It sets no cookie for this, runs no tracking script in the browser, and keeps no IP address or other personal data.",
-    fr: "Le site compte de façon agrégée les pages qu'il sert, sur son propre serveur : pour chaque réponse, il conserve le type de page, la langue, le pays indiqué par le réseau de Cloudflare, le nom du site d'où vient le visiteur et le statut de la réponse. Il ne dépose aucun témoin à cette fin, n'exécute aucun script de suivi dans le navigateur et ne conserve aucune adresse IP ni autre donnée personnelle.",
+    en: "The site counts the pages it serves in aggregate, on its own server: for each response it keeps the kind of page, the language, the country reported by Cloudflare's network, the name of the referring website and the response status. When a feed reader fetches a feed and states how many people it fetches it for, that number is kept as well. It sets no cookie for this, runs no tracking script in the browser, and keeps no IP address or other personal data.",
+    fr: "Le site compte de façon agrégée les pages qu'il sert, sur son propre serveur : pour chaque réponse, il conserve le type de page, la langue, le pays indiqué par le réseau de Cloudflare, le nom du site d'où vient le visiteur et le statut de la réponse. Lorsqu'un lecteur de fils télécharge un fil et indique pour combien de personnes il le fait, ce nombre est aussi conservé. Il ne dépose aucun témoin à cette fin, n'exécute aucun script de suivi dans le navigateur et ne conserve aucune adresse IP ni autre donnée personnelle.",
   },
   "cite.title": { en: "How to Cite", fr: "Comment citer" },
   "cite.text": {
@@ -1269,8 +1269,8 @@ const STRINGS = {
     fr: "Chaque fil présente les 50 dossiers les plus récents d'un type, pour le Canada ou pour une province, un volet, un groupe de professions ou une région métropolitaine. Les entrées sont en anglais et en français, renvoient au profil de l'employeur et nomment leur source. Les fils sont reconstruits avec les données chaque nuit.",
   },
   "feeds.privacy": {
-    en: "A feed is a plain file that your feed reader fetches. LMIA Watch stores no reader address, name or list of subscribers, and cannot tell who reads a feed.",
-    fr: "Un fil est un simple fichier que votre lecteur de fils télécharge. LMIA Watch ne conserve aucune adresse, aucun nom ni aucune liste d'abonnés, et ne peut savoir qui lit un fil.",
+    en: "A feed is a plain file that your feed reader fetches. LMIA Watch counts these fetches and keeps the number of subscribers a reader states, but stores no reader address, name or list of subscribers, and cannot tell who reads a feed.",
+    fr: "Un fil est un simple fichier que votre lecteur de fils télécharge. LMIA Watch compte ces téléchargements et garde le nombre d'abonnés qu'un lecteur indique, mais ne conserve aucune adresse, aucun nom ni aucune liste d'abonnés, et ne peut savoir qui lit un fil.",
   },
   "feeds.records_note": {
     en: "Feeds carry records only, never indicators, and nothing the employer profiles do not already show. IRCC findings appear as IRCC published them.",

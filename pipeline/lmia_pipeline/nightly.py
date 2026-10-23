@@ -253,17 +253,18 @@ def verify(db: Path, static: Path, started: float | None, before: dict[str, int]
 def run_status(
     db: Path, started: str | None, verify_result: dict[str, Any] | None, outcome: str | None,
     steps: dict[str, str], now: datetime | None = None, *, bluesky: str | None = None,
-    zenodo: str | None = None, search: str | None = None,
+    zenodo: str | None = None, search: str | None = None, views: str | None = None,
 ) -> dict[str, Any]:
     """status.json for the site's daily check. Every input may be missing: the
     status then says what is missing rather than failing to be written.
 
-    outcome, bluesky, zenodo and search are the outcomes the X post, the
-    Bluesky post, the Zenodo deposit and the search database sync wrote
-    ("synced", "nothing to send" or "failed" for the sync); "not run" when
-    the step did not run. They are reported beside the stages, not as
-    stages, so a refused post, a failed deposit or a failed sync alerts
-    without marking the data refresh failed."""
+    outcome, bluesky, zenodo, search and views are the outcomes the X post,
+    the Bluesky post, the Zenodo deposit, the search database sync ("synced",
+    "nothing to send" or "failed") and the audience roll-up ("rolled up",
+    "no data", "no token" or "failed") wrote; "not run" when the step did
+    not run. They are reported beside the stages, not as stages, so a
+    refused post, a failed deposit, sync or roll-up alerts without marking
+    the data refresh failed."""
     stages: list[dict[str, Any]] = []
     for name, result in steps.items():
         if result == "failure":
@@ -297,6 +298,7 @@ def run_status(
         "bluesky_post": bluesky or "not run",
         "zenodo_deposit": zenodo or "not run",
         "search_sync": search or "not run",
+        "views_rollup": views or "not run",
         "ok": all(s["ok"] for s in stages),
     }
 
@@ -420,6 +422,7 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--bluesky-outcome", default=None, help="the Bluesky post's outcome file")
     s.add_argument("--zenodo-outcome", default=None, help="the Zenodo deposit's outcome file")
     s.add_argument("--search-outcome", default=None, help="the search database sync's outcome file")
+    s.add_argument("--views-outcome", default=None, help="the audience roll-up's outcome file")
     s.add_argument("--step", action="append", default=[], help="name=outcome of a workflow step")
     s.add_argument("--out", required=True)
     pk = sub.add_parser("pack")
@@ -466,7 +469,7 @@ def main(argv: list[str] | None = None) -> int:
     steps = dict(item.split("=", 1) for item in args.step if "=" in item)
     status = run_status(Path(args.db), _read(args.started_file), verify_result, _read(args.outcome), steps,
                         bluesky=_read(args.bluesky_outcome), zenodo=_read(args.zenodo_outcome),
-                        search=_read(args.search_outcome))
+                        search=_read(args.search_outcome), views=_read(args.views_outcome))
     _write_json(Path(args.out), status)
     print(json.dumps(status, indent=1))
     return 0

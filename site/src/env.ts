@@ -29,6 +29,7 @@ export interface Env {
   API_LIMIT?: RateLimit;
   DOWNLOAD_LIMIT?: RateLimit;
   FORM_LIMIT?: RateLimit;
+  FEED_LIMIT?: RateLimit;
   // Aggregate response counts (src/views.ts). Absent in tests and local
   // development, in which case nothing is counted.
   VIEWS?: AnalyticsEngineDataset;

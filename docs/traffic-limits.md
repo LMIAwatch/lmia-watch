@@ -5,7 +5,11 @@ stop at 100,000 requests a day, D1 stops at its daily caps, R2 reads are capped
 by the Worker cap, and R2 charges nothing for egress. What a flood can do is
 use up the day's Worker requests and take the pages down until midnight UTC.
 Static files under `/data/` and `/fonts/` are served before the Worker runs,
-so they neither count nor go down.
+so they neither count nor go down. The Atom feeds under `/data/feeds/` are
+the exception: the Worker runs first for them so their polls are counted
+(`docs/search-engines.md`, section 6), and they have a cap of their own
+inside the Worker (below), wide enough for a feed service that polls many
+feeds from one address.
 
 Three layers keep abusive traffic off the Worker.
 
@@ -39,6 +43,7 @@ requests in 10 seconds. A script fetching four pages a second is blocked.
 | Bucket | Paths | Limit |
 |---|---|---|
 | Pages | everything else | 120 |
+| Feeds | `/data/feeds/*` | 600 |
 | API | `/api/*` | 60 |
 | Downloads | `/downloads/*` | 10 |
 | Forms | `POST /corrections`, `POST /employers/<id>/respond` | 5 |

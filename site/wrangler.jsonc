@@ -11,13 +11,16 @@
   ],
   // Per-address request caps, enforced inside the Worker (see src/limits.ts).
   // Static files under /data/ and /fonts/ never reach the Worker and are not
-  // counted. The edge rule in the dashboard (docs/traffic-limits.md) is the
-  // first line; these are the second, and they protect D1 and the downloads.
+  // counted, apart from the Atom feeds (see "assets" below), which have a cap
+  // of their own: one feed service polls many feeds from one address. The
+  // edge rule in the dashboard (docs/traffic-limits.md) is the first line;
+  // these are the second, and they protect D1 and the downloads.
   "ratelimits": [
     { "name": "PAGE_LIMIT", "namespace_id": "1001", "simple": { "limit": 120, "period": 60 } },
     { "name": "API_LIMIT", "namespace_id": "1002", "simple": { "limit": 60, "period": 60 } },
     { "name": "DOWNLOAD_LIMIT", "namespace_id": "1003", "simple": { "limit": 10, "period": 60 } },
-    { "name": "FORM_LIMIT", "namespace_id": "1004", "simple": { "limit": 5, "period": 60 } }
+    { "name": "FORM_LIMIT", "namespace_id": "1004", "simple": { "limit": 5, "period": 60 } },
+    { "name": "FEED_LIMIT", "namespace_id": "1005", "simple": { "limit": 600, "period": 60 } }
   ],
   // The daily check (src/watchdog.ts): 06:00 UTC, after the nightly run has had
   // its window. It emails the operator through the email binding when the data,
@@ -32,7 +35,12 @@
   "send_email": [{ "name": "ALERTS" }],
   "assets": {
     "directory": "./public",
-    "binding": "ASSETS"
+    "binding": "ASSETS",
+    // The Atom feeds go through the Worker first so their polls are counted
+    // with the subscriber counts feed readers state (src/views.ts); the Worker
+    // serves the file from the binding with its headers and a short cache.
+    // Every other static file is still served before the Worker runs.
+    "run_worker_first": ["/data/feeds/*"]
   },
   "d1_databases": [
     {

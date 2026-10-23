@@ -148,6 +148,13 @@ a home connection.
 To stop posting, set `BSKY_POST_ENABLED` to `false`. To cut off access,
 delete the app password in the account's settings.
 
+Separately, the nightly audience roll-up (`docs/search-engines.md`, section
+6) reads the account's follower count from the public profile endpoint
+(`app.bsky.actor.getProfile` on `public.api.bsky.app`, no password or token)
+and keeps it in `views/summary.csv` in R2. It uses the `BSKY_HANDLE` secret,
+or the site's domain when that is not set, and does not depend on
+`BSKY_POST_ENABLED`.
+
 ## Sources
 
 - Posts, images and alt text through the AT Protocol (createSession,

@@ -12,7 +12,9 @@
 # database (D1 lmia-watch-search), deploy the Worker with that data as its
 # assets, post the daily digest to X and to Bluesky when their secrets exist,
 # deposit a new ESDC quarter on Zenodo when its token exists, save the
-# database and the public files back to R2, and write the run status.
+# database and the public files back to R2, keep the audience counts of the
+# finished days in R2 when the analytics token exists, and write the run
+# status.
 #
 # What a failure does (lmia_pipeline/nightly.py holds the checks):
 # - A backup that exists but cannot be downloaded or used stops the run before
@@ -28,12 +30,17 @@
 #   always has something current to read.
 # - A search database sync that fails is reported (search_sync: failed) and
 #   sent again the next night; it never stops the run.
+# - An audience roll-up that fails is reported (views_rollup: failed) and
+#   caught up the next night; it never stops the run, and a summary that
+#   could not be downloaded is never replaced.
 #
 # Secrets on the project account: CLOUDFLARE_API_TOKEN (Workers + R2 + D1),
 # CLOUDFLARE_ACCOUNT_ID. Optional: X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN,
 # X_ACCESS_TOKEN_SECRET (the X post; without them the step does nothing);
 # BSKY_HANDLE, BSKY_APP_PASSWORD (the Bluesky post, docs/bluesky-account.md);
-# ZENODO_TOKEN (the Zenodo deposit, docs/zenodo.md).
+# ZENODO_TOKEN (the Zenodo deposit, docs/zenodo.md);
+# CLOUDFLARE_ANALYTICS_TOKEN (Account Analytics Read only, the audience
+# roll-up, docs/search-engines.md section 6; without it the step does nothing).
 # Variables: SITE_URL, CONTACT (the scraper's user agent); X_POST_ENABLED must be
 # "true" for the X step to run at all (X posting is pay-per-use, so it is opt-in);
 # optional X_POST_LINK, set to true to put the site link in the text (X bills a
@@ -352,6 +359,68 @@ jobs:
             "$WRANGLER" r2 object put --remote "$BUCKET/mirror/$(basename "$f")" --file "$f"
           done
 
+      # The audience counts (docs/search-engines.md, section 6). Analytics
+      # Engine keeps the Worker's data points for three months; this keeps
+      # them for good, as one CSV per finished UTC day and one row per day in
+      # views/summary.csv, both in R2. rollup-views asks the SQL API for every
+      # day after the newest one the summary holds (normally only yesterday;
+      # all three months on the first night), so a night that failed is caught
+      # up by the next, and writes the days it rolled up to rolled_up.txt for
+      # the upload loop. It reads with CLOUDFLARE_ANALYTICS_TOKEN, a token of
+      # its own with Account Analytics Read and nothing else (the deploy token
+      # cannot read analytics); without it the step does nothing. The summary
+      # is downloaded first and appended to: a download that fails for any
+      # reason but "does not exist" stops the step, so a summary R2 holds is
+      # never replaced by a shorter one. The outcome reads "failed" until both
+      # files are in R2, so a step stopped anywhere (its time limit included)
+      # reads as failed. It never stops the run and needs nothing else above.
+      - name: Roll up the audience counts (only when CLOUDFLARE_ANALYTICS_TOKEN is set)
+        id: views
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 15
+        env:
+          CLOUDFLARE_ANALYTICS_TOKEN: ${{ secrets.CLOUDFLARE_ANALYTICS_TOKEN }}
+          BSKY_HANDLE: ${{ secrets.BSKY_HANDLE }}
+        run: |
+          out=data/out/views
+          mkdir -p "$out"
+          echo "failed" > "$out/last_outcome.txt"
+          if [ -z "$CLOUDFLARE_ANALYTICS_TOKEN" ]; then
+            echo "no analytics token; nothing rolled up"
+            echo "no token" > "$out/last_outcome.txt"
+            exit 0
+          fi
+          rm -f "$out/summary.csv"
+          got=""
+          for attempt in 1 2 3; do
+            if "$WRANGLER" r2 object get --remote "$BUCKET/views/summary.csv" --file "$out/summary.csv" > "$out/summary.log" 2>&1; then
+              got=yes
+              break
+            fi
+            if grep -qi "specified key does not exist" "$out/summary.log"; then
+              got=missing
+              rm -f "$out/summary.csv"
+              break
+            fi
+            sleep 20
+          done
+          if [ -z "$got" ]; then
+            echo "views/summary.csv could not be downloaded; nothing rolled up"
+            cat "$out/summary.log"
+            exit 1
+          fi
+          python -m lmia_pipeline rollup-views --out "$out"
+          while read -r day; do
+            "$WRANGLER" r2 object put --remote "$BUCKET/views/$day.csv" --file "$out/$day.csv"
+          done < "$out/rolled_up.txt"
+          if [ -s "$out/rolled_up.txt" ]; then
+            "$WRANGLER" r2 object put --remote "$BUCKET/views/summary.csv" --file "$out/summary.csv"
+            echo "rolled up" > "$out/last_outcome.txt"
+          else
+            echo "no data" > "$out/last_outcome.txt"
+          fi
+
       - name: Save the download cache
         if: ${{ always() && steps.pipeline.outcome != 'skipped' }}
         continue-on-error: true
@@ -362,10 +431,10 @@ jobs:
 
       # What the daily check in the Worker reads: when the run finished, which
       # stages and steps succeeded, what the checks found, and the outcomes of
-      # the X post, the Bluesky post, the Zenodo deposit and the search
-      # database sync. Written whatever happened above. The Bluesky, Zenodo
-      # and search-sync commands write "failed" before they start, so a step
-      # stopped by its time limit still reads as failed.
+      # the X post, the Bluesky post, the Zenodo deposit, the search database
+      # sync and the audience roll-up. Written whatever happened above. The
+      # Bluesky, Zenodo, search-sync and roll-up steps write "failed" before
+      # they start, so a step stopped by its time limit still reads as failed.
       - name: Write the run status
         if: ${{ always() }}
         run: |
@@ -374,7 +443,7 @@ jobs:
             --outcome data/out/social/last_outcome.txt \
             --bluesky-outcome data/out/social/bluesky_outcome.txt \
             --zenodo-outcome data/out/zenodo/last_outcome.txt \
-            --search-outcome data/out/search/last_outcome.txt \
+            --search-outcome data/out/search/last_outcome.txt             --views-outcome data/out/views/last_outcome.txt \
             --step "restore=${{ steps.restore.outcome }}" --step "pipeline=${{ steps.pipeline.outcome }}" \
             --step "verify=${{ steps.verify.outcome }}" --step "deploy=${{ steps.deploy.outcome }}" \
             --step "save_db=${{ steps.save_db.outcome }}" --step "save_files=${{ steps.save_files.outcome }}" \
@@ -411,6 +480,10 @@ jobs:
             echo "" >> LAST_RUN.md
             echo "Search database sync: $(cat data/out/search/last_outcome.txt)" >> LAST_RUN.md
           fi
+          if [ -f data/out/views/last_outcome.txt ]; then
+            echo "" >> LAST_RUN.md
+            echo "Audience roll-up: $(cat data/out/views/last_outcome.txt)" >> LAST_RUN.md
+          fi
           git config user.name "LMIA Watch"
           git config user.email "ops@lmiawatch.invalid"
           git add LAST_RUN.md
@@ -444,6 +517,8 @@ jobs:
               items.append("Zenodo deposit: failed (tried again next run)")
           if s.get("search_sync") == "failed":
               items.append("Search database sync: failed (sent again next run)")
+          if s.get("views_rollup") == "failed":
+              items.append("Audience roll-up: failed (caught up next run)")
           for i in items:
               print("ATTENTION:", i)
           sys.exit(1 if items else 0)
