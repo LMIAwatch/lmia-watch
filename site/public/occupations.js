@@ -10,7 +10,7 @@
   if (!box || !input) return;
   function fold(s) {
     s = (s || "").toLowerCase();
-    return s.normalize ? s.normalize("NFD").replace(/[̀-ͯ]/g, "") : s;
+    return s.normalize ? s.normalize("NFD").replace(/[\u0300-\u036f]/g, "") : s;
   }
   var sections = Array.prototype.slice.call(document.querySelectorAll("section[data-cat]"));
   var groups = sections.map(function (section) {

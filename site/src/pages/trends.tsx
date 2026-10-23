@@ -63,7 +63,7 @@ interface National extends Marks {
 
 interface Breakdown extends Marks {
   keys: string[];
-  periods: (Period & { positions: number[]; rows: number[]; refused: number[] | null; missing?: number })[];
+  periods: (Period & { positions: number[]; rows: number[]; refused: number[] | null; missing?: number; refused_missing?: number | null })[];
   latest: string;
   yoy: { now: string; then: string; rows: ({ k: string } & Partial<Cmp>)[] } | null;
 }
@@ -96,7 +96,8 @@ function isBreakdown(v: unknown): v is Breakdown {
   return isObj(v) && Array.isArray(v.keys) && v.keys.every((k: unknown) => typeof k === "string") && isPeriods(v.periods) &&
     typeof v.latest === "string" &&
     v.periods.every((p: any) => Array.isArray(p.positions) && p.positions.length === v.keys.length && p.positions.every(isNum) &&
-      (p.refused === null || (Array.isArray(p.refused) && p.refused.length === v.keys.length))) &&
+      (p.refused === null || (Array.isArray(p.refused) && p.refused.length === v.keys.length && p.refused.every(isNum))) &&
+      (p.missing == null || isNum(p.missing)) && (p.refused_missing == null || isNum(p.refused_missing))) &&
     (v.yoy == null || (isObj(v.yoy) && Array.isArray(v.yoy.rows) && v.yoy.rows.every((r: unknown) => isObj(r) && typeof r.k === "string")));
 }
 
@@ -575,6 +576,7 @@ function breakdownBody(lang: Lang, d: Breakdown, kind: "streams" | "provinces") 
   const rules = rulesFor(lang, P, d.noc2021_from);
   const missing = P.filter((p) => p.refused === null).map((p) => p.p);
   const showMissing = kind === "streams" && P.some((p) => (p.missing ?? 0) > 0);
+  const showRefusedMissing = kind === "streams" && P.some((p) => (p.refused_missing ?? 0) > 0);
   // Each panel has its own scale, so a stream with a handful of positions
   // (ESDC's stray "Unspecified") would fill its panel as tall as the largest;
   // such a stream stays in the tables only. Every province keeps its panel.
@@ -592,14 +594,18 @@ function breakdownBody(lang: Lang, d: Breakdown, kind: "streams" | "provinces") 
   const total = yoy ? { now: sum("now"), then: sum("then") } : null;
   const totalPct = total && total.then ? Math.round(((total.now - total.then) * 1000) / total.then) / 10 : null;
 
-  const Table = ({ values, extra }: { values: (p: Breakdown["periods"][number]) => (number | null)[] | null; extra?: boolean }) => (
+  // `missing` adds the column of rows that carry no stream, so the total is every row of the file.
+  const Table = ({ values, missing }: {
+    values: (p: Breakdown["periods"][number]) => (number | null)[] | null;
+    missing?: (p: Breakdown["periods"][number]) => number | null | undefined;
+  }) => (
     <div class="table-wrap scroll-y">
       <table>
         <thead>
           <tr>
             <th>{t(lang, "trends.col_period")}</th>
             {d.keys.map((k) => <th class="num">{head(k)}</th>)}
-            {extra ? <th class="num">{t(lang, "trends.col_no_stream")}</th> : null}
+            {missing ? <th class="num">{t(lang, "trends.col_no_stream")}</th> : null}
             <th class="num">{t(lang, kind === "streams" ? "trends.col_total" : "trends.col_all")}</th>
           </tr>
         </thead>
@@ -609,10 +615,11 @@ function breakdownBody(lang: Lang, d: Breakdown, kind: "streams" | "provinces") 
             const row = values(p);
             const na = esc(t(lang, "common.na"));
             const cell = (v: string) => `<td class="mono num">${v}</td>`;
-            let tr = `<tr><td class="nw"><a href="/releases/${releaseSlug(p.p)}">${esc(periodLabel(p.p, lang))}</a></td>`;
+            const none = missing ? missing(p) ?? 0 : 0;
+            let tr = `<tr><td class="nw"><a href="/releases/${esc(releaseSlug(p.p))}">${esc(periodLabel(p.p, lang))}</a></td>`;
             for (let i = 0; i < d.keys.length; i++) tr += cell(row ? n(row[i]) : na);
-            if (extra) tr += cell(n(p.missing ?? 0));
-            tr += cell(row ? n(row.reduce((s: number, v) => s + (v ?? 0), 0) + (extra ? p.missing ?? 0 : 0)) : na);
+            if (missing) tr += cell(row ? n(none) : na);
+            tr += cell(row ? n(row.reduce((s: number, v) => s + (v ?? 0), 0) + none) : na);
             return `${tr}</tr>`;
           }).join(""))}
         </tbody>
@@ -691,10 +698,10 @@ function breakdownBody(lang: Lang, d: Breakdown, kind: "streams" | "provinces") 
       <RuleList lang={lang} rules={rules} />
       <h3>{t(lang, kind === "streams" ? "trends.table_streams" : "trends.table_provinces")}</h3>
       {kind === "provinces" ? <p class="muted small">{t(lang, "trends.codes_note")}</p> : null}
-      <Table values={(p) => p.positions} extra={showMissing} />
+      <Table values={(p) => p.positions} missing={showMissing ? (p) => p.missing : undefined} />
       <details class="top-gap">
         <summary>{t(lang, kind === "streams" ? "trends.refused_streams" : "trends.refused_provinces")}</summary>
-        <Table values={(p) => p.refused} />
+        <Table values={(p) => p.refused} missing={showRefusedMissing ? (p) => p.refused_missing : undefined} />
       </details>
     </>
   );

@@ -13,13 +13,17 @@ import { DOWNLOADS } from "./pages/data";
 //
 // Static files under /data/ and /fonts/ never reach the Worker, and a request
 // the per-address limits answer with 429 stops before this middleware, so
-// neither is counted. The free allowance is 100,000 data points a day, the
-// same as the Worker's request allowance, so one point per response cannot
-// exceed it. Data points are kept for three months.
+// neither is counted. The plan's included data points match its included
+// requests (100,000 a day on the free plan, 10 million a month on the paid
+// one), so one point per response cannot exceed them. Data points are kept
+// for three months.
 
 export type Kind = "page" | "api" | "download" | "form" | "hook" | "file" | "other";
 
-const PAGES = new Set(["/", "/search", "/map", "/methodology", "/data", "/support", "/corrections"]);
+const PAGES = new Set([
+  "/", "/search", "/map", "/methodology", "/data", "/support", "/corrections",
+  "/feeds", "/watchlist", "/releases", "/rankings", "/trends", "/occupations", "/places",
+]);
 const API_FIXED = new Set(["/api/stats", "/api/pending", "/api/clusters", "/api/search/facets"]);
 const DOWNLOAD_FILES = new Set(DOWNLOADS.map((d) => d.file));
 
@@ -27,6 +31,12 @@ export function routeTemplate(method: string, path: string): { route: string; ki
   if (PAGES.has(path)) return { route: path, kind: method === "POST" ? "form" : "page" };
   if (/^\/employers\/[^/]+$/.test(path)) return { route: "/employers/:id", kind: "page" };
   if (/^\/employers\/[^/]+\/respond$/.test(path)) return { route: "/employers/:id/respond", kind: method === "POST" ? "form" : "page" };
+  if (/^\/releases\/[^/]+$/.test(path)) return { route: "/releases/:slug", kind: "page" };
+  if (/^\/rankings\/[^/]+$/.test(path)) return { route: "/rankings/:year", kind: "page" };
+  if (/^\/trends\/[^/]+$/.test(path)) return { route: "/trends/:view", kind: "page" };
+  if (/^\/occupations\/[^/]+$/.test(path)) return { route: "/occupations/:noc", kind: "page" };
+  if (/^\/places\/[^/]+$/.test(path)) return { route: "/places/:prov", kind: "page" };
+  if (/^\/places\/[^/]+\/[^/]+$/.test(path)) return { route: "/places/:prov/:slug", kind: "page" };
   if (path.startsWith("/api/")) {
     if (API_FIXED.has(path)) return { route: path, kind: "api" };
     if (/^\/api\/employers\/[^/]+$/.test(path)) return { route: "/api/employers/:id", kind: "api" };

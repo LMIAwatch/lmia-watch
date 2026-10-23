@@ -47,10 +47,19 @@ describe("route templates", () => {
     expect(routeTemplate("POST", "/hooks/kofi")).toEqual({ route: "/hooks/kofi", kind: "hook" });
     expect(routeTemplate("GET", "/sitemap-12.xml")).toEqual({ route: "/sitemap.xml", kind: "file" });
     expect(routeTemplate("GET", "/robots.txt")).toEqual({ route: "/robots.txt", kind: "file" });
+    for (const page of ["/feeds", "/watchlist", "/releases", "/rankings", "/trends", "/occupations", "/places"]) {
+      expect(routeTemplate("GET", page), page).toEqual({ route: page, kind: "page" });
+    }
+    expect(routeTemplate("GET", "/releases/2026-q1")).toEqual({ route: "/releases/:slug", kind: "page" });
+    expect(routeTemplate("GET", "/rankings/2025")).toEqual({ route: "/rankings/:year", kind: "page" });
+    expect(routeTemplate("GET", "/trends/streams")).toEqual({ route: "/trends/:view", kind: "page" });
+    expect(routeTemplate("GET", "/occupations/63200")).toEqual({ route: "/occupations/:noc", kind: "page" });
+    expect(routeTemplate("GET", "/places/mb")).toEqual({ route: "/places/:prov", kind: "page" });
+    expect(routeTemplate("GET", "/places/mb/winnipeg")).toEqual({ route: "/places/:prov/:slug", kind: "page" });
   });
 
   it("stores a path that matches no route as 'other', whatever it holds", () => {
-    for (const path of ["/someone@example.com", "/search/", "/wp-login.php", "/employers/a/b/c", "/%E2%80%94"]) {
+    for (const path of ["/someone@example.com", "/search/", "/wp-login.php", "/employers/a/b/c", "/%E2%80%94", "/places/a/b/c", "/trends/a/b"]) {
       expect(routeTemplate("GET", path), path).toEqual({ route: "other", kind: "other" });
     }
   });

@@ -88,6 +88,9 @@ export function computeFigures(rows: Row[], now: Date, start: string = SITE_STAR
   let spent = 0;
   const ledger: LedgerRow[] = quartersSince(start, now).map((quarter) => {
     const receivedCents = byQuarter.get(quarter) ?? 0;
+    // The Workers Paid plan inside COSTS_TODAY_CENTS began part way through
+    // the site's first month and bills a full month from its start day, so
+    // that month carries it in full, as the invoice does.
     const spentCents = COSTS_TODAY_CENTS * monthsStarted(quarter, start, now);
     received += receivedCents;
     spent += spentCents;

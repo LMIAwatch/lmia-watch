@@ -195,6 +195,18 @@ describe("by stream and by province", () => {
     expect(body).toContain("Each panel has its own scale.");
   });
 
+  it("adds the no-stream column to each table only when a file has such rows", async () => {
+    const withMissing = JSON.parse(JSON.stringify(streams));
+    withMissing.periods[0].missing = 5;
+    withMissing.periods[0].refused_missing = 2;
+    const page = await html("/trends/streams", testEnv(assetsWith({ ...FILES, "trends/streams.json": withMissing })));
+    expect(page.match(/<th class="num">No stream<\/th>/g)?.length).toBe(2);
+    const body = text(page);
+    expect(body).toContain("2017 Q1 to Q2 30,349 7,353 9,056 10 724 0 5 47,497");
+    expect(body).toContain("2017 Q1 to Q2 188 701 715 0 236 0 2 1,842");
+    expect((await html("/trends/streams")).match(/No stream/g)).toBeNull();
+  });
+
   it("draws the provinces in two stacks and names each code", async () => {
     const page = await html("/trends/provinces");
     const body = text(page);
