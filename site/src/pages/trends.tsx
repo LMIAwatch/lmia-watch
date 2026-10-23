@@ -243,6 +243,17 @@ export const RULES: readonly Rule[] = [
       },
     }],
   },
+  // The thresholds table on the program's page dates the edition before the
+  // 2026 one as June 27, 2025 to July 16, 2026: the yearly refresh of the
+  // values, not a change of rule, which is the 2024-11-08 marker above.
+  {
+    date: "2025-06-27",
+    key: "trends.mark.thresholds_2025",
+    sources: [{
+      label: "trends.source_thresholds",
+      href: { en: `${TFW_EN}median-wage.html#table1`, fr: `${TFW_FR}salaire-moyen.html#table1` },
+    }],
+  },
   // The advertising and youth rules have no news release: the program
   // requirements state them, and ESDC's notice dating them April 1, 2026 is
   // no longer shown on the program's pages. The rural measures were announced

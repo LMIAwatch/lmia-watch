@@ -137,11 +137,11 @@ describe("all of Canada", () => {
     expect(page).toContain("<title>2026 Q1: 33,215</title>");
     const list = page.slice(page.indexOf('<ol class="rule-list">'), page.indexOf("</ol>", page.indexOf('<ol class="rule-list">')));
     const labels = [...list.matchAll(/<li value="(\d)"><strong class="nw">([^<]+)<\/strong>/g)].map((m) => [m[1], m[2]]);
-    expect(labels).toEqual([["1", "2022-04-04"], ["2", "2024 Q2"], ["3", "2024-05-01"], ["4", "2024-09-26"], ["5", "2024-11-08"]]);
+    expect(labels).toEqual([["1", "2022-04-04"], ["2", "2024 Q2"], ["3", "2024-05-01"], ["4", "2024-09-26"], ["5", "2024-11-08"], ["6", "2025-06-27"]]);
     expect(list).toContain('href="https://www.canada.ca/en/employment-social-development/news/2024/08/minister-boissonnault-reducing-the-number-of-temporary-foreign-workers-in-canada.html"');
     expect(list).toContain('href="https://open.canada.ca/data/en/dataset/90fed587-1364-4f33-a9ee-208181dc0b97"');
     // Five dashed lines on each of the four panels, and five numbers over each chart.
-    expect(page.match(/<line class="mark"/g)?.length).toBe(5 * 4);
+    expect(page.match(/<line class="mark"/g)?.length).toBe(6 * 4);
     expect(page.match(/<div class="chart-marks"/g)?.length).toBe(2);
   });
 
@@ -372,7 +372,7 @@ describe("the 2026 rule changes", () => {
   it("are numbered after the others once the files reach them, each with its canada.ca sources", async () => {
     const list = ruleList(await html("/trends", laterFiles()));
     const labels = [...list.matchAll(/<li value="(\d)"><strong class="nw">([^<]+)<\/strong>/g)].map((m) => [m[1], m[2]]);
-    expect(labels.slice(-2)).toEqual([["6", "2026-04-01"], ["7", "2026-07-17"]]);
+    expect(labels.slice(-2)).toEqual([["7", "2026-04-01"], ["8", "2026-07-17"]]);
     const body = text(list);
     expect(body).toContain("job advertisements must run for at least 8 consecutive weeks in the 3 months before an application, and recruitment must target youth");
     expect(body).toContain("may keep their current share or use a 15 percent cap until 2027-03-31");
