@@ -114,8 +114,10 @@ jobs:
           key: raw-cache-${{ github.run_id }}
           restore-keys: raw-cache-
 
-      # The database travels gzipped: the raw file is above the single-object
-      # size the command-line upload accepts, and it compresses about three to one.
+      # The database travels gzipped and without its secondary indexes (the
+      # save step's pack): the raw file is above the single-object size the
+      # command-line upload accepts. The pipeline puts the indexes back when it
+      # first opens the restored file, in seconds.
       # --remote on every r2 command: without it Wrangler 4 reads and writes a
       # local simulated bucket on the runner, which is thrown away with the job.
       # Each download is tried three times; "does not exist" ends the tries,
@@ -256,11 +258,16 @@ jobs:
       # the site could not be updated. Last night's backup becomes the previous
       # one first; when the run started from the previous one (the newest was
       # damaged) that copy is left as it is.
+      # The pack copies the database with VACUUM INTO (which also takes rows
+      # still in the write-ahead log), drops the secondary indexes, checks the
+      # copy and gzips it. It stops the step when the file would be above the
+      # 300 MiB one Wrangler upload accepts, so R2 keeps the previous backup
+      # rather than being sent a file it refuses.
       - name: Save the database to R2
         id: save_db
         if: ${{ !cancelled() && steps.verify.outputs.db_ok == 'true' }}
         run: |
-          gzip -c data/lmia.sqlite > data/out/lmia.sqlite.gz
+          python -m lmia_pipeline.nightly pack --db data/lmia.sqlite --out data/out/lmia.sqlite.gz
           source=$(python -c 'import json; print(json.load(open("data/out/restore.json"))["source"])')
           if [ "$source" = "backup" ]; then
             "$WRANGLER" r2 object put --remote "$BUCKET/lmia.sqlite.prev.gz" --file data/restore/lmia.sqlite.gz
@@ -269,11 +276,13 @@ jobs:
 
       # Weekly snapshots, kept eight weeks. The nightly save keeps only tonight's
       # backup and the previous night's, so a fault noticed later than that would
-      # reach every copy. Sundays (UTC) only; the slot is the ISO week modulo 8,
-      # so each snapshot replaces the one from eight weeks before and nothing has
-      # to be listed or pruned. The site's own D1 tables (forms, donations) go
-      # with it. The operator's machine pulls the newest backup and the D1 export
-      # into a folder off this account each week.
+      # reach every copy. Sundays (UTC) only; the slot is the count of whole weeks
+      # since 1970-01-01 modulo 8, so each snapshot replaces the one from eight
+      # weeks before and nothing has to be listed or pruned. The ISO week number
+      # served before and restarts each year, which put weeks 53 and 5 in one
+      # slot. The site's own D1 tables (forms, donations) go with it. The
+      # operator's machine pulls the newest backup and the D1 export into a
+      # folder off this account each week.
       - name: Weekly snapshot (Sundays UTC, kept eight weeks)
         id: snapshot
         if: ${{ !cancelled() && steps.save_db.outcome == 'success' }}
@@ -281,7 +290,7 @@ jobs:
         working-directory: site
         run: |
           if [ "$(date -u +%u)" != "7" ]; then echo "Not Sunday (UTC); no snapshot tonight."; exit 0; fi
-          slot=$(( 10#$(date -u +%V) % 8 ))
+          slot=$(( $(date -u +%s) / 604800 % 8 ))
           "$WRANGLER" r2 object put --remote "$BUCKET/backups/weekly/db-slot-$slot.sqlite.gz" --file ../data/out/lmia.sqlite.gz
           "$WRANGLER" d1 export lmia-watch --remote --output ../data/out/d1.sql
           gzip -c ../data/out/d1.sql > ../data/out/d1.sql.gz

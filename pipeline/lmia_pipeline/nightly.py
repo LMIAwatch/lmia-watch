@@ -12,6 +12,9 @@ one, and always leaves a status file the site's daily check can read.
             for the save and deploy steps (to $GITHUB_OUTPUT when set).
   status    write status.json from the run's log rows, the workflow steps'
             outcomes and the checks, whatever state the run ended in.
+  pack      write the backup the save step uploads: a copy of the database
+            without its secondary indexes, checked and gzipped. Exits 1 when
+            the copy fails its check or the file is above the upload cap.
 
 The R2 transfers stay in the workflow; these commands read the files it
 leaves. verify and status always exit 0: what they find is in their output.
@@ -24,12 +27,15 @@ import gzip
 import json
 import logging
 import os
+import re
 import shutil
 import sqlite3
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from . import config
 
 log = logging.getLogger("lmia_pipeline.nightly")
 
@@ -54,6 +60,9 @@ MAX_FILES = 19_000
 MAX_FILE_BYTES = 25 * 1024 * 1024
 # A file this much older than the run's start is left over from an earlier run.
 CLOCK_SLACK_S = 120
+# Wrangler refuses a single-object R2 upload above 300 MiB
+# (MAX_UPLOAD_SIZE_BYTES in its source), and the save step uploads one file.
+MAX_UPLOAD_MIB = 300
 
 STEP_DETAIL = {
     "restore": "the database could not be restored, so nothing else ran",
@@ -87,8 +96,8 @@ def table_counts(conn: sqlite3.Connection) -> dict[str, int]:
 def check_db(path: Path, before: dict[str, int] | None = None) -> tuple[list[str], dict[str, int]]:
     """Problems with the database at path, and its table counts.
 
-    Folds the write-ahead log into the main file first, so the file the
-    workflow compresses holds every committed row.
+    Folds the write-ahead log into the main file first, so the file itself
+    holds every committed row (the pack reads through the log as well).
     """
     conn = _readable(path)
     if conn is None:
@@ -289,6 +298,89 @@ def run_status(
     }
 
 
+# -- pack -------------------------------------------------------------------
+
+# Only plain secondary indexes: a primary key or a UNIQUE constraint is part of
+# the table and stays. A commented-out line never matches.
+INDEX_RE = re.compile(r'^\s*CREATE\s+INDEX\s+IF\s+NOT\s+EXISTS\s+"?(\w+)"?', re.IGNORECASE | re.MULTILINE)
+
+
+def schema_indexes(schema_path: Path | None = None) -> list[str]:
+    """Names of the secondary indexes schema.sql creates."""
+    return INDEX_RE.findall((schema_path or config.SCHEMA_PATH).read_text(encoding="utf-8"))
+
+
+def _mib(n: int) -> str:
+    return f"{n / (1024 * 1024):.1f} MiB"
+
+
+def pack(db: Path, out: Path, max_mib: float = MAX_UPLOAD_MIB,
+         schema_path: Path | None = None) -> tuple[bool, str, dict[str, int]]:
+    """Write the backup the save step uploads. Returns (ok, message, sizes in bytes).
+
+    Why not gzip the file as it is: the gzip outgrew most of the upload cap,
+    and about a fifth of it is the secondary indexes, which db.connect
+    rebuilds from schema.sql whenever a restored copy is opened (seconds). And
+    a step killed at its time limit can leave committed rows in the
+    write-ahead log beside the file, which a gzip of the file alone would
+    lose; VACUUM INTO reads them. The copy is checked before it is
+    compressed, so a backup that would not open is never uploaded.
+    """
+    sizes: dict[str, int] = {}
+    src = _readable(db)
+    if src is None:
+        return False, f"{db} is missing or empty; nothing to pack", sizes
+    sizes["db"] = db.stat().st_size
+    wal = Path(f"{db}-wal")
+    sizes["wal"] = wal.stat().st_size if wal.exists() else 0
+    out.parent.mkdir(parents=True, exist_ok=True)
+    copy = out.with_name(out.name + ".copy.sqlite")
+    partial = out.with_name(out.name + ".partial")
+    for leftover in (copy, Path(f"{copy}-journal"), partial):
+        leftover.unlink(missing_ok=True)
+    try:
+        try:
+            src.execute("VACUUM INTO ?", (str(copy),))
+        finally:
+            src.close()
+        conn = sqlite3.connect(str(copy))
+        try:
+            # Rollback journal, so every change below lands in the one file
+            # that is compressed.
+            conn.execute("PRAGMA journal_mode = DELETE")
+            names = schema_indexes(schema_path)
+            for name in names:
+                conn.execute(f'DROP INDEX IF EXISTS "{name}"')
+            conn.commit()
+            conn.execute("VACUUM")
+            result = [r[0] for r in conn.execute("PRAGMA quick_check")]
+        finally:
+            conn.close()
+        if result != ["ok"]:
+            return False, f"the packed copy failed its integrity check: {'; '.join(result)[:200]}", sizes
+        sizes["copy"] = copy.stat().st_size
+        with copy.open("rb") as fin, gzip.open(partial, "wb", compresslevel=6) as fout:
+            shutil.copyfileobj(fin, fout, 1 << 20)
+        sizes["gz"] = partial.stat().st_size
+    except (sqlite3.Error, OSError) as exc:
+        partial.unlink(missing_ok=True)
+        return False, f"the database could not be packed: {exc}"[:300], sizes
+    finally:
+        copy.unlink(missing_ok=True)
+        Path(f"{copy}-journal").unlink(missing_ok=True)
+    summary = (f"{db.name} {_mib(sizes['db'])} (write-ahead log {_mib(sizes['wal'])}), copy without its "
+               f"{len(names)} secondary indexes {_mib(sizes['copy'])}, {out.name} {_mib(sizes['gz'])}")
+    if sizes["gz"] > max_mib * 1024 * 1024:
+        # Removed, so no later step or re-run uploads a file R2 would refuse;
+        # the backup already in R2 stays as it is.
+        partial.unlink(missing_ok=True)
+        out.unlink(missing_ok=True)
+        return False, (f"{summary}: above the {max_mib:g} MiB a single upload accepts, so nothing is saved "
+                       f"tonight and R2 keeps the previous backup"), sizes
+    partial.replace(out)
+    return True, summary, sizes
+
+
 # -- command line -----------------------------------------------------------
 
 
@@ -326,7 +418,17 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--zenodo-outcome", default=None, help="the Zenodo deposit's outcome file")
     s.add_argument("--step", action="append", default=[], help="name=outcome of a workflow step")
     s.add_argument("--out", required=True)
+    pk = sub.add_parser("pack")
+    pk.add_argument("--db", required=True)
+    pk.add_argument("--out", required=True, help="the gzip file to write")
+    pk.add_argument("--max-mib", type=float, default=MAX_UPLOAD_MIB,
+                    help=f"fail when the gzip is larger than this (default {MAX_UPLOAD_MIB}, Wrangler's upload cap)")
     args = parser.parse_args(argv)
+
+    if args.command == "pack":
+        ok, message, _ = pack(Path(args.db), Path(args.out), args.max_mib)
+        (log.info if ok else log.error)("pack: %s", message)
+        return 0 if ok else 1
 
     if args.command == "restore":
         ok, source, message, counts = restore(Path(args.dir), Path(args.db))

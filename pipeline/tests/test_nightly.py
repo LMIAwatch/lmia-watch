@@ -3,6 +3,7 @@
 import gzip
 import json
 import os
+import sqlite3
 import time
 from datetime import datetime, timezone
 
@@ -257,3 +258,157 @@ def test_a_clean_night_reports_ok(tmp_path):
     status = nightly.run_status(db, "2000-01-01T00:00:00Z", {"problems": []}, "no new postings",
                                 {"restore": "success", "pipeline": "success", "deploy": "success"})
     assert status["ok"] is True and [s["source"] for s in status["stages"]] == ["export"]
+
+
+# -- pack ---------------------------------------------------------------------
+
+
+def seed_for_pack(path, employers=300):
+    """A database built from the schema, with rows in the tables the indexes cover."""
+    make_db(path, employers=employers, postings=employers // 3)
+    conn = connect(path)
+    ids = [r[0] for r in conn.execute("SELECT id FROM employers ORDER BY id")]
+    conn.executemany(
+        "INSERT INTO esdc_records (list, period, employer_id, employer_raw, province, noc_code, positions, resource_id, row_hash) "
+        "VALUES ('positive', '2026Q1', ?, 'x', 'BC', '85100', 3, 'res', ?)",
+        [(eid, f"h{i}") for i, eid in enumerate(ids)],
+    )
+    conn.commit()
+    conn.close()
+
+
+def counts_of(path) -> dict[str, int]:
+    conn = sqlite3.connect(str(path))
+    try:
+        tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")]
+        return {t: conn.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0] for t in tables}
+    finally:
+        conn.close()
+
+
+def indexes_of(path) -> tuple[set[str], set[str]]:
+    """(secondary indexes, automatic indexes of keys and UNIQUE constraints)."""
+    conn = sqlite3.connect(str(path))
+    try:
+        rows = conn.execute("SELECT name, sql FROM sqlite_master WHERE type = 'index'").fetchall()
+    finally:
+        conn.close()
+    return {n for n, sql in rows if sql}, {n for n, sql in rows if not sql}
+
+
+def gunzip_to(src, dest):
+    dest.write_bytes(gzip.decompress(src.read_bytes()))
+    return dest
+
+
+def test_the_schema_names_eighteen_secondary_indexes_and_no_unique_one():
+    names = nightly.schema_indexes()
+    assert len(names) == len(set(names)) == 18
+    assert "idx_employers_norm" in names and "idx_donations_received" in names
+
+
+def test_pack_drops_the_secondary_indexes_and_a_restored_copy_gets_them_back(tmp_path):
+    db = tmp_path / "lmia.sqlite"
+    seed_for_pack(db)
+    # A write the job's time limit cut off before a checkpoint: committed, but
+    # only in the write-ahead log beside the file.
+    writer = connect(db)
+    writer.execute("PRAGMA wal_autocheckpoint = 0")
+    upsert_employer(writer, "Late Writer Ltd", "AB", source="jobbank", now=NOW)
+    writer.commit()
+    try:
+        before = counts_of(db)
+        secondary, automatic = indexes_of(db)
+        assert len(secondary) == 18 and automatic
+        # A gzip of the file alone would lose the late row.
+        (tmp_path / "alone.gz").write_bytes(gz_of(db))
+        alone = counts_of(gunzip_to(tmp_path / "alone.gz", tmp_path / "alone.sqlite"))
+        assert alone["employers"] == before["employers"] - 1
+
+        out = tmp_path / "out" / "lmia.sqlite.gz"
+        ok, message, sizes = nightly.pack(db, out)
+    finally:
+        writer.close()
+    assert ok, message
+    assert "18 secondary indexes" in message and "lmia.sqlite.gz" in message
+    assert sizes["copy"] < sizes["db"] + sizes["wal"] and 0 < sizes["gz"] < sizes["copy"]
+    # Only the gzip is left behind; the working copy is gone.
+    assert sorted(p.name for p in out.parent.iterdir()) == ["lmia.sqlite.gz"]
+
+    restored = gunzip_to(out, tmp_path / "restored.sqlite")
+    packed_secondary, packed_automatic = indexes_of(restored)
+    assert packed_secondary == set() and packed_automatic == automatic
+    conn = sqlite3.connect(str(restored))
+    assert [r[0] for r in conn.execute("PRAGMA quick_check")] == ["ok"]
+    conn.close()
+    assert counts_of(restored) == before
+    # The pipeline's first open re-applies schema.sql, which builds every index again.
+    connect(restored).close()
+    assert indexes_of(restored) == (secondary, automatic)
+    assert counts_of(restored) == before
+
+
+def test_pack_refuses_a_file_above_the_upload_cap(tmp_path):
+    db = tmp_path / "lmia.sqlite"
+    seed_for_pack(db, employers=30)
+    out = tmp_path / "lmia.sqlite.gz"
+    out.write_bytes(b"last night's file")
+    ok, message, sizes = nightly.pack(db, out, max_mib=0.001)
+    assert not ok and "above the 0.001 MiB" in message and "R2 keeps the previous backup" in message
+    # Nothing is left for the upload to send.
+    assert not out.exists() and list(tmp_path.glob("lmia.sqlite.gz*")) == []
+    assert nightly.main(["pack", "--db", str(db), "--out", str(out), "--max-mib", "0.001"]) == 1
+    assert nightly.main(["pack", "--db", str(db), "--out", str(out)]) == 0 and out.exists()
+
+
+def test_pack_stops_on_a_missing_damaged_or_failing_database(tmp_path, monkeypatch):
+    out = tmp_path / "out" / "lmia.sqlite.gz"
+    ok, message, _ = nightly.pack(tmp_path / "nope.sqlite", out)
+    assert not ok and "missing or empty" in message
+    # The pack never creates a database where there was none.
+    assert not (tmp_path / "nope.sqlite").exists() and not out.exists()
+
+    bad = tmp_path / "bad.sqlite"
+    bad.write_bytes(b"SQLite format 3\x00" + b"\x00" * 50 + b"garbage" * 500)
+    ok, message, _ = nightly.pack(bad, out)
+    assert not ok and "could not be packed" in message and not out.exists()
+    assert nightly.main(["pack", "--db", str(bad), "--out", str(out)]) == 1
+
+    # Anything but "ok" from the copy's check stops the pack.
+    db = tmp_path / "lmia.sqlite"
+    seed_for_pack(db, employers=10)
+    real = sqlite3.connect
+
+    class Checked:
+        def __init__(self, conn):
+            self.conn = conn
+
+        def execute(self, sql, *args):
+            if sql.startswith("PRAGMA quick_check"):
+                return iter([("*** in database main *** Page 7: btreeInitPage() returns error code 11",)])
+            return self.conn.execute(sql, *args)
+
+        def __getattr__(self, name):
+            return getattr(self.conn, name)
+
+    monkeypatch.setattr(nightly.sqlite3, "connect", lambda *a, **k: Checked(real(*a, **k)))
+    ok, message, _ = nightly.pack(db, out)
+    assert not ok and "failed its integrity check" in message and "btreeInitPage" in message
+    assert list(out.parent.iterdir()) == []
+
+
+def test_restore_accepts_a_packed_backup(tmp_path):
+    src = tmp_path / "src.sqlite"
+    make_db(src, employers=5, postings=4)
+    packed = tmp_path / "packed.gz"
+    assert nightly.pack(src, packed)[0]
+    folder = tmp_path / "restore"
+    download(folder, nightly.BACKUP, body=packed.read_bytes())
+    download(folder, nightly.PREVIOUS, exit_code=1, log=MISSING)
+    db = tmp_path / "lmia.sqlite"
+    ok, source, _, counts = nightly.restore(folder, db)
+    assert (ok, source) == (True, "backup")
+    assert counts["employers"] == 5 and counts["jobbank_postings"] == 4
+    assert indexes_of(db)[0] == set()
+    connect(db).close()
+    assert len(indexes_of(db)[0]) == 18

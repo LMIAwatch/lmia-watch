@@ -51,7 +51,7 @@ settings keep "Actions: failed workflows" on (the default).
 | Item | Likely cause | What to do |
 |---|---|---|
 | Data stale | The scheduled run has not completed for days | Open the Actions page; the log of the failed run says which stage |
-| Backup missing or old | The R2 save step failed, or the run did not get that far | Same |
+| Backup missing or old | The R2 save step failed, or the run did not get that far | Same. If the save step's log says the packed database is above the 300 MiB a single upload accepts, nothing was uploaded and R2 keeps the last backup that fit; saving resumes once the backup is split or sent another way (a multipart upload) |
 | Stage `jobbank` failed | Job Bank changed its pages or blocked the crawler | Check the run log; the page structure may need a parser update |
 | Stage `esdc` failed | The open-data portal changed a file layout | Same |
 | X post refused | Credits exhausted, keys revoked, or X down | X developer console: credits and app keys |
