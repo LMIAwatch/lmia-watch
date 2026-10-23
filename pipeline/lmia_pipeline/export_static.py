@@ -17,6 +17,8 @@ Output tree (under data/out/static):
   stats.json                         counts, breakdowns, recent lists, resources, runs
   search/first.json                  newest FIRST_ROWS rows of the default scope
   search/facets.json                 counts by status and province for both scopes, plus file sizes
+  search/counts.json                 the hosted search database's rows counted by status, province,
+                                     stream, year and indicators, for the search API's totals
   search/latest/all.json             the default scope: pending and approved postings plus the latest quarter
   search/latest/status/<s>.json      the default scope, one status
   search/latest/prov/<P>.json        the default scope, one province
@@ -258,6 +260,52 @@ def write_search(conn: sqlite3.Connection, out: Path, latest: str, ind: dict[str
     facets = {"default": default, "long": long, "files": files, "first_rows": FIRST_ROWS}
     _dump(out / "search" / "facets.json", facets)
     return latest_rows, long_rows, {"search_latest": len(latest_rows), "search_long": len(long_rows), "search_files": len(files)}
+
+
+# The dimensions of search/counts.json, each a column of the search database.
+SEARCH_COUNT_DIMS = ("status", "prov", "stream", "year", "ind")
+
+
+def _none_last(value: object) -> tuple:
+    return (value is None, value if value is not None else 0)
+
+
+def write_search_counts(conn: sqlite3.Connection, out: Path, data_as_of: str | None) -> dict[str, int]:
+    """search/counts.json: the hosted search database's rows counted by status,
+    province, stream, year and triggered indicators.
+
+    Why: a total is the expensive part of a search on D1, since counting the
+    rows that match a filter reads every one of them. The search API sums the
+    cells matching a request's status, province, stream, year and indicator
+    filters instead, which gives an exact total and exact facet counts with no
+    database read for every request that filters on nothing else. The
+    indicators are a dimension of their own because no index can answer that
+    filter, so in D1 its count would read the whole table every time.
+
+    Over exactly the rows search_db.search_rows yields (the rows the nightly
+    sync sends), with each value as the database holds it: the province and
+    stream as written (null where there is none), the indicator keys comma
+    separated. Each dimension's values are listed once under "values", and a
+    cell is the index of its value in each list, then its row count, so the
+    file stays small (about 3,000 cells, 60 KB, on 2026-10-23 data).
+    """
+    from .search_db import search_rows  # search_db imports this module, so not at the top
+
+    cells: Counter = Counter()
+    for row in search_rows(conn):
+        cells[tuple(row[d] for d in SEARCH_COUNT_DIMS)] += 1
+    values = {d: sorted({key[i] for key in cells}, key=_none_last) for i, d in enumerate(SEARCH_COUNT_DIMS)}
+    position = {d: {v: i for i, v in enumerate(vals)} for d, vals in values.items()}
+    rows = sorted([position[d][key[i]] for i, d in enumerate(SEARCH_COUNT_DIMS)] + [n] for key, n in cells.items())
+    doc = {
+        "data_as_of": data_as_of,
+        "total": sum(cells.values()),
+        "dims": list(SEARCH_COUNT_DIMS),
+        "values": values,
+        "cells": rows,
+    }
+    _dump(out / "search" / "counts.json", doc)
+    return {"search_count_cells": len(rows)}
 
 
 def clusters(conn: sqlite3.Connection, rows: list[dict]) -> list[dict]:
@@ -562,8 +610,11 @@ def _write_static(conn: sqlite3.Connection, out: Path) -> dict[str, int]:
     # run status reports it), its files stay unwritten and the sitemap leaves
     # its pages out until an export writes them again. The search, map,
     # profile and stats files are the site itself and still fail the export.
+    # The search counts only spare the search API a count (it counts in D1
+    # without them), so they are a section too.
     failed: set[str] = set()
     sections = (
+        ("search_counts", lambda: write_search_counts(conn, out, meta.get("data_as_of"))),
         ("feeds", lambda: write_feeds(conn, out)),
         ("releases", lambda: releases.write_all(conn, out)),
         ("trends", lambda: trends.write_all(conn, out)),

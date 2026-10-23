@@ -3,7 +3,8 @@ import type { Lang } from "./i18n";
 export interface Env {
   DB: D1Database;
   // The hosted search database (wrangler.jsonc, binding SEARCH), filled by
-  // the nightly sync. Optional: nothing reads it yet, and a page that does
+  // the nightly sync and read by GET /api/search (src/search_db.ts).
+  // Optional: without it the API answers 503, and a page that uses it
   // must answer without it.
   SEARCH?: D1Database;
   DATA?: R2Bucket;

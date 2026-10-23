@@ -40,6 +40,8 @@ describe("route templates", () => {
     expect(routeTemplate("GET", "/api/employers/emp-a000000001")).toEqual({ route: "/api/employers/:id", kind: "api" });
     expect(routeTemplate("GET", "/api/area/V0N")).toEqual({ route: "/api/area/:fsa", kind: "api" });
     expect(routeTemplate("GET", "/api/stats")).toEqual({ route: "/api/stats", kind: "api" });
+    expect(routeTemplate("GET", "/api/search")).toEqual({ route: "/api/search", kind: "api" });
+    expect(routeTemplate("GET", "/api/search/facets")).toEqual({ route: "/api/search/facets", kind: "api" });
     expect(routeTemplate("GET", "/api/anything/else")).toEqual({ route: "/api/other", kind: "api" });
     expect(routeTemplate("GET", "/downloads/employers.csv")).toEqual({ route: "/downloads/employers.csv", kind: "download" });
     expect(routeTemplate("GET", "/downloads/mirror/SHA256SUMS")).toEqual({ route: "/downloads/mirror/:file", kind: "download" });

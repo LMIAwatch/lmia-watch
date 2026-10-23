@@ -5,7 +5,7 @@ from the static JSON the pipeline exports. The data ships with the Worker as
 static assets, so page views cost nothing per row and the site fits the free
 plan. D1 holds what visitors submit (responses and corrections) and, in a
 database of its own (`lmia-watch-search`, binding `SEARCH`), the search rows
-the nightly run sends (`../docs/hosted-search.md`; nothing reads them yet);
+the nightly run sends, which `GET /api/search` reads (`../docs/hosted-search.md`);
 R2 holds the downloads.
 
 ## Local development
@@ -29,6 +29,21 @@ memory; no filter change ever waits on the network. A deep link with filters
 renders first from the smallest slice that answers it. The long scope (since
 2023 Q4) loads only when asked, with a size notice and a CSV alternative above
 2 MB, and is then answered from memory too.
+
+## JSON API
+The routes under `/api/` answer JSON, are capped at 60 requests a minute per
+address (`src/limits.ts`), and their answers may be cached for five minutes
+(not the search route's 403 and 503).
+
+| Route | Answers from |
+|---|---|
+| `GET /api/stats` | `stats.json` as published |
+| `GET /api/employers/:id` | the employer's profile shard; a retired id redirects to the live one |
+| `GET /api/pending?since=YYYY-MM-DD` | the pending postings dated on or after `since` |
+| `GET /api/search` | the search database: filters, text, sort and keyset pages of 50 rows, with totals (`src/search_db.ts`; parameters, bounds and the injection posture in `../docs/hosted-search.md`, *The API*). For now only the site's own search page may call it: a request whose `Sec-Fetch-Site` is not same-origin or same-site, or without that header and without the site's address as `Referer` or `Origin`, gets a 403 |
+| `GET /api/search/facets` | `search/facets.json` as published |
+| `GET /api/clusters?scope=latest\|since_2023q4` | the map's per-area counts |
+| `GET /api/area/:fsa` | one postal area's rows |
 
 ## How data gets in
 The pipeline writes `data/out/static/` (see the pipeline README for the file
@@ -105,7 +120,8 @@ the user agent and the About page point at the corrections form.
 | `src/data.ts` | the JSON file shapes and the loaders (assets binding) |
 | `src/layout.tsx` | page shell, badges, formatting helpers, the "not published yet" page |
 | `src/pages/*.tsx` | one file per page; their copy, Methodology and Data included, is keys into `src/i18n.ts` |
-| `src/api.ts` | JSON endpoints, all views over the static files |
+| `src/api.ts` | JSON endpoints: views over the static files, and the search route with its page-only check |
+| `src/search_db.ts` | the search API's parsing, planning, SQL and paging over the search database |
 | `src/i18n.ts` | every UI string in English and French, the number, wage and quarter formats, and the French forms of the pipeline's indicator sentences; `test/i18n.test.ts` fails on a key with no French |
 | `src/support.ts`, `src/pages/support.tsx` | Support page: every cost, tier and support figure in one file (support received is updated each quarter), then the page; `DONATE_URL` in `wrangler.jsonc` turns on the donate button |
 | `public/styles.css`, `public/search.js`, `public/map.js` | the only stylesheet and the two client scripts; the scripts read their words from the page's `<script type="application/json" id="i18n">` block |

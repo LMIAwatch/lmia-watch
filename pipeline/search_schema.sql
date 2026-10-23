@@ -4,7 +4,9 @@
 -- schema.sql), so a rebuild here can never touch what readers submitted.
 -- Written only by the nightly sync (pipeline/lmia_pipeline/search_db.py),
 -- which applies this file before every sync: every statement is IF NOT
--- EXISTS, so it changes nothing on a database that has it. A change to a
+-- EXISTS (or DROP INDEX IF EXISTS for a name an earlier version used), so
+-- it changes nothing on a database that has it. A new index reaches an
+-- existing database this way, built once on the first night. A change to a
 -- table here reaches an existing database only through a full reload
 -- (`search-sync --full`), whose first batch drops both tables and runs this
 -- file again.
@@ -42,16 +44,42 @@ CREATE TABLE IF NOT EXISTS search_rows (
   hash TEXT NOT NULL                             -- search_db.row_hash: SHA-1 over every column above
 );
 
--- For the queries the search API runs: newest first with keyset paging,
--- one status or one province newest first, a year range, one employer, one
--- occupation, and the name sort and name prefixes.
-CREATE INDEX IF NOT EXISTS search_rows_sort ON search_rows (sort_date DESC, rid);
-CREATE INDEX IF NOT EXISTS search_rows_status ON search_rows (status, sort_date DESC);
-CREATE INDEX IF NOT EXISTS search_rows_prov ON search_rows (prov, sort_date DESC);
+-- For the queries the search API runs (site/src/search_db.ts). Each sort
+-- has an index whose columns match its ORDER BY, so a page reads its 51 rows
+-- and stops: newest (sort_date, key), positions (positions, sort_date, key),
+-- name (name_fold, key), and newest within one status or one province. The
+-- API pages by keyset, a row value such as (sort_date, key) < (?, ?), and
+-- SQLite seeks a row value only over index columns that sort the same way
+-- and never over the rowid; so every column here is ascending (the API reads
+-- them backwards for a descending sort) and the tiebreak is the unique key,
+-- not rid. Measured on a full-size copy: with rid, a page deep inside one
+-- quarter (26,000 rows share its sort date) read half the quarter's rows;
+-- with key, 51. The year, stream, indicator, occupation and kind indexes let
+-- the API read a small set first and sort it (one year, a rare stream, the
+-- rows of employers with a rare indicator, a NOC prefix, the postings a wage
+-- or a posting-date filter implies) instead of checking every row for it.
+-- The API turns an indicator into the indicator sets that contain it (ind
+-- holds them comma separated; search/counts.json lists the sets), so ind IN
+-- (...) is an equality this index answers.
+--
+-- The DROP statements remove the indexes an earlier version of this file
+-- created under these names with other columns. The new ones have new
+-- names, so applying this file again drops nothing and rebuilds nothing.
+DROP INDEX IF EXISTS search_rows_sort;
+DROP INDEX IF EXISTS search_rows_status;
+DROP INDEX IF EXISTS search_rows_prov;
+DROP INDEX IF EXISTS search_rows_name;
+CREATE INDEX IF NOT EXISTS search_rows_newest ON search_rows (sort_date, key);
+CREATE INDEX IF NOT EXISTS search_rows_status_newest ON search_rows (status, sort_date, key);
+CREATE INDEX IF NOT EXISTS search_rows_prov_newest ON search_rows (prov, sort_date, key);
+CREATE INDEX IF NOT EXISTS search_rows_positions ON search_rows (positions, sort_date, key);
+CREATE INDEX IF NOT EXISTS search_rows_name_key ON search_rows (name_fold, key);
 CREATE INDEX IF NOT EXISTS search_rows_year ON search_rows (year);
+CREATE INDEX IF NOT EXISTS search_rows_stream ON search_rows (stream);
+CREATE INDEX IF NOT EXISTS search_rows_ind ON search_rows (ind);
 CREATE INDEX IF NOT EXISTS search_rows_employer ON search_rows (employer_id);
 CREATE INDEX IF NOT EXISTS search_rows_noc ON search_rows (noc);
-CREATE INDEX IF NOT EXISTS search_rows_name ON search_rows (name_fold);
+CREATE INDEX IF NOT EXISTS search_rows_kind ON search_rows (kind);
 
 -- Full-text index over the employer name, the job or occupation title and
 -- the city. External content: the text lives once, in search_rows, and the

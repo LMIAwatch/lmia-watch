@@ -173,6 +173,52 @@ export async function loadFacets(env: Env): Promise<Facets | null> {
     : null;
 }
 
+// The hosted search database's rows counted by status, province, stream, year
+// and triggered indicators (export_static.write_search_counts). Each value
+// is listed once per dimension; a cell is the index of its value in each of
+// the five lists, then its row count.
+export interface SearchCounts {
+  data_as_of: string | null;
+  total: number;
+  dims: ["status", "prov", "stream", "year", "ind"];
+  values: {
+    status: string[];
+    prov: (string | null)[];
+    stream: (string | null)[];
+    year: (number | null)[];
+    ind: string[];
+  };
+  cells: number[][];
+}
+
+const COUNT_DIMS = ["status", "prov", "stream", "year", "ind"] as const;
+// Far above the about 3,000 cells the data makes, and small enough that a
+// damaged file cannot cost a request much to check.
+const MAX_COUNT_CELLS = 100_000;
+const isCount = (v: unknown): v is number => isNum(v) && Number.isInteger(v) && v >= 0;
+
+// The search API sums these cells for its totals, so a file that fails any
+// check reads as missing and the API counts in D1 instead: every field has
+// its type, every cell points at listed values, and the cells add up to the
+// total.
+export async function loadSearchCounts(env: Env): Promise<SearchCounts | null> {
+  const doc = await loadJson<SearchCounts>(env, "search/counts.json");
+  if (!isObj(doc) || !isCount(doc.total) || !isStrOrNull(doc.data_as_of)) return null;
+  if (!Array.isArray(doc.dims) || doc.dims.join(",") !== COUNT_DIMS.join(",")) return null;
+  const v = doc.values;
+  if (!isObj(v) || !isListOf(v.status, isStr) || !isListOf(v.prov, isStrOrNull) || !isListOf(v.stream, isStrOrNull) ||
+    !isListOf(v.year, (y) => y === null || (isNum(y) && Number.isInteger(y))) || !isListOf(v.ind, isStr)) return null;
+  if (!Array.isArray(doc.cells) || doc.cells.length > MAX_COUNT_CELLS) return null;
+  const sizes = COUNT_DIMS.map((d) => (v[d] as unknown[]).length);
+  let sum = 0;
+  for (const cell of doc.cells as unknown[]) {
+    if (!Array.isArray(cell) || cell.length !== 6 || !cell.every(isCount)) return null;
+    if (!sizes.every((n, i) => cell[i] < n) || cell[5] < 1) return null;
+    sum += cell[5];
+  }
+  return sum === doc.total ? doc : null;
+}
+
 // Each field a server-rendered search row shows (SearchRowView), with null
 // wherever the export writes it: a posting's missing details, the wage, unit
 // and date of a list row, the period of a posting.

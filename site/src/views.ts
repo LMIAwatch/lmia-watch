@@ -32,7 +32,7 @@ const PAGES = new Set([
   "/", "/search", "/map", "/methodology", "/data", "/support", "/corrections",
   "/feeds", "/watchlist", "/releases", "/rankings", "/trends", "/occupations", "/places",
 ]);
-const API_FIXED = new Set(["/api/stats", "/api/pending", "/api/clusters", "/api/search/facets"]);
+const API_FIXED = new Set(["/api/stats", "/api/pending", "/api/clusters", "/api/search", "/api/search/facets"]);
 const DOWNLOAD_FILES = new Set(DOWNLOADS.map((d) => d.file));
 // The feed files feeds.py writes: feeds/<scope folders>/<event>.xml.
 const FEED_PATH = /^\/data\/(feeds\/[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*\.xml)$/;

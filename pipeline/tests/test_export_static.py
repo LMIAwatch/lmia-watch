@@ -186,3 +186,61 @@ def test_a_failing_alias_section_is_logged_and_the_export_goes_on(conn, tmp_path
     assert rows[0][2] == "RuntimeError: alias chain broke"
     # The sitemap is unchanged by it: retired ids were never listed.
     assert f"/employers/{a}" in (out / "sitemaps" / "sitemap-1.xml").read_text(encoding="utf-8")
+
+
+def test_search_counts_cover_exactly_the_search_rows(conn, tmp_path):
+    a, b, c, d = seed(conn)
+    # A second Alpha posting with no province and a lapsed one, which the
+    # search database leaves out, so the counts must too.
+    conn.execute("INSERT INTO jobbank_postings (posting_id, employer_id, employer_raw, title, date_posted, first_seen, last_seen, "
+                 "flag_current, flag_first, url, updated_at) VALUES (6, ?, 'Alpha Farms Ltd', 'picker', '2025-12-30', ?, ?, "
+                 "'approved', 'requested', 'u', ?)", (a, NOW, NOW, NOW))
+    conn.execute("INSERT INTO jobbank_postings (posting_id, employer_id, employer_raw, title, date_posted, first_seen, last_seen, "
+                 "flag_current, flag_first, url, updated_at) VALUES (7, ?, 'Beta Inn', 'cook', '2026-09-01', ?, ?, "
+                 "'gone', 'requested', 'u', ?)", (b, NOW, NOW, NOW))
+    conn.commit()
+    out = tmp_path / "static"
+    export_static.export_static(conn, out)
+    doc = load(out, "search/counts.json")
+    assert doc["dims"] == ["status", "prov", "stream", "year", "ind"]
+    assert doc["data_as_of"] == load(out, "stats.json")["data_as_of"]
+
+    from lmia_pipeline.search_db import search_rows
+    rows = list(search_rows(conn))
+    assert doc["total"] == len(rows) == 5
+    expected: dict[tuple, int] = {}
+    for r in rows:
+        k = (r["status"], r["prov"], r["stream"], r["year"], r["ind"])
+        expected[k] = expected.get(k, 0) + 1
+    v = doc["values"]
+    got = {tuple(v[dim][i] for dim, i in zip(doc["dims"], cell[:5])): cell[5] for cell in doc["cells"]}
+    assert got == expected
+    assert sum(cell[5] for cell in doc["cells"]) == doc["total"]
+    # Values are the database's own: null for no province or stream, keys comma separated.
+    assert v["status"] == ["approved", "pending", "refused"]
+    assert v["prov"] == ["BC", "NS", "ON", None]
+    assert v["stream"] == ["High Wage", "Low Wage", "Primary Agriculture", None]
+    assert v["year"] == [2019, 2025, 2026]
+    assert v["ind"] == ["", "high_volume"]
+    assert ("approved", None, None, 2025, "high_volume") in got
+    # The search API bounds a year filter by the sort date as well, which is
+    # exact only while a row's year is its sort date's year.
+    assert all(str(r["year"]) == r["sort_date"][:4] for r in rows)
+    # Deterministic, like every other file of the export.
+    before = (out / "search" / "counts.json").read_bytes()
+    export_static.export_static(conn, out)
+    assert (out / "search" / "counts.json").read_bytes() == before
+
+
+def test_a_failing_counts_section_leaves_the_search_files(conn, tmp_path, monkeypatch):
+    seed(conn)
+
+    def boom(conn, out, data_as_of):
+        raise ValueError("cannot count")
+
+    monkeypatch.setattr(export_static, "write_search_counts", boom)
+    out = tmp_path / "static"
+    export_static.export_static(conn, out)
+    assert (out / "search" / "facets.json").exists() and not (out / "search" / "counts.json").exists()
+    rows = [(r[0], r[1]) for r in conn.execute("SELECT source, ok FROM sources_log ORDER BY id") if r[0].startswith("export")]
+    assert rows == [("export_search_counts", 0), ("export", 1)]

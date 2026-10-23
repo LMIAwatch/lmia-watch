@@ -1,14 +1,19 @@
 import { Hono, type Context } from "hono";
-import { assetResponse, loadAlias, loadProfile, type SearchRow } from "./data";
+import { assetResponse, loadAlias, loadProfile, loadSearchCounts, type SearchRow } from "./data";
 import type { AppEnv } from "./env";
+import { parseQuery, runSearch } from "./search_db";
+import { SITE_ORIGIN } from "./seo";
 
-// Every endpoint is a view over the static JSON files, so the API costs no
-// database reads. Pass-through responses keep the asset's body as is.
+// Every endpoint but /search is a view over the static JSON files and costs
+// no database reads; /search reads the search database (src/search_db.ts).
+// Pass-through responses keep the asset's body as is. The data changes once
+// a night, so responses may be cached for five minutes, unless a handler
+// says otherwise.
 export const api = new Hono<AppEnv>();
 
 api.use("*", async (c, next) => {
   await next();
-  c.res.headers.set("Cache-Control", "public, max-age=300");
+  if (!c.res.headers.has("Cache-Control")) c.res.headers.set("Cache-Control", "public, max-age=300");
 });
 
 async function passThrough(c: Context<AppEnv>, path: string): Promise<Response> {
@@ -112,6 +117,73 @@ api.get("/pending", async (c) => {
 });
 
 api.get("/search/facets", (c) => passThrough(c, "search/facets.json"));
+
+// The search API is not open to the public yet: the unkeyed route answers the
+// site's own search page and nothing else. A browser says where a request
+// comes from in Sec-Fetch-Site; one too old to send it still sends the
+// page's address as Referer (the site's policy is
+// strict-origin-when-cross-origin, which keeps the full address on its own
+// pages), or Origin. Any client can forge these headers, so this only keeps
+// casual reuse off the route; the per-address API limit (src/limits.ts) stays
+// the brake. A keyed route for programmatic use, when there is one, skips
+// this check rather than changing it.
+const SITE_HOST = new URL(SITE_ORIGIN).host;
+
+export function fromOwnPage(headers: Headers, requestUrl: string): boolean {
+  const site = headers.get("sec-fetch-site");
+  if (site !== null) return site === "same-origin" || site === "same-site";
+  // The request's own host counts too, so a local or preview run of the
+  // site can use its own search page.
+  const own = new Set([SITE_HOST, `www.${SITE_HOST}`]);
+  try {
+    own.add(new URL(requestUrl).host);
+  } catch {
+    // An unreadable request URL adds nothing.
+  }
+  for (const name of ["origin", "referer"]) {
+    const value = headers.get(name);
+    if (!value) continue;
+    try {
+      const url = new URL(value);
+      if ((url.protocol === "https:" || url.protocol === "http:") && own.has(url.host)) return true;
+    } catch {
+      // Not a URL: not the site's page.
+    }
+  }
+  return false;
+}
+
+// The refusal for anything but the site's own page, or null to go on. It
+// varies on the headers checked and no shared cache may keep it, so a refusal
+// can never be served to the page's own request.
+export function pageOnly(c: Context<AppEnv>): Response | null {
+  if (fromOwnPage(c.req.raw.headers, c.req.url)) return null;
+  c.header("Cache-Control", "private, no-store");
+  c.header("Vary", "Sec-Fetch-Site, Origin, Referer");
+  return c.json({ error: "the search API is not open; the site's search page uses it" }, 403);
+}
+
+// Search over every record since 2014, 50 rows a page (src/search_db.ts for
+// the parameters, the plans and the injection posture). A bad cursor is the
+// only 400; any other value it cannot use is dropped and its parameter named
+// in "ignored". The date filters count from the data's own date (the counts
+// file carries it), else from today. When the search database cannot answer,
+// the reply is a 503 that no cache keeps, so the next request tries again.
+api.get("/search", async (c) => {
+  const refused = pageOnly(c);
+  if (refused) return refused;
+  const parsed = parseQuery(new URL(c.req.url));
+  if (!parsed.ok) return c.json({ error: "bad request", problems: parsed.problems }, 400);
+  const counts = await loadSearchCounts(c.env);
+  const asOf = counts?.data_as_of ?? "";
+  const dataDate = /^\d{4}-\d{2}-\d{2}/.test(asOf) ? asOf.slice(0, 10) : new Date().toISOString().slice(0, 10);
+  const result = await runSearch(c.env, parsed.query, dataDate, counts);
+  if (!result) {
+    c.header("Cache-Control", "no-store");
+    return c.json({ error: "search unavailable" }, 503);
+  }
+  return c.json(parsed.ignored.length ? { ...result, ignored: parsed.ignored } : result);
+});
 
 api.get("/clusters", (c) => {
   const scope = c.req.query("scope") === "since_2023q4" ? "since_2023q4" : "latest";

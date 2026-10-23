@@ -53,7 +53,7 @@
       // The hosted search database (pipeline/search_schema.sql), written only
       // by the nightly sync (docs/hosted-search.md). Kept apart from the forms
       // database above so a full reload can never touch what readers sent.
-      // Nothing reads it yet.
+      // Read by GET /api/search (src/search_db.ts).
       "binding": "SEARCH",
       "database_name": "lmia-watch-search",
       "database_id": "a23fbf8b-de52-4182-91d3-cd4e8efd989a"
