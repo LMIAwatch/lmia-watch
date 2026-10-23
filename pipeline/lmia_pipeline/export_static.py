@@ -26,6 +26,8 @@ Output tree (under data/out/static):
   clusters/latest.json, clusters/since_2023q4.json   per postal area counts
   areas/<FSA>.json                   rows for one postal area, latest scope, capped
   profiles/<abc>.json                employer profiles keyed by id, sharded on id characters 5 to 7
+  aliases/<abc>.json                 retired employer id -> the live id that took its records,
+                                     sharded on the retired id's characters 5 to 7 like the profiles
   trends/*.json                      the series behind /trends (trends.py)
   sitemaps/sitemap-<n>.xml           the fixed pages and every profile URL, at most 50,000 per file
   sitemaps/index.xml                 the sitemap index; the site serves it at /sitemap.xml and the
@@ -389,6 +391,48 @@ def write_profiles(conn: sqlite3.Connection, out: Path) -> int:
     return written
 
 
+def resolve_aliases(conn: sqlite3.Connection) -> dict[str, str]:
+    """Each retired employer id mapped to the live id its records ended up under.
+
+    An alias may point at an id that was itself retired later (a second
+    normalization change, a parser reload), so each one is followed until it
+    reaches a live employer. A chain that loops, or ends at an id with no
+    employer row, leads nowhere and is left out rather than sending a visitor
+    to a missing page. An old id that is live again answers for itself.
+    """
+    live = {r[0] for r in conn.execute("SELECT id FROM employers")}
+    step = {r[0]: r[1] for r in conn.execute("SELECT old_id, new_id FROM employer_aliases")}
+    out: dict[str, str] = {}
+    for old, target in step.items():
+        if old in live:
+            continue
+        seen = {old}
+        while target not in live and target in step and target not in seen:
+            seen.add(target)
+            target = step[target]
+        if target in live:
+            out[old] = target
+    return out
+
+
+def write_aliases(conn: sqlite3.Connection, out: Path) -> dict[str, int]:
+    """One JSON file per shard mapping each retired employer id to its live id.
+
+    Why: a profile link shared before a normalization change or a parser
+    reload names an id that no longer exists, and the site can look a
+    missing id up here to send the visitor on. The shard is the retired id's,
+    by the same shard_key as the profiles, so the lookup reads one small file
+    named like the profile shard it just missed in. Retired ids never go in
+    the sitemap.
+    """
+    shards: dict[str, dict[str, str]] = defaultdict(dict)
+    for old, new in resolve_aliases(conn).items():
+        shards[shard_key(old)][old] = new
+    for key in sorted(shards):
+        _dump(out / "aliases" / f"{key}.json", shards[key])
+    return {"alias_shards": len(shards)}
+
+
 def _lastmod(value: str | None) -> str | None:
     """The date part of an ISO date or datetime, or None for anything else."""
     if value and re.match(r"\d{4}-\d{2}-\d{2}", value):
@@ -506,20 +550,22 @@ def _write_static(conn: sqlite3.Connection, out: Path) -> dict[str, int]:
                                               "total": len(rows), "rows": rows[:AREA_ROW_CAP]})
         areas += 1
     counts["areas"] = areas
-    # The feeds, the release pages, the trends and the place pages each come
-    # from their own aggregation, and the site answers "not published" for a
-    # section whose files are missing. So one bad value in one of them must
-    # not hold back the night's data for every other page: a section that
-    # fails is logged as a stage of its own (the run status reports it), its
-    # files stay unwritten and the sitemap leaves its pages out until an
-    # export writes them again. The search, map, profile and stats files are
-    # the site itself and still fail the export.
+    # The feeds, the release pages, the trends, the place pages and the alias
+    # map each come from their own aggregation, and the site answers "not
+    # published" for a section whose files are missing (a retired id without
+    # its alias file is a plain 404, as before the map existed). So one bad
+    # value in one of them must not hold back the night's data for every
+    # other page: a section that fails is logged as a stage of its own (the
+    # run status reports it), its files stay unwritten and the sitemap leaves
+    # its pages out until an export writes them again. The search, map,
+    # profile and stats files are the site itself and still fail the export.
     failed: set[str] = set()
     sections = (
         ("feeds", lambda: write_feeds(conn, out)),
         ("releases", lambda: releases.write_all(conn, out)),
         ("trends", lambda: trends.write_all(conn, out)),
         ("places", lambda: places.write_places(conn, out)),
+        ("aliases", lambda: write_aliases(conn, out)),
     )
     for name, write in sections:
         try:

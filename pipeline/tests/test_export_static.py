@@ -113,3 +113,76 @@ def test_static_export_tree(conn, tmp_path):
     before = (out / "profiles" / f"{export_static.shard_key(a)}.json").read_bytes()
     export_static.export_static(conn, out)
     assert (out / "profiles" / f"{export_static.shard_key(a)}.json").read_bytes() == before
+
+
+def alias(conn, old, new):
+    conn.execute("INSERT INTO employer_aliases (old_id, new_id, normalize_version, created_at) VALUES (?, ?, 2, ?)",
+                 (old, new, NOW))
+
+
+def test_retired_ids_are_sharded_like_profiles_and_followed_to_the_live_id(conn, tmp_path):
+    a, b, c, d = seed(conn)
+    alias(conn, "emp-aaa0000001", a)                  # direct
+    alias(conn, "emp-bbb0000002", "emp-ccc0000003")   # retired twice: follows to b
+    alias(conn, "emp-ccc0000003", b)
+    alias(conn, "emp-ab10000004", a)                  # a second alias of the same employer
+    alias(conn, "emp-ddd0000005", "emp-eee0000006")   # ends at an id with no employer: dropped
+    alias(conn, "emp-fff0000007", "emp-fff0000008")   # a loop: dropped
+    alias(conn, "emp-fff0000008", "emp-fff0000007")
+    alias(conn, c, d)                                 # an old id that is live again answers for itself
+    conn.commit()
+    assert export_static.resolve_aliases(conn) == {
+        "emp-aaa0000001": a, "emp-bbb0000002": b, "emp-ccc0000003": b, "emp-ab10000004": a}
+
+    out = tmp_path / "static"
+    counts = export_static.export_static(conn, out)
+    files = sorted(p.name for p in (out / "aliases").iterdir())
+    assert files == ["aaa.json", "ab1.json", "bbb.json", "ccc.json"] and counts["alias_shards"] == 4
+    assert load(out, "aliases/aaa.json") == {"emp-aaa0000001": a}
+    assert load(out, "aliases/bbb.json") == {"emp-bbb0000002": b}
+    assert load(out, "aliases/ccc.json") == {"emp-ccc0000003": b}
+    # The shard is the old id's characters 5 to 7, the slice the site reads for a profile.
+    for name in files:
+        for old in load(out, f"aliases/{name}"):
+            assert export_static.shard_key(old) == old[4:7] == name[:-5]
+    # The live id keeps its profile and is redirected nowhere.
+    assert c in load(out, f"profiles/{export_static.shard_key(c)}.json")
+    assert all(c not in load(out, f"aliases/{name}") for name in files)
+    # Old ids never reach the sitemap.
+    sitemap = (out / "sitemaps" / "sitemap-1.xml").read_text(encoding="utf-8")
+    for old in ("emp-aaa0000001", "emp-bbb0000002", "emp-ccc0000003", "emp-ddd0000005", "emp-fff0000007"):
+        assert old not in sitemap
+    assert f"/employers/{a}" in sitemap
+
+
+def test_shards_group_every_old_id_with_its_key(conn, tmp_path):
+    a, b, _, _ = seed(conn)
+    for i in range(3):
+        alias(conn, f"emp-777{i:07d}", a if i % 2 else b)
+    conn.commit()
+    assert export_static.write_aliases(conn, tmp_path) == {"alias_shards": 1}
+    assert load(tmp_path, "aliases/777.json") == {"emp-7770000000": b, "emp-7770000001": a, "emp-7770000002": b}
+    # Nothing retired: no folder and no shards.
+    conn.execute("DELETE FROM employer_aliases")
+    assert export_static.write_aliases(conn, tmp_path / "empty") == {"alias_shards": 0}
+    assert not (tmp_path / "empty" / "aliases").exists()
+
+
+def test_a_failing_alias_section_is_logged_and_the_export_goes_on(conn, tmp_path, monkeypatch):
+    a, _, _, _ = seed(conn)
+    alias(conn, "emp-aaa0000001", a)
+    conn.commit()
+
+    def boom(conn, out):
+        raise RuntimeError("alias chain broke")
+
+    monkeypatch.setattr(export_static, "write_aliases", boom)
+    out = tmp_path / "static"
+    counts = export_static.export_static(conn, out)
+    assert (out / "stats.json").exists() and (out / "profiles").is_dir() and (out / "trends").is_dir()
+    assert not (out / "aliases").exists() and "alias_shards" not in counts
+    rows = [(r[0], r[1], r[2]) for r in conn.execute("SELECT source, ok, detail FROM sources_log ORDER BY id") if r[0].startswith("export")]
+    assert [(s, ok) for s, ok, _ in rows] == [("export_aliases", 0), ("export", 1)]
+    assert rows[0][2] == "RuntimeError: alias chain broke"
+    # The sitemap is unchanged by it: retired ids were never listed.
+    assert f"/employers/{a}" in (out / "sitemaps" / "sitemap-1.xml").read_text(encoding="utf-8")

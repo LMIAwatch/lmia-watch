@@ -17,6 +17,7 @@ import json
 import logging
 import re
 import sqlite3
+from collections import Counter, defaultdict
 from collections.abc import Iterable, Iterator, Mapping
 
 import openpyxl
@@ -25,7 +26,9 @@ from .. import config
 from ..db import log_run, now_iso, upsert_employer
 from ..household import is_household_row, remove_household_rows
 from ..http import FetchError, PoliteClient
-from ..normalize import iso_date, parse_address, parse_noc, period_from_text, province_code, to_int
+from ..normalize import (
+    NORMALIZE_VERSION, iso_date, norm_name, parse_address, parse_noc, period_from_text, province_code, to_int,
+)
 
 log = logging.getLogger(__name__)
 
@@ -244,6 +247,29 @@ def drop_orphans(conn: sqlite3.Connection, employer_ids: Iterable[str]) -> int:
     return len(orphans)
 
 
+def record_aliases(conn: sqlite3.Connection, moved: Mapping[str, Counter], stamp: str) -> int:
+    """Send each employer id a reload retired on to the id that took its rows.
+
+    moved maps an old employer id to the new ids its rows were filed under,
+    with the number of rows each took. An old id that still exists (it keeps
+    a row elsewhere) is not retired and gets nothing. Otherwise it points at
+    the new id that took most of its rows, the lowest id on a tie, as
+    migrate.py does for a normalization change; export_static follows any
+    chain to the live id. Does not commit. Returns the aliases written.
+    """
+    rows = []
+    for old, sent in sorted(moved.items()):
+        if not sent or conn.execute("SELECT 1 FROM employers WHERE id = ?", (old,)).fetchone():
+            continue
+        new = max(sorted(sent), key=lambda n: sent[n])
+        rows.append((old, new, NORMALIZE_VERSION, stamp))
+    conn.executemany(
+        "INSERT OR REPLACE INTO employer_aliases (old_id, new_id, normalize_version, created_at) VALUES (?, ?, ?, ?)",
+        rows,
+    )
+    return len(rows)
+
+
 def row_hash(list_name: str, resource_id: str, row: list[object]) -> str:
     payload = json.dumps(["" if v is None else str(v) for v in row], ensure_ascii=False)
     return hashlib.sha1(f"{list_name}|{resource_id}|{payload}".encode("utf-8")).hexdigest()
@@ -431,6 +457,11 @@ def load_resource(
 
     kept: dict[str, sqlite3.Row] = {}
     touched: set[str] = set()  # employers that may have lost their last row
+    # Old employer id -> new ids its rows moved to. A row matched on its hash
+    # is the same line of the same file, so when the parser now files it
+    # under another id (a province carried down from its block), the two ids
+    # are the same employer and a link to the old profile can be sent on.
+    moved: dict[str, Counter] = defaultdict(Counter)
     if existing:
         prior = conn.execute("SELECT * FROM esdc_records WHERE resource_id = ?", (res["id"],)).fetchall()
         touched = {r["employer_id"] for r in prior}
@@ -462,6 +493,11 @@ def load_resource(
             inserted += 1
         elif tuple(old[c] for c in RECORD_COLUMNS) != values:
             conn.execute(_UPDATE_RECORD, (*values, old["id"]))
+            # Only when the name reads the same: a row whose name the earlier
+            # parser read differently was filed under another employer, not
+            # under this one's earlier id.
+            if old["employer_id"] != eid and norm_name(old["employer_raw"]) == norm_name(rec["employer_raw"]):
+                moved[old["employer_id"]][eid] += 1
     # Rows the older parser loaded that this one does not read.
     conn.executemany("DELETE FROM esdc_records WHERE id = ?", [(r["id"],) for r in kept.values()])
     loaded = conn.execute("SELECT COUNT(*) FROM esdc_records WHERE resource_id = ?", (res["id"],)).fetchone()[0]
@@ -482,6 +518,9 @@ def load_resource(
         ),
     )
     drop_orphans(conn, touched)
+    aliased = record_aliases(conn, moved, stamp)
+    if aliased:
+        log.info("%s %s: %d employer ids retired, each sent on to the id that took its rows", list_name, period, aliased)
     conn.commit()
     return inserted
 

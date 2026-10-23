@@ -211,12 +211,15 @@ CREATE TABLE IF NOT EXISTS d1_sync (
   high_water TEXT NOT NULL                       -- last exported updated_at / id / observed_at per table
 );
 
--- Employer ids retired by a normalization change (migrate.py), each with the id
+-- Employer ids retired by a normalization change (migrate.py) or by an ESDC
+-- file read again under a newer parser (sources/esdc.py), each with the id
 -- that took over its records, so a link to an old profile can be sent on.
+-- The one table in this block the site sees: export_static writes it, chains
+-- followed to the live id, as aliases/<abc>.json.
 CREATE TABLE IF NOT EXISTS employer_aliases (
   old_id TEXT PRIMARY KEY,
   new_id TEXT NOT NULL,
-  normalize_version INTEGER NOT NULL,            -- the version that retired old_id
+  normalize_version INTEGER NOT NULL,            -- the normalization in force when old_id was retired
   created_at TEXT NOT NULL
 );
 

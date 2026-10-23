@@ -75,7 +75,7 @@ marking, because a capped run has not seen the whole feed.
 | `social_card.py` | the card image attached to the digest, drawn with Pillow from the day's figures |
 | `bluesky.py` | the same digest and card on Bluesky over the AT Protocol, with a link facet (separate `post-bluesky` command) |
 | `zenodo.py` | the citable release: a new Zenodo version of the OGL CSVs per ESDC quarter, DOIs into `meta` (separate `deposit-zenodo` command) |
-| `nightly.py` | the workflow's restore, verify and status commands |
+| `nightly.py` | the workflow's restore, verify, status and pack commands (pack writes the R2 backup: a `VACUUM INTO` copy without the secondary indexes, checked, gzipped, refused above Wrangler's 300 MiB upload cap) |
 
 ## Outputs
 ```
@@ -86,6 +86,7 @@ data/out/static/        the JSON the site serves as static assets (see export_st
                           stats.json, search/latest.json, search/pending.json,
                           search/<PROV>/postings.json, search/<PROV>/<YEAR>.json,
                           clusters/*.json, areas/<FSA>.json, profiles/<abc>.json,
+                          aliases/<abc>.json (retired employer id to live id),
                           occupations/*.json, places/**/*.json (places.py)
 data/out/d1/            only with `run --export --d1`: batches for a paid D1 database,
                         plus manifest.json and the `mark-synced` command
@@ -106,7 +107,11 @@ of single letters, spells the jurisdiction of a numbered company one way, and
 strips legal suffixes. Changing any of this means bumping `NORMALIZE_VERSION`;
 the next run then re-derives ids (`migrate.py`), records each retired id in
 `employer_aliases`, and needs a full D1 re-export on the paid-plan path
-(`run --export --d1 --full`).
+(`run --export --d1 --full`). An ESDC file read again under a newer parser
+records an alias too, when a row it files under a new id (a province read
+from its block) leaves the old employer with nothing. The static export writes
+the aliases, chains followed to the live id, as `aliases/<abc>.json`, sharded
+on the retired id like the profiles.
 
 ## Registries
 `sources/registry_bc.py` queries OrgBook BC per employer (BC only). It takes

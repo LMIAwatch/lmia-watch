@@ -10,10 +10,11 @@ without a stream.
 
 import hashlib
 import json
+from collections import Counter
 
-from lmia_pipeline import config, status
+from lmia_pipeline import config, export_static, status
 from lmia_pipeline.db import upsert_employer
-from lmia_pipeline.normalize import province_code
+from lmia_pipeline.normalize import NORMALIZE_VERSION, province_code
 from lmia_pipeline.sources import esdc
 from lmia_pipeline.sources.esdc import (
     PARSER_VERSION, is_header_row, is_summary_row, load_resource, map_headers, normalize_row, parse_resource,
@@ -314,3 +315,62 @@ def test_the_reload_reads_the_cache_and_waits_while_the_file_cannot_be_had(conn,
     assert conn.execute("SELECT parser_version FROM esdc_resources").fetchone()[0] == PARSER_VERSION
 
 
+
+
+# -- ids the reload retires ---------------------------------------------------
+
+
+def association_id(conn) -> str:
+    rows = conn.execute("SELECT DISTINCT employer_id FROM esdc_records WHERE employer_raw = 'Qikiqtani Inuit Association'")
+    (eid,) = [r[0] for r in rows]
+    return eid
+
+
+def test_an_id_the_reload_retires_is_sent_on_to_the_employer_that_took_its_rows(conn, fake_client):
+    _load_like_the_old_parser(conn, "positive", RES_2016, FILE_2016)
+    # The earlier parser filed the association under no province; the reload
+    # reads Nunavut from its block, which is another employer id.
+    lost = association_id(conn)
+    # A row the earlier parser read under another name: the same line of the
+    # file, but not the same employer, so its old id is not sent on.
+    misread = upsert_employer(conn, "Arup Canada Misread", "NL", source="esdc_positive", now=NOW)
+    conn.execute("UPDATE esdc_records SET employer_id = ?, employer_raw = 'Arup Canada Misread' "
+                 "WHERE employer_raw = 'Arup Canada Inc.'", (misread,))
+    conn.commit()
+
+    out = esdc.reload_outdated(conn, fake_client({RES_2016["url"]: FILE_2016}), now=LATER)
+    assert out["resources"] == 1 and out["failures"] == []
+    taken = association_id(conn)
+    assert taken != lost
+    for gone in (lost, misread):
+        assert conn.execute("SELECT 1 FROM employers WHERE id = ?", (gone,)).fetchone() is None
+    rows = [tuple(r) for r in conn.execute("SELECT old_id, new_id, normalize_version, created_at FROM employer_aliases")]
+    assert rows == [(lost, taken, NORMALIZE_VERSION, LATER)]
+    # The static export sends a link to the old profile on.
+    assert export_static.resolve_aliases(conn) == {lost: taken}
+
+
+def test_an_id_that_keeps_a_record_elsewhere_is_not_retired(conn, fake_client):
+    _load_like_the_old_parser(conn, "positive", RES_2016, FILE_2016)
+    kept = association_id(conn)
+    conn.execute("INSERT INTO jobbank_postings (posting_id, employer_id, employer_raw, first_seen, last_seen, flag_current, "
+                 "flag_first, url, updated_at) VALUES (1, ?, 'Qikiqtani Inuit Association', ?, ?, 'requested', "
+                 "'requested', 'u', ?)", (kept, NOW, NOW, NOW))
+    conn.commit()
+    esdc.reload_outdated(conn, fake_client({RES_2016["url"]: FILE_2016}), now=LATER)
+    assert association_id(conn) != kept
+    assert conn.execute("SELECT 1 FROM employers WHERE id = ?", (kept,)).fetchone() is not None
+    assert conn.execute("SELECT COUNT(*) FROM employer_aliases").fetchone()[0] == 0
+
+
+def test_a_retired_id_points_at_the_id_that_took_most_of_its_rows(conn):
+    live = upsert_employer(conn, "Still Here Ltd", "BC", source="esdc_positive", now=NOW)
+    written = esdc.record_aliases(conn, {
+        "emp-gone000001": Counter({"emp-x000000002": 1, "emp-y000000003": 3}),
+        "emp-gone000004": Counter({"emp-z000000009": 2, "emp-w000000005": 2}),  # a tie: the lowest id
+        live: Counter({"emp-x000000002": 5}),                                   # not retired
+        "emp-gone000006": Counter(),
+    }, LATER)
+    assert written == 2
+    assert dict(conn.execute("SELECT old_id, new_id FROM employer_aliases").fetchall()) == {
+        "emp-gone000001": "emp-y000000003", "emp-gone000004": "emp-w000000005"}
