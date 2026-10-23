@@ -51,10 +51,15 @@ export interface Stats {
     grant_agreements?: number;
     alberta_employers?: number;
     carrier_employers?: number;
+    // Pending postings with a NOC 2021 code, the total behind pending_by_noc.
+    pending_with_noc?: number;
   };
   by_stream: { k: string; n: number }[];
   by_province: { k: string; n: number }[];
   recent_pending: SearchRow[];
+  // The codes with the most pending postings; absent from files written
+  // before it, and checked by the home page, its only reader.
+  pending_by_noc?: { k: string; n: number; title: { en: string; fr: string } }[];
   recent_approved: SearchRow[];
   top_approvals: { employer_id: string; employer: string; city: string | null; prov: string | null; stream: string | null; positions: number }[];
   resources: { dataset: string; period: string; published: string | null; rows_loaded: number; loaded_at: string }[];
@@ -187,7 +192,7 @@ export async function loadJson<T>(env: Env, path: string): Promise<T | null> {
   }
 }
 
-const OPTIONAL_COUNTS = ["grant_employers", "grant_agreements", "alberta_employers", "carrier_employers"] as const;
+const OPTIONAL_COUNTS = ["grant_employers", "grant_agreements", "alberta_employers", "carrier_employers", "pending_with_noc"] as const;
 
 // The pages read these fields without further checks, so a file without them
 // is treated like a missing one.
@@ -195,7 +200,7 @@ export async function loadStats(env: Env): Promise<Stats | null> {
   const stats = await loadJson<Stats>(env, "stats.json");
   if (!isObj(stats) || !isObj(stats.counts)) return null;
   // Optional counts: a value that is not a number reads as absent, so it
-  // hides the home page's tile instead of failing every page.
+  // hides the home page's tile or chart instead of failing every page.
   for (const k of OPTIONAL_COUNTS) if (!optional(stats.counts[k], isNum)) delete stats.counts[k];
   return stats;
 }

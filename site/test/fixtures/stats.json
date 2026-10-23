@@ -15,7 +15,8 @@
     "grant_employers": 2140,
     "grant_agreements": 9812,
     "alberta_employers": 1311,
-    "carrier_employers": 402
+    "carrier_employers": 402,
+    "pending_with_noc": 1204
   },
   "by_stream": [
     { "k": "High Wage", "n": 4092 },
@@ -29,6 +30,15 @@
     { "k": "ON", "n": 2633 },
     { "k": "BC", "n": 1474 },
     { "k": "AB", "n": 903 }
+  ],
+  "pending_by_noc": [
+    { "k": "85101", "n": 212, "title": { "en": "Harvesting labourers", "fr": "Manœuvres à la récolte" } },
+    { "k": "63200", "n": 187, "title": { "en": "Cooks", "fr": "Cuisiniers/cuisinières" } },
+    { "k": "60030", "n": 141, "title": { "en": "Restaurant and food service managers", "fr": "Gestionnaires de la restauration et des services alimentaires" } },
+    { "k": "73300", "n": 118, "title": { "en": "Transport truck drivers", "fr": "Conducteurs/conductrices de camions de transport" } },
+    { "k": "62200", "n": 96, "title": { "en": "Chefs", "fr": "Chefs" } },
+    { "k": "62020", "n": 77, "title": { "en": "Food service supervisors", "fr": "Superviseurs/superviseures des services alimentaires" } },
+    { "k": "65201", "n": 64, "title": { "en": "Food counter attendants, kitchen helpers and related support occupations", "fr": "Serveurs/serveuses au comptoir, aides de cuisine et personnel de soutien assimilé" } }
   ],
   "recent_pending": [
     { "kind": "posting", "ref": 50469136, "employer_id": "emp-a00000000a", "employer": "Restaurant St-Hubert Sept-Îles", "job": "cook", "noc": null, "street": null, "city": "Sept-Îles", "prov": "QC", "postal": null, "wage_min": 16.6, "wage_max": 22.1, "unit": "HOUR", "date": "2026-10-10", "period": null, "positions": null, "status": "pending", "stream": null, "source": "https://www.jobbank.gc.ca/jobsearch/jobposting/50469136", "sort_date": "2026-10-10", "ind": [] },

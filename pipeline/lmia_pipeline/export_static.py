@@ -346,6 +346,40 @@ def public_record_counts(conn: sqlite3.Connection) -> dict[str, int]:
             for key, (table, expr) in PUBLIC_RECORD_COUNTS.items()}
 
 
+# The home page's chart of pending postings by occupation. A posting's code
+# comes from its detail page, which the nightly budget works through, so many
+# pending postings have none yet: the chart counts only those with a NOC 2021
+# code and says how many that is.
+PENDING_BY_NOC = 8
+PENDING_NOC_SQL = (
+    "SELECT p.noc_code AS k, COUNT(*) AS n, t.title_en, t.title_fr, MAX(p.noc_title) AS posted "
+    "FROM jobbank_postings p LEFT JOIN noc_titles t ON t.noc_code = p.noc_code "
+    "WHERE p.flag_current = 'requested' AND p.noc_code GLOB '[0-9][0-9][0-9][0-9][0-9]' "
+    "GROUP BY p.noc_code ORDER BY n DESC, p.noc_code"
+)
+
+
+def pending_by_noc(conn: sqlite3.Connection) -> tuple[list[dict], int]:
+    """The codes with the most pending postings, titled in English and French, and the pending postings with a code.
+
+    Titles come from the NOC 2021 classification (noc_titles), as on the
+    occupation pages. A code it lacks takes the posting's own occupation
+    title, else the title an ESDC list gives the code, else the code, in both
+    languages.
+    """
+    rows = conn.execute(PENDING_NOC_SQL).fetchall()
+    out = []
+    for r in rows[:PENDING_BY_NOC]:
+        if r["title_en"]:
+            title = {"en": r["title_en"], "fr": r["title_fr"] or r["title_en"]}
+        else:
+            name = r["posted"] or conn.execute(
+                "SELECT MAX(noc_title) FROM esdc_records WHERE noc_code = ?", (r["k"],)).fetchone()[0] or r["k"]
+            title = {"en": name, "fr": name}
+        out.append({"k": r["k"], "n": r["n"], "title": title})
+    return out, sum(r["n"] for r in rows)
+
+
 def write_stats(conn: sqlite3.Connection, out: Path, latest: str, ind: dict[str, list[str]]) -> dict:
     meta = {r["key"]: r["value"] for r in conn.execute("SELECT key, value FROM meta")}
     counts = {
@@ -357,6 +391,7 @@ def write_stats(conn: sqlite3.Connection, out: Path, latest: str, ind: dict[str,
         "employers": conn.execute("SELECT COUNT(*) FROM employers").fetchone()[0],
         **public_record_counts(conn),
     }
+    by_noc, counts["pending_with_noc"] = pending_by_noc(conn)
     by_stream = [{"k": r["k"] or "Unknown", "n": r["n"]} for r in conn.execute(
         "SELECT stream AS k, COUNT(*) AS n FROM esdc_records WHERE list = 'positive' AND period = ? GROUP BY stream ORDER BY n DESC", (latest,))]
     by_province = [{"k": r["k"] or "Unknown", "n": r["n"]} for r in conn.execute(
@@ -388,6 +423,7 @@ def write_stats(conn: sqlite3.Connection, out: Path, latest: str, ind: dict[str,
         "by_stream": by_stream,
         "by_province": by_province,
         "recent_pending": recent_pending,
+        "pending_by_noc": by_noc,
         "recent_approved": recent_approved,
         "top_approvals": top,
         "resources": resources,

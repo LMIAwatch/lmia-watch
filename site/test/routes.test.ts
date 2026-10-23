@@ -68,6 +68,52 @@ describe("pages", () => {
     }
   });
 
+  it("home charts pending postings by occupation under the province bars", async () => {
+    const html = await (await get("/")).text();
+    expect(html).toContain("Pending by occupation, of 1,204 postings with a NOC 2021 code.");
+    // The code in muted mono before the title, which links to the filtered search.
+    expect(html).toContain('<span class="mono muted">85101</span> <a href="/search?status=pending&amp;noc=85101">Harvesting labourers</a>');
+    expect(html).toContain('<a href="/search?status=pending&amp;noc=62020">Food service supervisors</a>');
+    // Six rows of the eight the export writes, after the province bars.
+    expect(html).not.toContain("noc=65201");
+    expect(html.indexOf("Pending by occupation")).toBeGreaterThan(html.indexOf("Pending by province"));
+    const fr = await (await get("/?lang=fr")).text();
+    expect(fr).toContain("En attente par profession, sur");
+    expect(fr).toContain('<a href="/search?status=pending&amp;noc=85101">Manœuvres à la récolte</a>');
+    // A slash in a title is a place the line may break.
+    expect(fr).toContain(">Cuisiniers/<wbr/>cuisinières</a>");
+  });
+
+  it("home leaves out the occupation bars when stats.json lacks them or they fail the check", async () => {
+    const { pending_by_noc: rows, ...older } = stats;
+    const { pending_with_noc, ...olderCounts } = stats.counts;
+    const variants: unknown[] = [
+      older,
+      { ...stats, counts: olderCounts },
+      { ...stats, counts: { ...stats.counts, pending_with_noc: "1204" } },
+      { ...stats, pending_by_noc: [] },
+      { ...stats, pending_by_noc: "x" },
+      { ...stats, pending_by_noc: [{ ...rows[0], k: "8510" }] },
+      { ...stats, pending_by_noc: [{ ...rows[0], title: "Harvesting labourers" }] },
+      { ...stats, pending_by_noc: [{ ...rows[0], title: { en: "Harvesting labourers" } }] },
+      { ...stats, pending_by_noc: [rows[0], { ...rows[1], n: "187" }] },
+    ];
+    for (const body of variants) {
+      const assets = {
+        fetch: async (input: Request) =>
+          new URL(input.url).pathname === "/data/stats.json" ? new Response(JSON.stringify(body)) : fakeAssets.fetch(input),
+      } as unknown as Fetcher;
+      const res = await app.request("/", {}, testEnv(assets));
+      expect(res.status).toBe(200);
+      const html = await res.text();
+      expect(html).not.toContain("Pending by occupation");
+      expect(html).not.toContain("noc=");
+      // The rest of the page stands.
+      expect(html).toContain("Pending by province, all 5,883 postings.");
+      expect(html).toContain("Jealous Fruits Ltd.");
+    }
+  });
+
   // This file's search database is empty (test/search_page.test.ts fills its
   // own), so these are the fallback: the page as before hosted search.
   it("a plain search visit is rendered on the server with counts", async () => {

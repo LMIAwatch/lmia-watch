@@ -6,6 +6,7 @@ import { Badge, Layout, fmtInt, noDataPage, page, periodLabel } from "../layout"
 import { homeJsonLd, pageSeo } from "../seo";
 import { isListOf, isNum, isObj, isStr, isStrOrNull } from "../valid";
 import { FeedLinks } from "./feeds";
+import { isBilingual } from "./places";
 
 // The lists of stats.json that only this page reads, checked here rather than
 // in loadStats so a malformed row costs this page, not every page. Each field
@@ -18,6 +19,11 @@ const isTopRow = (r: unknown): boolean => isObj(r) && isStr(r.employer_id) && is
   isStrOrNull(r.prov) && isStrOrNull(r.stream) && isNum(r.positions);
 // The export writes "Unknown" where the quarter's rows have no stream or province, so a key is never null.
 const isCountRow = (r: unknown): boolean => isObj(r) && isStr(r.k) && isNum(r.n);
+// A pending-by-occupation row: a five-digit NOC 2021 code, its count and its titles.
+const isNocRow = (r: unknown): boolean => isObj(r) && isStr(r.k) && /^[0-9]{5}$/.test(r.k) && isNum(r.n) && isBilingual(r.title);
+// NOC titles join gendered forms with a slash ("Cuisiniers/cuisinières"),
+// which leaves a phone's narrow label column no place to break the line.
+const slashBreaks = (s: string) => s.split("/").flatMap((part, i) => (i ? ["/", <wbr />, part] : [part]));
 
 export async function homePage(c: Context<AppEnv>): Promise<Response> {
   const lang = c.get("lang");
@@ -33,6 +39,12 @@ export async function homePage(c: Context<AppEnv>): Promise<Response> {
     .filter(([k, n]) => k.startsWith("pending|") && n > 0)
     .map(([k, n]) => ({ k: k.slice("pending|".length), n }))
     .sort((a, b) => b.n - a.n || a.k.localeCompare(b.k));
+  // Pending postings by occupation, below the province bars. Optional: a stats
+  // file from before it, or one whose list or total fails the check, leaves
+  // the chart out and the page as it was.
+  const withNoc = stats.counts.pending_with_noc;
+  const pendingByNoc = withNoc !== undefined && isListOf(stats.pending_by_noc, isNocRow) ? stats.pending_by_noc : [];
+  const nocTitle = new Map(pendingByNoc.map((r) => [r.k, r.title[lang]]));
   const periodText = stats.esdc_latest_period ? periodLabel(stats.esdc_latest_period, lang) : t(lang, "home.latest_quarter");
   const n = (v: number | null | undefined) => fmtInt(v, lang);
   const { grant_employers: grantEmployers, grant_agreements: grantAgreements } = stats.counts;
@@ -73,13 +85,18 @@ export async function homePage(c: Context<AppEnv>): Promise<Response> {
     </div>
   );
 
-  const Bars = ({ rows, label, href, limit = 6 }: { rows: { k: string; n: number }[]; label: (k: string) => string; href?: (k: string) => string; limit?: number }) => {
+  const Bars = ({ rows, label, href, lead, limit = 6 }: {
+    rows: { k: string; n: number }[]; label: (k: string) => string; href?: (k: string) => string; lead?: (k: string) => string; limit?: number;
+  }) => {
     const max = Math.max(1, ...rows.map((r) => r.n));
     return (
       <div class="bars">
         {rows.slice(0, limit).map((r) => (
           <div class="bar-row">
-            <span class="bar-label">{href ? <a href={href(r.k)}>{label(r.k)}</a> : label(r.k)}</span>
+            <span class="bar-label">
+              {lead ? <><span class="mono muted">{lead(r.k)}</span> </> : null}
+              {href ? <a href={href(r.k)}>{slashBreaks(label(r.k))}</a> : slashBreaks(label(r.k))}
+            </span>
             <span class="bar-track">
               <span class="bar-fill" style={`width:${Math.max(1, Math.round((r.n / max) * 100))}%`}></span>
             </span>
@@ -163,6 +180,12 @@ export async function homePage(c: Context<AppEnv>): Promise<Response> {
             <>
               <p class="muted small top-gap">{t(lang, "home.pending_by_prov", { n: n(stats.counts.pending) })}</p>
               <Bars rows={pendingByProv} label={(k) => provinceName(lang, k)} href={(k) => `/search?status=pending&province=${k}`} limit={8} />
+            </>
+          ) : null}
+          {pendingByNoc.length && withNoc !== undefined ? (
+            <>
+              <p class="muted small top-gap">{tn(lang, "home.pending_by_noc_one", "home.pending_by_noc_many", withNoc, { n: n(withNoc) })}</p>
+              <Bars rows={pendingByNoc} label={(k) => nocTitle.get(k) || k} lead={(k) => k} href={(k) => `/search?status=pending&noc=${k}`} />
             </>
           ) : null}
         </div>

@@ -1445,6 +1445,8 @@ const STRINGS = {
   },
   "home.week_caption": { en: "Job Bank postings carrying the \"LMIA requested\" flag, newest first.", fr: "Offres d'emploi du Guichet-Emplois portant la mention « EIMT demandée », les plus récentes en premier." },
   "home.pending_by_prov": { en: "Pending by province, all {n} postings.", fr: "En attente par province, {n} offres au total." },
+  "home.pending_by_noc_one": { en: "Pending by occupation, of {n} posting with a NOC 2021 code.", fr: "En attente par profession, sur {n} offre portant un code de la CNP 2021." },
+  "home.pending_by_noc_many": { en: "Pending by occupation, of {n} postings with a NOC 2021 code.", fr: "En attente par profession, sur {n} offres portant un code de la CNP 2021." },
   "data.api_limits": { en: "Limits per address: 60 API requests a minute, 10 downloads a minute. Above that the site answers 429 until the minute passes. Bulk users should take the downloads rather than the API.", fr: "Limites par adresse : 60 requêtes API par minute, 10 téléchargements par minute. Au-delà, le site répond 429 jusqu'à la fin de la minute. Pour un usage en masse, prenez les téléchargements plutôt que l'API." },
   "employer.minimap_aria": { en: "Map of postal area {fsa}, centred on its centroid", fr: "Carte du secteur postal {fsa}, centrée sur son centroïde" },
   "employer.map_credit": { en: "Map: OpenStreetMap contributors", fr: "Carte : contributeurs OpenStreetMap" },

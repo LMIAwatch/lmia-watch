@@ -144,6 +144,38 @@ def test_stats_count_the_public_records_matched_to_employers(conn, tmp_path):
     assert set(export_static.public_record_counts(conn).values()) == {0}
 
 
+def test_stats_count_pending_postings_by_occupation(conn, tmp_path, monkeypatch):
+    a, b, c, d = seed(conn)
+    conn.execute("INSERT INTO noc_titles (noc_code, level, title_en, title_fr) VALUES ('63200', 5, 'Cooks', 'Cuisiniers/cuisinières')")
+    # Posting 5 (seeded) is pending with no code. 73300 has no classification
+    # title but the posting names its occupation; 85101 has neither, so the
+    # ESDC list's title stands in. An approved posting and a four-digit code
+    # are left out of both the rows and the total.
+    for pid, noc, noc_title, flag in ((6, "63200", None, "requested"), (7, "63200", None, "requested"),
+                                      (8, "73300", "Transport truck drivers", "requested"), (9, "85101", None, "requested"),
+                                      (10, "63200", None, "approved"), (11, "6322", None, "requested")):
+        conn.execute("INSERT INTO jobbank_postings (posting_id, employer_id, employer_raw, title, noc_code, noc_title, first_seen, "
+                     "last_seen, flag_current, flag_first, url, updated_at) VALUES (?, ?, 'Beta Inn', 'job', ?, ?, ?, ?, ?, "
+                     "'requested', 'u', ?)", (pid, b, noc, noc_title, NOW, NOW, flag, NOW))
+    out = tmp_path / "static"
+    export_static.export_static(conn, out)
+    stats = load(out, "stats.json")
+    # Most postings first, then by code.
+    assert stats["pending_by_noc"] == [
+        {"k": "63200", "n": 2, "title": {"en": "Cooks", "fr": "Cuisiniers/cuisinières"}},
+        {"k": "73300", "n": 1, "title": {"en": "Transport truck drivers", "fr": "Transport truck drivers"}},
+        {"k": "85101", "n": 1, "title": {"en": "Harvesting labourers", "fr": "Harvesting labourers"}},
+    ]
+    assert stats["counts"]["pending_with_noc"] == 4
+    # The total counts every pending posting with a code, past the rows shown.
+    monkeypatch.setattr(export_static, "PENDING_BY_NOC", 1)
+    rows, total = export_static.pending_by_noc(conn)
+    assert [r["k"] for r in rows] == ["63200"] and total == 4
+    # No pending posting with a code: an empty list and 0.
+    conn.execute("UPDATE jobbank_postings SET noc_code = NULL")
+    assert export_static.pending_by_noc(conn) == ([], 0)
+
+
 def alias(conn, old, new):
     conn.execute("INSERT INTO employer_aliases (old_id, new_id, normalize_version, created_at) VALUES (?, ?, 2, ?)",
                  (old, new, NOW))
