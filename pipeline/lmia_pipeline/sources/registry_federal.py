@@ -5,8 +5,11 @@ Canada, Open Government Licence, Canada
 (https://open.canada.ca/data/en/dataset/0032ce54-c5dd-4b66-99a0-320a7b5e99f2).
 Two CSV files cover corporations under the Canada Business Corporations Act:
 active, and inactive or dissolved. Each row carries the corporate name, the
-status, the anniversary date (the date of incorporation or continuance), and
-the registered office's city, province and postal code.
+status, the anniversary date (the date of incorporation or continuance), the
+registered office's city, province and postal code, and the business number
+when the corporation has one. The grants stage (sources/grants.py) reaches
+that number through a match's corporation number and joins disclosures that
+carry it to the employer.
 
 The files are cached for a week and loaded into a pipeline-local table, so no
 per-employer requests are made. Employers are matched on the normalized name;
@@ -25,7 +28,7 @@ from collections import defaultdict
 
 from ..db import get_meta, log_run, now_iso, set_meta
 from ..http import FetchError, PoliteClient
-from ..normalize import POSTAL_RE, format_postal, norm_name, province_code
+from ..normalize import POSTAL_RE, business_number, format_postal, norm_name, province_code
 
 log = logging.getLogger(__name__)
 
@@ -37,6 +40,9 @@ URLS = [
 MAX_AGE_S = 7 * 86400
 CHUNK = 5000
 STATUS_RANK = {"Active": 0, "Inactive": 1, "Dissolved": 2}
+# Stored with each file's checksum: a file loaded by an older parser is read
+# again once even when it has not changed (version 2 added the business number).
+PARSER_VERSION = 2
 
 
 def _postal(raw: str | None) -> str | None:
@@ -65,6 +71,7 @@ def parse_extract(data: bytes, source_url: str) -> list[tuple]:
             province_code(rec.get("Province/territory")),
             _postal(rec.get("Postal code")),
             source_url,
+            business_number(rec.get("Business number (BN)")),
         ))
     return rows
 
@@ -78,19 +85,19 @@ def load_extract(conn: sqlite3.Connection, client: PoliteClient) -> int:
         except FetchError as exc:
             log.warning("federal extract %s: %s", url, exc)
             continue
-        sha = hashlib.sha256(data).hexdigest()
+        marker = f"{hashlib.sha256(data).hexdigest()}:v{PARSER_VERSION}"
         key = f"federal_extract_sha:{url.rsplit('/', 1)[-1]}"
-        if get_meta(conn, key) == sha:
+        if get_meta(conn, key) == marker:
             continue
         rows = parse_extract(data, url)
         conn.execute("DELETE FROM federal_corporations WHERE source_url = ?", (url,))
         for i in range(0, len(rows), CHUNK):
             conn.executemany(
                 "INSERT OR REPLACE INTO federal_corporations (number, legal_name, norm_name, status, registered_on, "
-                "city, province, postal_code, source_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "city, province, postal_code, source_url, business_number) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 rows[i:i + CHUNK],
             )
-        set_meta(conn, key, sha)
+        set_meta(conn, key, marker)
         conn.commit()
         loaded += len(rows)
         log.info("federal extract %s: %d rows", url.rsplit("/", 1)[-1], len(rows))

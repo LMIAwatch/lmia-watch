@@ -147,13 +147,16 @@ def _person_shape(words: list[str]) -> bool:
     return any(len(_key(w)) >= 2 for w in counted)
 
 
-def reads_as_person(name: str | None) -> bool:
+def reads_as_person(name: str | None, *, business_words: frozenset[str] = BUSINESS_WORDS) -> bool:
     """True when an employer name reads as one or two people and not as a business.
 
     The business words are built for names that already carry a household
     occupation, where the choice is between a person and a care business. On
     its own this is not a general test for a person's name: across all
     occupations it would read many short trade names ("Silo Films") as people.
+    The public-record sources (sources/matching.py) pass a smaller set, since
+    there a short trade name read as a person costs one record and a person
+    read as a business would be published.
     """
     if not name or not name.strip():
         return False
@@ -166,7 +169,7 @@ def reads_as_person(name: str | None) -> bool:
     text = HOUSEHOLD_PHRASE_RE.sub(" ", text)
     words = name_words(text)
     keys = [_key(w) for w in words]
-    if not keys or any(k in LEGAL_WORDS or k in BUSINESS_WORDS for k in keys):
+    if not keys or any(k in LEGAL_WORDS or k in business_words for k in keys):
         return False
     if _person_shape([w for w, k in zip(words, keys) if k not in {"and", "et"}]):
         return True

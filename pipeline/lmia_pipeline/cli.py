@@ -16,11 +16,11 @@ from . import bluesky, config, export, export_static, indicators, migrate, searc
 from .db import connect, hours_since, log_run
 from .http import PoliteClient
 from .sources import esdc, geography, ircc, jobbank, lfs, program, registry_bc, registry_federal, registry_quebec
-from .sources import vacancies, wages
+from .sources import alberta_records, fmcsa, grants, vacancies, wages
 
 log = logging.getLogger("lmia_pipeline")
-STAGES = ["esdc", "ircc", "jobbank", "registry", "wages", "lfs", "vacancies", "program", "geography", "indicators",
-          "export"]
+STAGES = ["esdc", "ircc", "jobbank", "registry", "grants", "alberta", "fmcsa", "wages", "lfs", "vacancies",
+          "program", "geography", "indicators", "export"]
 
 # Job Bank is crawled once a day and no more. A re-run of a failed night, or a
 # run started by hand, must not send a second pass; the guard is in the
@@ -239,6 +239,18 @@ def _command(conn: sqlite3.Connection, args: argparse.Namespace) -> int:
         ok &= _stage(conn, "registry_federal", lambda: registry_federal.run(conn, client), "matches")
         # Same for the 270 MB Quebec extract.
         ok &= _stage(conn, "registry_quebec", lambda: registry_quebec.run(conn, client), "matches")
+    # Public records shown on profiles; none of them feeds the indicators.
+    # Each downloads on its own cadence (grants quarterly, the Alberta
+    # workbook when it changes, the carrier census monthly) and matches every
+    # night, so a download that fails leaves last time's records matched.
+    # The grants match reads the business numbers the federal registry stage
+    # stores, so it runs after the registries.
+    if "grants" in stages:
+        ok &= _stage(conn, "grants", lambda: grants.run(conn, client), "matches")
+    if "alberta" in stages:
+        ok &= _stage(conn, "alberta_records", lambda: alberta_records.run(conn, client), "matches")
+    if "fmcsa" in stages:
+        ok &= _stage(conn, "fmcsa", lambda: fmcsa.run(conn, client), "matches")
     # The reference tables for the wage and unemployment indicators. Each is
     # cached: wages and the LFS table are revalidated at most once a month,
     # the boundary files never after the first load. A failure leaves the

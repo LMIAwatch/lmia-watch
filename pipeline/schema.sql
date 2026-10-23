@@ -252,7 +252,8 @@ CREATE TABLE IF NOT EXISTS federal_corporations (
   city TEXT,
   province TEXT,
   postal_code TEXT,
-  source_url TEXT NOT NULL
+  source_url TEXT NOT NULL,
+  business_number TEXT                           -- nine digits (normalize.business_number), NULL when blank or not a valid BN
 );
 CREATE INDEX IF NOT EXISTS idx_federal_norm ON federal_corporations(norm_name);
 
@@ -359,6 +360,127 @@ CREATE TABLE IF NOT EXISTS quebec_enterprises (
   PRIMARY KEY (neq, norm_name)
 );
 CREATE INDEX IF NOT EXISTS idx_quebec_norm ON quebec_enterprises(norm_name);
+
+-- ---------------------------------------------------------------------------
+-- Public records joined to employer profiles (sources/grants.py,
+-- sources/alberta_records.py, sources/fmcsa.py, rules in sources/matching.py).
+-- Each source keeps only the records whose name could be an employer's, and
+-- never a record of an individual or a sole proprietorship. The match tables
+-- are rebuilt whole by each night's matching and carry no foreign key, so an
+-- employer deleted or renamed between two nights leaves nothing that blocks
+-- the deletion; the export reads them only for employers that exist. The
+-- tables have no secondary index: they are small, and the joins probe the
+-- employers' name index (idx_employers_norm) from their side. Shown on
+-- profiles as records; none of them feeds the indicators.
+-- ---------------------------------------------------------------------------
+
+-- Proactive disclosure of federal grants and contributions (open.canada.ca
+-- dataset 432527ab-7aac-45b5-81d6-7597107a7013, Open Government Licence,
+-- Canada): one row per agreement, at its latest amendment.
+CREATE TABLE IF NOT EXISTS federal_grants (
+  agreement_key TEXT PRIMARY KEY,                -- owner_org || ',' || ref_number: the department and its reference number
+  ref_number TEXT NOT NULL,                      -- the department's reference number for the agreement
+  amendment_number INTEGER NOT NULL,             -- the amendment the row was taken from (0 = the original agreement)
+  owner_org TEXT NOT NULL,                       -- department code as published, e.g. aafc-aac
+  department_en TEXT,                            -- department name, English part of owner_org_title
+  department_fr TEXT,                            -- department name, French part of owner_org_title
+  recipient_type TEXT,                           -- A Indigenous, F for-profit, G government, I international, N not-for-profit,
+                                                 -- O other, S academia; NULL on older rows (P, individuals and sole
+                                                 -- proprietorships, is never stored)
+  business_number TEXT,                          -- the recipient's nine-digit BN (normalize.business_number), NULL when absent or invalid
+  legal_name TEXT NOT NULL,                      -- recipient legal name as published (the English part when both languages are given)
+  norm_name TEXT NOT NULL,                       -- normalize.norm_name of legal_name
+  operating_name TEXT,                           -- recipient operating name; NULL when blank or when it reads as a person
+  operating_norm TEXT,                           -- normalize.norm_name of operating_name
+  city TEXT,
+  province TEXT,                                 -- two-letter code, from the record or its postal code; NULL outside Canada
+  postal_code TEXT,                              -- 'A1A 1A1' form or NULL
+  program_en TEXT,                               -- program name
+  program_fr TEXT,
+  agreement_type TEXT,                           -- G grant, C contribution, O other transfer payment
+  agreement_value REAL,                          -- dollars, as amended
+  start_date TEXT,                               -- ISO date
+  end_date TEXT,                                 -- ISO date
+  loaded_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS grant_matches (
+  employer_id TEXT NOT NULL,
+  agreement_key TEXT NOT NULL,                   -- federal_grants.agreement_key
+  grade TEXT NOT NULL,                           -- exact | probable (sources/matching.py)
+  basis TEXT NOT NULL,                           -- business_number | name_postal_area | name_province | operating_name_postal_area
+  matched_at TEXT NOT NULL,
+  PRIMARY KEY (employer_id, agreement_key)
+);
+
+-- Alberta Employer Records (open.alberta.ca/opendata/employer-records, Open
+-- Government Licence, Alberta): the injury figures of each employer's
+-- workers' compensation account, one row per account, year and name. An
+-- account listed under two names (a numbered company and the name it
+-- operates under, or a former name) has a row for each, with the same
+-- figures.
+CREATE TABLE IF NOT EXISTS alberta_employer_records (
+  emp_key TEXT NOT NULL,                         -- the publisher's key for the account (an opaque identifier, not the WCB number)
+  year INTEGER NOT NULL,                         -- YEAR_NO
+  employer_name TEXT NOT NULL,                   -- EMPLOYER_NAME as published
+  norm_name TEXT NOT NULL,
+  trade_name TEXT,                               -- TRADE_NAME; NULL when blank or when it reads as a person
+  trade_norm TEXT,
+  city TEXT,                                     -- CITY_NAME as published (upper case)
+  industry TEXT,                                 -- WCB industry name
+  industry_code TEXT,                            -- WCB industry code
+  person_years REAL,                             -- full-time equivalents reported to the WCB
+  lost_time_claims INTEGER,
+  lost_time_rate REAL,                           -- lost-time claims per 100 person-years, as published
+  disabling_injuries INTEGER,
+  disabling_rate REAL,                           -- disabling injuries per 100 person-years, as published
+  fatalities INTEGER,                            -- fatality claims accepted in the year
+  cor_year INTEGER,                              -- COR_YEAR: the certificate of recognition year when published; NULL otherwise
+  resource_id TEXT NOT NULL,                     -- CKAN resource id of the workbook
+  PRIMARY KEY (emp_key, year, norm_name)
+);
+
+CREATE TABLE IF NOT EXISTS alberta_matches (
+  employer_id TEXT NOT NULL,
+  emp_key TEXT NOT NULL,                         -- alberta_employer_records.emp_key
+  account_name TEXT NOT NULL,                    -- the account's name that matched (alberta_employer_records.employer_name)
+  grade TEXT NOT NULL,                           -- exact | probable
+  basis TEXT NOT NULL,                           -- name_city | name_province | trade_name_city
+  matched_at TEXT NOT NULL,
+  PRIMARY KEY (employer_id, emp_key)
+);
+
+-- US FMCSA Company Census (data.transportation.gov dataset az4n-8mr2, a work
+-- of the US government, public domain): motor carriers with a Canadian
+-- physical address. Officer names, phone, fax and email are never fetched.
+CREATE TABLE IF NOT EXISTS fmcsa_carriers (
+  dot_number INTEGER PRIMARY KEY,                -- USDOT number
+  legal_name TEXT NOT NULL,
+  norm_name TEXT NOT NULL,
+  dba_name TEXT,                                 -- doing-business-as name; NULL when blank or when it reads as a person
+  dba_norm TEXT,
+  city TEXT,
+  province TEXT,                                 -- two-letter code (PHY_STATE)
+  postal_code TEXT,                              -- 'A1A 1A1' form or NULL (older records give only CANADA)
+  status TEXT,                                   -- A active, I inactive, P pending (STATUS_CODE)
+  power_units INTEGER,                           -- POWER_UNITS
+  drivers INTEGER,                               -- TOTAL_DRIVERS
+  safety_rating TEXT,                            -- S satisfactory, C conditional, U unsatisfactory; NULL not rated
+  safety_rating_date TEXT,                       -- ISO date
+  record_date TEXT,                              -- MCS150_DATE: the carrier's latest census update, ISO date
+  added_on TEXT,                                 -- ADD_DATE, ISO date
+  carrier_operation TEXT,                        -- A interstate, B intrastate with hazardous materials, C other intrastate
+  loaded_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS fmcsa_matches (
+  employer_id TEXT NOT NULL,
+  dot_number INTEGER NOT NULL,                   -- fmcsa_carriers.dot_number
+  grade TEXT NOT NULL,                           -- exact | probable
+  basis TEXT NOT NULL,                           -- name_postal_code | name_province | dba_postal_code
+  matched_at TEXT NOT NULL,
+  PRIMARY KEY (employer_id, dot_number)
+);
 
 -- ---------------------------------------------------------------------------
 -- Site-owned tables. The pipeline never writes, deletes or exports these.

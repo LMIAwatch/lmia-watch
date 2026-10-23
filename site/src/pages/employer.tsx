@@ -1,7 +1,12 @@
 import type { Context } from "hono";
-import { type Area, esdcSource, loadAlias, loadJson, loadProfile, loadStats, type Profile } from "../data";
+import {
+  type AlbertaRow, type Area, type CarrierRow, esdcSource, type GrantRow, loadAlias, loadJson, loadProfile, loadStats,
+  type Profile,
+} from "../data";
 import type { AppEnv } from "../env";
-import { basisText, indicatorLabel, indicatorStateLabel, streamLabel, t, tj, tn, type Key, type Lang } from "../i18n";
+import {
+  basisText, decimal, indicatorLabel, indicatorStateLabel, numberLocale, streamLabel, t, tj, tn, type Key, type Lang,
+} from "../i18n";
 import { Badge, Layout, fmtInt, fmtWage, noDataPage, page, periodLabel } from "../layout";
 import { sourceLabel } from "./search";
 import { WATCH_MAX } from "./watchlist";
@@ -29,6 +34,171 @@ const REGISTRY_URL: Record<string, string> = {
 const REGISTRY_STATUS: Record<string, Key> = { ACT: "employer.active", Active: "employer.active", "Struck off": "employer.struck_off" };
 
 const registryName = (lang: Lang, registry: string) => (REGISTRY_NAME[registry] ? t(lang, REGISTRY_NAME[registry]) : registry);
+
+// -- public records ------------------------------------------------------------
+// Grants, Alberta employer records and US carrier records are matched to the
+// employer by name and place (sources/matching.py in the pipeline), so every
+// row says how it was matched; a match is a pointer to a published record,
+// not an identity.
+const MATCH_GRADE: Record<string, Key> = { exact: "public.match_exact", probable: "public.match_probable" };
+const MATCH_BASIS: Record<string, Key> = {
+  business_number: "public.basis.business_number",
+  name_postal_area: "public.basis.name_postal_area",
+  name_province: "public.basis.name_province",
+  operating_name_postal_area: "public.basis.operating_name_postal_area",
+  name_city: "public.basis.name_city",
+  trade_name_city: "public.basis.trade_name_city",
+  name_postal_code: "public.basis.name_postal_code",
+  dba_postal_code: "public.basis.dba_postal_code",
+};
+const CARRIER_STATUS: Record<string, Key> = { A: "carrier.status.A", I: "carrier.status.I", P: "carrier.status.P" };
+const CARRIER_RATING: Record<string, Key> = { S: "carrier.rating.S", C: "carrier.rating.C", U: "carrier.rating.U" };
+// How many matched accounts or carrier records a card lists; the export sends at most three.
+const PUBLIC_SHOWN = 3;
+
+const GRANTS_DATASET: Record<Lang, string> = {
+  en: "https://open.canada.ca/data/en/dataset/432527ab-7aac-45b5-81d6-7597107a7013",
+  fr: "https://open.canada.ca/data/fr/dataset/432527ab-7aac-45b5-81d6-7597107a7013",
+};
+const ALBERTA_DATASET = "https://open.alberta.ca/opendata/employer-records";
+
+export function matchText(lang: Lang, grade: string, basis: string): string {
+  const g = MATCH_GRADE[grade] ? t(lang, MATCH_GRADE[grade]) : grade;
+  return MATCH_BASIS[basis] ? t(lang, "public.match", { grade: g, basis: t(lang, MATCH_BASIS[basis]) }) : g;
+}
+
+// The agreement's record in the government's grants search: the department,
+// the reference number and the amendment, each part encoded (reference
+// numbers can hold spaces).
+export function grantUrl(g: Pick<GrantRow, "owner_org" | "ref_number" | "amendment_number">): string {
+  const id = [g.owner_org, g.ref_number, String(g.amendment_number)].map(encodeURIComponent).join(",");
+  return `https://search.open.canada.ca/grants/record/${id}`;
+}
+
+// The carrier's snapshot on FMCSA's SAFER system.
+export function saferUrl(dot: number): string {
+  return `https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=USDOT&query_string=${dot}`;
+}
+
+const MONEY_FORMAT: Partial<Record<Lang, Intl.NumberFormat>> = {};
+export function fmtMoney(v: number | null, lang: Lang): string {
+  if (v === null) return t(lang, "common.na");
+  const format = (MONEY_FORMAT[lang] ??= new Intl.NumberFormat(numberLocale(lang), {
+    style: "currency", currency: "CAD", currencyDisplay: "narrowSymbol", maximumFractionDigits: 0,
+  }));
+  return format.format(v);
+}
+
+const GrantsSection = ({ grants, total, lang }: { grants: GrantRow[]; total: number; lang: Lang }) => {
+  const rest = total - grants.length;
+  const na = t(lang, "common.na");
+  const heads = {
+    start: t(lang, "employer.grants_col_start"),
+    program: t(lang, "employer.grants_col_program"),
+    department: t(lang, "employer.grants_col_department"),
+    value: t(lang, "employer.grants_col_value"),
+    match: t(lang, "employer.match"),
+    record: t(lang, "employer.grants_col_record"),
+  };
+  return (
+    <section id="grants">
+      <h2>{t(lang, "employer.grants")}</h2>
+      <p class="muted small">{t(lang, "employer.grants_note")}</p>
+      <div class="table-wrap bordered">
+        <table class="restack">
+          <thead>
+            <tr>
+              <th>{heads.start}</th><th>{heads.program}</th><th>{heads.department}</th>
+              <th class="num">{heads.value}</th><th>{heads.match}</th><th>{heads.record}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {grants.map((g) => (
+              <tr>
+                <td class="mono" data-label={heads.start}>{g.start_date ?? na}</td>
+                <td data-label={heads.program}>{(lang === "fr" ? g.program_fr ?? g.program_en : g.program_en ?? g.program_fr) ?? na}</td>
+                <td data-label={heads.department}>{(lang === "fr" ? g.department_fr ?? g.department_en : g.department_en ?? g.department_fr) ?? g.owner_org}</td>
+                <td class="mono num" data-label={heads.value}>{fmtMoney(g.agreement_value, lang)}</td>
+                <td data-label={heads.match}>{matchText(lang, g.grade, g.basis)}</td>
+                <td data-label={heads.record}><a href={grantUrl(g)} class="mono" rel="nofollow noopener">{g.ref_number}</a></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {rest > 0 ? (
+        <p class="muted small">
+          {tj(lang, rest === 1 ? "employer.grants_more_one" : "employer.grants_more_many", {
+            n: fmtInt(rest, lang),
+            source: <a href={GRANTS_DATASET[lang]} rel="noopener">{t(lang, "employer.grants_source")}</a>,
+          })}
+        </p>
+      ) : null}
+    </section>
+  );
+};
+
+// A count with its published rate per 100 person-years; a blank cell in the file stays "not given".
+function countWithRate(lang: Lang, count: number | null, rate: number | null): string {
+  if (count === null) return t(lang, "public.not_given");
+  if (rate === null) return fmtInt(count, lang);
+  return t(lang, "employer.alberta_rate", { n: fmtInt(count, lang), rate: decimal(lang, String(rate)) });
+}
+
+const AlbertaCard = ({ rows, lang }: { rows: AlbertaRow[]; lang: Lang }) => (
+  <div class="card">
+    <h2>{t(lang, "employer.alberta")}</h2>
+    <p class="muted small">{t(lang, "employer.alberta_note")}</p>
+    {rows.slice(0, PUBLIC_SHOWN).map((a) => (
+      <dl>
+        <dt>{t(lang, "employer.alberta_account")}</dt><dd>{a.employer_name}{a.trade_name ? ` (${a.trade_name})` : ""}</dd>
+        <dt>{t(lang, "employer.alberta_year")}</dt>
+        <dd class="mono">{a.first_year !== null && a.first_year < a.year ? t(lang, "employer.alberta_years", { year: a.year, first: a.first_year }) : String(a.year)}</dd>
+        <dt>{t(lang, "employer.city")}</dt><dd>{a.city ?? t(lang, "public.not_given")}</dd>
+        <dt>{t(lang, "employer.alberta_industry")}</dt><dd>{a.industry ?? t(lang, "public.not_given")}</dd>
+        <dt>{t(lang, "employer.alberta_person_years")}</dt>
+        <dd>{a.person_years === null ? t(lang, "public.not_given") : t(lang, "employer.alberta_person_years_value", { n: decimal(lang, String(a.person_years)) })}</dd>
+        <dt>{t(lang, "employer.alberta_lost_time")}</dt><dd>{countWithRate(lang, a.lost_time_claims, a.lost_time_rate)}</dd>
+        <dt>{t(lang, "employer.alberta_disabling")}</dt><dd>{countWithRate(lang, a.disabling_injuries, a.disabling_rate)}</dd>
+        <dt>{t(lang, "employer.alberta_fatalities")}</dt><dd>{a.fatalities === null ? t(lang, "public.not_given") : fmtInt(a.fatalities, lang)}</dd>
+        <dt>{t(lang, "employer.alberta_cor")}</dt>
+        <dd>{a.cor_year === null ? t(lang, "employer.alberta_cor_none") : t(lang, "employer.alberta_cor_year", { year: a.cor_year })}</dd>
+        <dt>{t(lang, "employer.match")}</dt><dd>{matchText(lang, a.grade, a.basis)}</dd>
+      </dl>
+    ))}
+    <a href={ALBERTA_DATASET} class="small" rel="noopener">{t(lang, "employer.alberta_link")}</a>
+  </div>
+);
+
+const CarrierCard = ({ rows, lang }: { rows: CarrierRow[]; lang: Lang }) => (
+  <div class="card">
+    <h2>{t(lang, "employer.carrier")}</h2>
+    <p class="muted small">{t(lang, "employer.carrier_note")}</p>
+    {rows.slice(0, PUBLIC_SHOWN).map((f) => {
+      const rating = f.safety_rating && CARRIER_RATING[f.safety_rating] ? t(lang, CARRIER_RATING[f.safety_rating]) : t(lang, "carrier.rating.none");
+      return (
+        <dl>
+          <dt>{t(lang, "employer.carrier_dot")}</dt>
+          <dd><a href={saferUrl(f.dot_number)} class="mono id" rel="nofollow noopener">{f.dot_number}</a></dd>
+          <dt>{t(lang, "employer.carrier_name")}</dt>
+          <dd>{f.dba_name ? t(lang, "employer.carrier_dba", { name: f.legal_name, dba: f.dba_name }) : f.legal_name}</dd>
+          <dt>{t(lang, "col.status")}</dt>
+          <dd>{f.status && CARRIER_STATUS[f.status] ? t(lang, CARRIER_STATUS[f.status]) : f.status ?? t(lang, "public.not_given")}</dd>
+          <dt>{t(lang, "employer.carrier_power_units")}</dt>
+          <dd class="mono">{f.power_units === null ? t(lang, "public.not_given") : fmtInt(f.power_units, lang)}</dd>
+          <dt>{t(lang, "employer.carrier_drivers")}</dt>
+          <dd class="mono">{f.drivers === null ? t(lang, "public.not_given") : fmtInt(f.drivers, lang)}</dd>
+          <dt>{t(lang, "employer.carrier_rating")}</dt>
+          <dd>{f.safety_rating && f.safety_rating_date ? t(lang, "employer.carrier_rating_date", { rating, date: f.safety_rating_date }) : rating}</dd>
+          <dt>{t(lang, "employer.carrier_record_date")}</dt>
+          <dd>{f.record_date ? t(lang, "employer.carrier_record_date_value", { date: f.record_date }) : t(lang, "public.not_given")}</dd>
+          <dt>{t(lang, "employer.match")}</dt><dd>{matchText(lang, f.grade, f.basis)}</dd>
+        </dl>
+      );
+    })}
+    {rows[0] ? <a href={saferUrl(rows[0].dot_number)} class="small" rel="nofollow noopener">{t(lang, "employer.carrier_link")}</a> : null}
+  </div>
+);
 
 // Text that exists only in English in the source data (IRCC's list as the
 // pipeline stores it, an indicator basis the dictionary does not know) is
@@ -132,7 +302,7 @@ export async function employerPage(c: Context<AppEnv>): Promise<Response> {
       404,
     );
   }
-  const { employer, postings, esdc, registry, indicators, findings, names } = profile;
+  const { employer, postings, esdc, registry, indicators, findings, names, grants, alberta, us_carrier } = profile;
   const { responses, corrections } = await siteRows(c, id);
   const best = registry[0];
   // The area file holds the postal area's centroid for the location card's map; a
@@ -329,6 +499,13 @@ export async function employerPage(c: Context<AppEnv>): Promise<Response> {
         </div>
       </section>
 
+      {alberta.length || us_carrier.length ? (
+        <section class="cards two" id="public-records">
+          {alberta.length ? <AlbertaCard rows={alberta} lang={lang} /> : null}
+          {us_carrier.length ? <CarrierCard rows={us_carrier} lang={lang} /> : null}
+        </section>
+      ) : null}
+
       <section>
         <div class="section-head">
           <h2>{t(lang, "employer.indicators")}</h2>
@@ -389,6 +566,8 @@ export async function employerPage(c: Context<AppEnv>): Promise<Response> {
           </div>
         </section>
       ) : null}
+
+      {grants.length ? <GrantsSection grants={grants} total={profile.grants_total} lang={lang} /> : null}
 
       <section>
         <h2>{t(lang, "employer.timeline")}</h2>

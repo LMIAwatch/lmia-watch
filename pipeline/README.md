@@ -70,6 +70,10 @@ marking, because a capped run has not seen the whole feed.
 | `sources/registry_bc.py` | OrgBook BC lookups for BC employers, most useful first, graded matches |
 | `sources/registry_federal.py` | Corporations Canada bulk extract, matched by normalized name |
 | `sources/registry_quebec.py` | Registraire des entreprises du Québec bulk extract, loaded weekly, matched by normalized name |
+| `sources/grants.py` | federal grants and contributions (proactive disclosure, 2.3 GB CSV streamed to disk once a quarter), kept for employer names and federal business numbers, matched by business number or by name and postal area |
+| `sources/alberta_records.py` | Alberta Employer Records workbook (workers' compensation injury figures), listing checked monthly, kept for Alberta employer names, matched by name and city |
+| `sources/fmcsa.py` | US FMCSA Company Census, Canadian rows only through the API, read monthly, matched by name and postal code |
+| `sources/matching.py` | the rules those three share: the person test, the common-name test, the place keys and the exact and probable grades |
 | `sources/wages.py` | Job Bank wages by occupation and area (the prevailing-wage reference), newest two yearly tables |
 | `sources/lfs.py` | Labour Force Survey unemployment rate by census metropolitan area |
 | `sources/vacancies.py` | Statistics Canada job vacancies and average offered wage by NOC 2021 unit group and economic region (table 14-10-0444-01), newest eight quarters; NOC 2021 titles and definitions in English and French |
@@ -146,6 +150,30 @@ Quebec employer's (sole proprietorships are skipped), and grades like the
 federal matcher; a match on a name the enterprise operates under is probable.
 The other provinces publish no free bulk file or API (see the Methodology
 page).
+
+## Public records on profiles
+Three sources add records to employer profiles and nothing else; none feeds
+the indicators. Each has a page under `docs/` with its source, licence, join
+rule and what a record does not mean.
+
+| Module | Source | Licence | Fetched | Join |
+|---|---|---|---|---|
+| `sources/grants.py` | Proactive Disclosure of Grants and Contributions, https://open.canada.ca/data/en/dataset/432527ab-7aac-45b5-81d6-7597107a7013 (`docs/grants.md`) | Open Government Licence, Canada | once a quarter, streamed to `data/raw/grants/` and deleted after reading | business number of the matched federal corporation, else name and postal area (exact) or province (probable) |
+| `sources/alberta_records.py` | Alberta Employer Records, https://open.alberta.ca/opendata/employer-records (`docs/alberta-employer-records.md`) | Open Government Licence, Alberta | listing every 30 days; workbook when it changes or is 91 days old | name and city (exact) or name alone within Alberta (probable) |
+| `sources/fmcsa.py` | FMCSA Company Census, data.transportation.gov dataset az4n-8mr2 (`docs/fmcsa.md`) | public domain (US government work) | monthly, `phy_country='CA'` only, selected columns only | name and postal code (exact) or province (probable) |
+
+Rules shared in `sources/matching.py`: a record whose legal name reads as a
+person (`household.reads_as_person` with "law" read as a surname) is never
+stored, nor an individual or sole proprietorship by the source's own flag; a
+name alone never matches, and a one-word or generic name needs the place key.
+Each load keeps only the records whose name could be an employer's, so the
+database stays small; an employer first seen after a load is matched at the
+next one. The match tables (`grant_matches`, `alberta_matches`,
+`fmcsa_matches`) are rebuilt every night and after an id migration, and the
+export writes `grants` (newest 20), `grants_total`, `alberta` and `us_carrier`
+into each profile. The federal corporations extract now keeps each
+corporation's business number (`federal_corporations.business_number`); a
+file loaded by the older parser is read again once.
 
 ## Reference tables for the wage and unemployment indicators
 Downloaded into the cache under `data/raw/cache/` like the other open data and

@@ -1,4 +1,6 @@
-from lmia_pipeline.db import get_meta, upsert_employer
+import hashlib
+
+from lmia_pipeline.db import get_meta, set_meta, upsert_employer
 from lmia_pipeline.sources import registry_federal
 
 HEADER = (
@@ -47,3 +49,20 @@ def test_load_and_match(conn, fake_client):
     assert get_meta(conn, "federal_extract_sha:corporations-active-cbca-en.csv")
     assert conn.execute("SELECT COUNT(*) FROM federal_corporations").fetchone()[0] == 4
     assert len(client.fake_session.calls) == calls_before
+
+
+def test_the_business_number_is_kept_and_a_file_read_by_the_older_parser_is_read_again(conn, fake_client):
+    mapping = {registry_federal.URLS[0]: ACTIVE.encode("utf-8"), registry_federal.URLS[1]: INACTIVE.encode("utf-8")}
+    registry_federal.run(conn, fake_client(mapping), now="2026-10-12T00:00:00Z")
+    numbers = dict(conn.execute("SELECT number, business_number FROM federal_corporations"))
+    assert numbers == {"8660115": "835752437", "9000001": None, "9000002": None, "7286139": "837253251"}
+    # A database loaded before the number was read holds the bare checksum: the
+    # unchanged file is read again once, and then not again.
+    conn.execute("UPDATE federal_corporations SET business_number = NULL")
+    key = "federal_extract_sha:corporations-active-cbca-en.csv"
+    set_meta(conn, key, hashlib.sha256(ACTIVE.encode("utf-8")).hexdigest())
+    conn.commit()
+    assert registry_federal.load_extract(conn, fake_client(mapping)) == 3
+    assert conn.execute("SELECT business_number FROM federal_corporations WHERE number = '8660115'").fetchone()[0] == "835752437"
+    assert get_meta(conn, key).endswith(":v2")
+    assert registry_federal.load_extract(conn, fake_client(mapping)) == 0

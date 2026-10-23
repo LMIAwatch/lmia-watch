@@ -70,14 +70,20 @@ export const LICENCE_ROWS: readonly { material: Key; terms: Key }[] = [
   { material: "data.lic.statcan", terms: "data.lic.statcan_terms" },
   { material: "data.lic.computed", terms: "data.lic.computed_terms" },
   { material: "data.lic.geonames", terms: "data.lic.geonames_terms" },
+  // Public records on profiles; the grants disclosure is under the same OGL as ESDC's lists.
+  { material: "data.lic.grants", terms: "data.lic.esdc_terms" },
+  { material: "data.lic.alberta", terms: "data.lic.alberta_terms" },
+  { material: "data.lic.fmcsa", terms: "data.lic.fmcsa_terms" },
 ];
 
-const LICENCE_LINKS: Record<"terms" | "cc", Record<Lang, string>> = {
+const LICENCE_LINKS: Record<"terms" | "cc" | "oglab", Record<Lang, string>> = {
   terms: CANADA_TERMS_URL,
   cc: {
     en: "https://creativecommons.org/licenses/by-nc-sa/4.0/",
     fr: "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.fr",
   },
+  // Alberta publishes its licence in English only.
+  oglab: { en: "https://open.alberta.ca/licence", fr: "https://open.alberta.ca/licence" },
 };
 
 const API_ROWS: [string, Key][] = [
@@ -93,7 +99,9 @@ const API_ROWS: [string, Key][] = [
 const LIST_NAME: Record<string, Key> = { positive: "data.list.positive", negative: "data.list.negative" };
 
 // Where the reference tables behind the wage and unemployment indicators are published.
-const SOURCE_LINKS: Record<"wages" | "lfs" | "boundaries" | "statcan" | "vacancies" | "noc", Record<Lang, string>> = {
+const SOURCE_LINKS: Record<
+  "wages" | "lfs" | "boundaries" | "statcan" | "vacancies" | "noc" | "grants" | "alberta" | "fmcsa", Record<Lang, string>
+> = {
   wages: {
     en: "https://open.canada.ca/data/en/dataset/adad580f-76b0-4502-bd05-20c125de9116",
     fr: "https://open.canada.ca/data/fr/dataset/adad580f-76b0-4502-bd05-20c125de9116",
@@ -118,6 +126,13 @@ const SOURCE_LINKS: Record<"wages" | "lfs" | "boundaries" | "statcan" | "vacanci
     en: "https://www.statcan.gc.ca/en/subjects/standard/noc/2021/indexV1",
     fr: "https://www.statcan.gc.ca/fr/sujets/norme/cnp/2021/indexV1",
   },
+  grants: {
+    en: "https://open.canada.ca/data/en/dataset/432527ab-7aac-45b5-81d6-7597107a7013",
+    fr: "https://open.canada.ca/data/fr/dataset/432527ab-7aac-45b5-81d6-7597107a7013",
+  },
+  alberta: { en: "https://open.alberta.ca/opendata/employer-records", fr: "https://open.alberta.ca/opendata/employer-records" },
+  // The catalogue's short link for the dataset, which redirects to its page.
+  fmcsa: { en: "https://data.transportation.gov/d/az4n-8mr2", fr: "https://data.transportation.gov/d/az4n-8mr2" },
 };
 
 // The two lists of stats.json that only this page reads. They are checked here
@@ -262,6 +277,7 @@ export async function dataPage(c: Context<AppEnv>): Promise<Response> {
                         ogl: <a href={OGL_URL[lang]}>{t(lang, "data.lic.ogl")}</a>,
                         terms: <a href={LICENCE_LINKS.terms[lang]}>{t(lang, "data.lic.canada_terms")}</a>,
                         cc: <a href={LICENCE_LINKS.cc[lang]}>{t(lang, "data.lic.cc")}</a>,
+                        oglab: <a href={LICENCE_LINKS.oglab[lang]}>{t(lang, "data.lic.ogl_ab")}</a>,
                         statcan: <a href={SOURCE_LINKS.statcan[lang]}>{t(lang, "data.src.statcan_licence")}</a>,
                       })}
                     </td>
@@ -289,6 +305,13 @@ export async function dataPage(c: Context<AppEnv>): Promise<Response> {
               vacancies: <a href={SOURCE_LINKS.vacancies[lang]}>{t(lang, "places.src_vacancies")}</a>,
               noc: <a href={SOURCE_LINKS.noc[lang]}>{t(lang, "places.src_noc")}</a>,
               statcan: <a href={SOURCE_LINKS.statcan[lang]}>{t(lang, "data.src.statcan_licence")}</a>,
+            })}
+          </p>
+          <p>
+            {tj(lang, "data.public_records_text", {
+              grants: <a href={SOURCE_LINKS.grants[lang]}>{t(lang, "data.src.grants")}</a>,
+              alberta: <a href={SOURCE_LINKS.alberta[lang]}>{t(lang, "data.src.alberta")}</a>,
+              fmcsa: <a href={SOURCE_LINKS.fmcsa[lang]}>{t(lang, "data.src.fmcsa")}</a>,
             })}
           </p>
           <p class="muted small">{t(lang, "data.code_licence")}</p>

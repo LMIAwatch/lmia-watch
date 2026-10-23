@@ -53,6 +53,10 @@ const SOURCES: [Key, Key, Key, Key][] = [
     "methodology.sources.program.cadence",
     "methodology.sources.program.lag",
   ],
+  // Public records shown on profiles; the matching paragraph below says how they are joined.
+  ["methodology.sources.grants.source", "methodology.sources.grants.fields", "methodology.sources.grants.cadence", "methodology.sources.profiles_only"],
+  ["methodology.sources.alberta.source", "methodology.sources.alberta.fields", "methodology.sources.alberta.cadence", "methodology.sources.profiles_only"],
+  ["methodology.sources.fmcsa.source", "methodology.sources.fmcsa.fields", "methodology.sources.fmcsa.cadence", "methodology.sources.profiles_only"],
 ];
 
 const STATUS_ROWS: [string, Key, Key][] = [
@@ -189,6 +193,7 @@ export async function methodologyPage(c: Context<AppEnv>): Promise<Response> {
             </table>
           </div>
           <p>{t(lang, "methodology.registry_coverage")}</p>
+          <p id="public-records">{t(lang, "methodology.public_records_matching")}</p>
 
           <h2 id="exclusions">{t(lang, "methodology.toc_exclusions")}</h2>
           <p>{t(lang, "methodology.exclusions_households")}</p>

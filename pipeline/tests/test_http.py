@@ -98,3 +98,32 @@ def test_forget_drops_a_cached_body(tmp_path):
     assert client.get(url, cache=True, max_age_s=float("inf")) == b"good"
     assert len(session.calls) == 2
     client.forget("https://open.example/never-fetched")  # nothing cached: no error
+
+
+def test_download_streams_to_a_file_retries_and_caches_nothing(tmp_path):
+    class Chunked(FakeResponse):
+        def iter_content(self, chunk_size=0):
+            yield b"head,"
+            yield b"body\n"
+
+    class Flaky:
+        def __init__(self) -> None:
+            self.n = 0
+            self.calls = []
+
+        def get(self, url, headers=None, timeout=None, stream=False):
+            self.n += 1
+            self.calls.append((url, headers or {}))
+            return FakeResponse(503) if self.n < 2 else Chunked(200)
+
+    clock = Clock()
+    session = Flaky()
+    client = PoliteClient(session=session, cache_dir=tmp_path / "c", sleep=clock.sleep, clock=clock.now)
+    dest = tmp_path / "work" / "big.csv"
+    assert client.download("https://open.example/big.csv", dest) == 10
+    assert dest.read_bytes() == b"head,body\n" and session.n == 2
+    assert not (tmp_path / "work" / "big.csv.part").exists() and not (tmp_path / "c").exists()
+    assert session.calls[0][1]["User-Agent"] == client.user_agent
+    with pytest.raises(FetchError):
+        make({}, tmp_path)[0].download("https://open.example/missing.csv", tmp_path / "x.csv")
+    assert not (tmp_path / "x.csv").exists()

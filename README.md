@@ -44,7 +44,11 @@ thresholds), reproduced under the canada.ca terms and conditions
 Files derived only from ESDC's lists and the federal corporations extract are under
 the Open Government Licence, Canada. Job Bank and IRCC material stays under the
 Government of Canada terms of use on canada.ca. Quebec register fields are under
-CC BY-NC-SA 4.0. The licence table on the site's Data page is the reference.
+CC BY-NC-SA 4.0. Profiles also show federal grants and contributions (Open
+Government Licence, Canada), Alberta Employer Records (Open Government Licence,
+Alberta) and US FMCSA carrier census records (public domain), each matched to
+employers by name and place (see `docs/grants.md`, `docs/alberta-employer-records.md`
+and `docs/fmcsa.md`). The licence table on the site's Data page is the reference.
 
 ## Citing the data
 The files derived from ESDC's lists (the approved and refused quarterly lists

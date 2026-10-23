@@ -107,7 +107,8 @@ def seed(conn) -> dict[str, str]:
     ids["federal"] = employer(conn, "7286139 Can. Ltd.", "QC", first="2019-01-01", last="2019-03-31")
     esdc_row(conn, ids["federal"], "7286139 Can. Ltd.", "2019Q1")
     conn.execute(
-        "INSERT INTO federal_corporations VALUES ('7286139', '7286139 CANADA LTD.', ?, 'Active', '2009-11-26', "
+        "INSERT INTO federal_corporations (number, legal_name, norm_name, status, registered_on, city, province, "
+        "postal_code, source_url) VALUES ('7286139', '7286139 CANADA LTD.', ?, 'Active', '2009-11-26', "
         "'Sherbrooke', 'QC', 'J1M 1J2', 'u')", (v1_norm("7286139 CANADA LTD."),))
     conn.execute("INSERT INTO registry_checks VALUES (?, 'corporations_canada', ?)", (ids["federal"], T0))
 

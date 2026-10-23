@@ -27,7 +27,8 @@ Output tree (under data/out/static):
   search/long/<P>/<YEAR>.json        the long scope: that province's list rows for one year
   clusters/latest.json, clusters/since_2023q4.json   per postal area counts
   areas/<FSA>.json                   rows for one postal area, latest scope, capped
-  profiles/<abc>.json                employer profiles keyed by id, sharded on id characters 5 to 7
+  profiles/<abc>.json                employer profiles keyed by id, sharded on id characters 5 to 7, with the
+                                     public records matched to each (grants, Alberta accounts, US carrier records)
   aliases/<abc>.json                 retired employer id -> the live id that took its records,
                                      sharded on the retired id's characters 5 to 7 like the profiles
   trends/*.json                      the series behind /trends (trends.py)
@@ -66,6 +67,11 @@ FIRST_ROWS = 500
 RECENT = 8
 TOP = 6
 AREA_ROW_CAP = 200
+# Public records on a profile (grants, Alberta accounts, US carrier records):
+# the newest agreements up to this many, with the full count beside them, and
+# at most RECORDS_SHOWN matched accounts or carrier records.
+GRANTS_SHOWN = 20
+RECORDS_SHOWN = 3
 POSITIVE_DATASET = "90fed587-1364-4f33-a9ee-208181dc0b97"
 NEGATIVE_DATASET = "f82f66f2-a22b-4511-bccf-e1d74db39ae5"
 
@@ -383,6 +389,84 @@ def shard_key(employer_id: str) -> str:
     return employer_id[4:7]
 
 
+def _grade_order(column: str) -> str:
+    return f"CASE {column} WHEN 'exact' THEN 0 WHEN 'probable' THEN 1 ELSE 2 END"
+
+
+def profile_grants(conn: sqlite3.Connection, ids: list[str]) -> tuple[dict[str, list[dict]], dict[str, int]]:
+    """Each employer's matched federal agreements, newest first, at most GRANTS_SHOWN, and the full count.
+
+    The cap keeps a shard small: a university or a health authority can hold
+    hundreds of agreements, and the page shows the newest with a count of the
+    rest.
+    """
+    marks = ",".join("?" * len(ids))
+    shown: dict[str, list[dict]] = defaultdict(list)
+    totals: Counter = Counter()
+    for r in conn.execute(
+        f"""
+        SELECT m.employer_id, m.grade, m.basis, g.ref_number, g.amendment_number, g.owner_org, g.department_en,
+               g.department_fr, g.program_en, g.program_fr, g.agreement_type, g.agreement_value, g.start_date, g.end_date
+        FROM grant_matches m JOIN federal_grants g ON g.agreement_key = m.agreement_key
+        WHERE m.employer_id IN ({marks})
+        ORDER BY m.employer_id, COALESCE(g.start_date, '') DESC, g.agreement_value DESC, g.agreement_key
+        """, ids):
+        eid = r["employer_id"]
+        totals[eid] += 1
+        if len(shown[eid]) < GRANTS_SHOWN:
+            row = dict(r)
+            del row["employer_id"]
+            shown[eid].append(row)
+    return shown, dict(totals)
+
+
+def profile_alberta(conn: sqlite3.Connection, ids: list[str]) -> dict[str, list[dict]]:
+    """Each Alberta employer's matched workers' compensation accounts, latest year of each, best first."""
+    marks = ",".join("?" * len(ids))
+    out: dict[str, list[dict]] = defaultdict(list)
+    for r in conn.execute(
+        f"""
+        SELECT m.employer_id, m.grade, m.basis, a.emp_key, a.year, a.employer_name, a.trade_name, a.city, a.industry,
+               a.person_years, a.lost_time_claims, a.lost_time_rate, a.disabling_injuries, a.disabling_rate,
+               a.fatalities, a.cor_year,
+               (SELECT MIN(b.year) FROM alberta_employer_records b WHERE b.emp_key = a.emp_key) AS first_year
+        FROM alberta_matches m
+        JOIN alberta_employer_records a ON a.emp_key = m.emp_key AND a.employer_name = m.account_name
+        WHERE m.employer_id IN ({marks})
+          AND a.year = (SELECT MAX(b.year) FROM alberta_employer_records b
+                        WHERE b.emp_key = a.emp_key AND b.employer_name = a.employer_name)
+        ORDER BY m.employer_id, {_grade_order('m.grade')}, a.year DESC, COALESCE(a.person_years, 0) DESC, a.emp_key
+        """, ids):
+        eid = r["employer_id"]
+        if len(out[eid]) < RECORDS_SHOWN:
+            row = dict(r)
+            del row["employer_id"]
+            out[eid].append(row)
+    return out
+
+
+def profile_carriers(conn: sqlite3.Connection, ids: list[str]) -> dict[str, list[dict]]:
+    """Each employer's matched US carrier records, best first: active before inactive, newest record first."""
+    marks = ",".join("?" * len(ids))
+    out: dict[str, list[dict]] = defaultdict(list)
+    for r in conn.execute(
+        f"""
+        SELECT m.employer_id, m.grade, m.basis, f.dot_number, f.legal_name, f.dba_name, f.city, f.province,
+               f.postal_code, f.status, f.power_units, f.drivers, f.safety_rating, f.safety_rating_date,
+               f.record_date
+        FROM fmcsa_matches m JOIN fmcsa_carriers f ON f.dot_number = m.dot_number
+        WHERE m.employer_id IN ({marks})
+        ORDER BY m.employer_id, {_grade_order('m.grade')}, CASE f.status WHEN 'A' THEN 0 ELSE 1 END,
+                 COALESCE(f.record_date, '') DESC, f.dot_number
+        """, ids):
+        eid = r["employer_id"]
+        if len(out[eid]) < RECORDS_SHOWN:
+            row = dict(r)
+            del row["employer_id"]
+            out[eid].append(row)
+    return out
+
+
 def write_profiles(conn: sqlite3.Connection, out: Path) -> int:
     """One JSON file per shard, keyed by employer id, with the full history."""
     published = {r["resource_id"]: r["published"] for r in conn.execute("SELECT resource_id, published FROM esdc_resources")}
@@ -426,6 +510,9 @@ def write_profiles(conn: sqlite3.Connection, out: Path) -> int:
             f"SELECT employer_id, operating_name, legal_name, address, reasons, decision_date, penalty, status "
             f"FROM findings WHERE employer_id IN ({marks}) ORDER BY decision_date DESC", ids):
             findings[r["employer_id"]].append(dict(r))
+        grants, grant_totals = profile_grants(conn, ids)
+        alberta = profile_alberta(conn, ids)
+        carriers = profile_carriers(conn, ids)
         shard = {}
         for e in group:
             eid = e["id"]
@@ -437,6 +524,10 @@ def write_profiles(conn: sqlite3.Connection, out: Path) -> int:
                 "registry": registry.get(eid, []),
                 "indicators": indicators.get(eid, []),
                 "findings": findings.get(eid, []),
+                "grants": grants.get(eid, []),
+                "grants_total": grant_totals.get(eid, 0),
+                "alberta": alberta.get(eid, []),
+                "us_carrier": carriers.get(eid, []),
             }
         _dump(out / "profiles" / f"{key}.json", shard)
         written += 1

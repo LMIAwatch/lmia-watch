@@ -96,6 +96,36 @@ export interface Profile {
     operating_name: string | null; legal_name: string | null; address: string | null; reasons: string | null;
     decision_date: string | null; penalty: string | null; status: string | null;
   }[];
+  // Public records matched to the employer by name and place (or by business
+  // number), shown as records. A shard written before these sources existed
+  // has none of the keys; loadProfile fills them in empty.
+  grants: GrantRow[];
+  grants_total: number;
+  alberta: AlbertaRow[];
+  us_carrier: CarrierRow[];
+}
+
+// One federal grant or contribution agreement, at its latest amendment.
+export interface GrantRow {
+  ref_number: string; amendment_number: number; owner_org: string; department_en: string | null;
+  department_fr: string | null; program_en: string | null; program_fr: string | null; agreement_type: string | null;
+  agreement_value: number | null; start_date: string | null; end_date: string | null; grade: string; basis: string;
+}
+
+// The latest year of one Alberta workers' compensation account.
+export interface AlbertaRow {
+  emp_key: string; year: number; first_year: number | null; employer_name: string; trade_name: string | null;
+  city: string | null; industry: string | null; person_years: number | null; lost_time_claims: number | null;
+  lost_time_rate: number | null; disabling_injuries: number | null; disabling_rate: number | null;
+  fatalities: number | null; cor_year: number | null; grade: string; basis: string;
+}
+
+// One US carrier census record.
+export interface CarrierRow {
+  dot_number: number; legal_name: string; dba_name: string | null; city: string | null; province: string | null;
+  postal_code: string | null; status: string | null; power_units: number | null; drivers: number | null;
+  safety_rating: string | null; safety_rating_date: string | null; record_date: string | null; grade: string;
+  basis: string;
 }
 
 export interface Facets {
@@ -267,12 +297,40 @@ const PROFILE_ROWS: Record<(typeof PROFILE_LISTS)[number], (v: unknown) => boole
   findings: (v) => isObj(v) && FINDING_FIELDS.every((k) => isStrOrNull(v[k])),
 };
 
+// The public-record lists, checked the same way: every field the employer
+// page formats or links with, null where the export can write it.
+const PUBLIC_LISTS = ["grants", "alberta", "us_carrier"] as const;
+const isMatch = (v: Record<string, any>): boolean => isStr(v.grade) && isStr(v.basis);
+const PUBLIC_ROWS: Record<(typeof PUBLIC_LISTS)[number], (v: unknown) => boolean> = {
+  grants: (v) => isObj(v) && isMatch(v) && isStr(v.ref_number) && isNum(v.amendment_number) && isStr(v.owner_org) &&
+    isStrOrNull(v.department_en) && isStrOrNull(v.department_fr) && isStrOrNull(v.program_en) &&
+    isStrOrNull(v.program_fr) && isStrOrNull(v.agreement_type) && isNumOrNull(v.agreement_value) &&
+    isStrOrNull(v.start_date) && isStrOrNull(v.end_date),
+  alberta: (v) => isObj(v) && isMatch(v) && isStr(v.emp_key) && isNum(v.year) && isNumOrNull(v.first_year) &&
+    isStr(v.employer_name) && isStrOrNull(v.trade_name) && isStrOrNull(v.city) && isStrOrNull(v.industry) &&
+    isNumOrNull(v.person_years) && isNumOrNull(v.lost_time_claims) && isNumOrNull(v.lost_time_rate) &&
+    isNumOrNull(v.disabling_injuries) && isNumOrNull(v.disabling_rate) && isNumOrNull(v.fatalities) &&
+    isNumOrNull(v.cor_year),
+  us_carrier: (v) => isObj(v) && isMatch(v) && isNum(v.dot_number) && isStr(v.legal_name) && isStrOrNull(v.dba_name) &&
+    isStrOrNull(v.city) && isStrOrNull(v.province) && isStrOrNull(v.postal_code) && isStrOrNull(v.status) &&
+    isNumOrNull(v.power_units) && isNumOrNull(v.drivers) && isStrOrNull(v.safety_rating) &&
+    isStrOrNull(v.safety_rating_date) && isStrOrNull(v.record_date),
+};
+
 export async function loadProfile(env: Env, id: string): Promise<Profile | null> {
   if (!EMPLOYER_ID_RE.test(id)) return null;
   const shard = await loadJson<Record<string, Profile>>(env, `profiles/${id.slice(4, 7)}.json`);
   const profile: unknown = isObj(shard) ? shard[id] : null;
   if (!isObj(profile) || !isEmployer(profile.employer, id)) return null;
-  return PROFILE_LISTS.every((k) => isListOf(profile[k], PROFILE_ROWS[k])) ? (profile as unknown as Profile) : null;
+  if (!PROFILE_LISTS.every((k) => isListOf(profile[k], PROFILE_ROWS[k]))) return null;
+  // Absent (a shard from before these sources) reads as none; present, a list
+  // must be readable whole, like the lists above.
+  if (!PUBLIC_LISTS.every((k) => optional(profile[k], (v) => isListOf(v, PUBLIC_ROWS[k])))) return null;
+  if (!optional(profile.grants_total, isNum)) return null;
+  for (const k of PUBLIC_LISTS) profile[k] ??= [];
+  // The count of agreements is never below the agreements listed.
+  profile.grants_total = Math.max(profile.grants_total ?? 0, profile.grants.length);
+  return profile as unknown as Profile;
 }
 
 // The id that took a retired employer id's records (ids change when employer

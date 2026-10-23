@@ -11,13 +11,17 @@ import csv
 import hashlib
 import io
 import json
+import random
 import re
 import zipfile
+from collections import defaultdict
 from pathlib import Path
 
 import openpyxl
 
-from lmia_pipeline.sources import lfs, vacancies
+from lmia_pipeline.normalize import norm_name, split_trade_name
+from lmia_pipeline.sources import fmcsa, lfs, vacancies
+from lmia_pipeline.sources.matching import is_person_name
 
 HERE = Path(__file__).resolve().parent
 RAW = HERE.parents[2] / "data" / "raw"
@@ -177,6 +181,143 @@ def trim_noc(src: Path, dst: Path) -> None:
     dst.write_bytes(("﻿" + out.getvalue()).encode("utf-8"))
 
 
+# -- public records -------------------------------------------------------------
+# A fixture holds no row that names a person: besides the stage's own test
+# (is_person_name on the legal name), a name that still reads as a person once
+# its legal form is stripped ("Warren Gibson Ltd") is left out too.
+
+
+def _personish(name: str | None) -> bool:
+    return bool(name) and (is_person_name(name) or is_person_name(norm_name(name)))
+
+
+def trim_grants(src: Path, dst: Path) -> None:
+    """The first 40 MB of grants.csv (a streamed, cut-off download) -> about 270 rows.
+
+    Bytes are kept as published (read through latin-1, which maps every byte
+    to one character and back); long free text is blanked and titles cut to 60
+    bytes. Kept: every amended agreement up to 40, then rows with a program
+    account after the business number, nine-digit numbers, placeholders,
+    Accessibility Standards Canada rows and a few of each recipient type.
+    """
+    raw = src.read_bytes()
+    text = raw[: raw.rfind(b"\n") + 1].decode("latin-1").removeprefix("\u00ef\u00bb\u00bf")
+    rows = list(csv.reader(io.StringIO(text, newline="")))
+    header, body = rows[0], [r for r in rows[1:] if len(r) == len(rows[0])]
+    col = {h: i for i, h in enumerate(header)}
+
+    def utf8(v: str) -> str:
+        return v.encode("latin-1").decode("utf-8", errors="replace")
+
+    def cut(v: str, n: int) -> str:
+        b = v.encode("latin-1")[:n]
+        while b and b[-1] >= 0x80:
+            b = b[:-1]
+        return b.decode("latin-1").rstrip()
+
+    keep = [r for r in body if r[col["recipient_type"]] != "P" and not any(
+        _personish(split_trade_name(utf8(r[col[k]]))[0])
+        for k in ("recipient_legal_name", "recipient_operating_name", "research_organization_name"))]
+    by_ref: dict[tuple, list] = defaultdict(list)
+    for r in keep:
+        by_ref[(r[col["owner_org"]], r[col["ref_number"]])].append(r)
+    random.seed(7)
+    chosen = [r for v in [v for v in by_ref.values() if len(v) > 1][:40] for r in v]
+    pool = [r for r in keep if len(by_ref[(r[col["owner_org"]], r[col["ref_number"]])]) == 1]
+    bn = col["recipient_business_number"]
+    nine = [r for r in pool if len(r[bn].strip()) == 9 and r[bn] != "000000000"]
+    types: dict[str, list] = defaultdict(list)
+    for r in pool:
+        types[r[col["recipient_type"]]].append(r)
+    chosen += [r for r in pool if len(r[bn].strip()) >= 15][:25] + random.sample(nine, min(80, len(nine)))
+    chosen += [r for r in pool if r[bn].strip() == "000000000"][:10]
+    chosen += [r for r in pool if r[col["owner_org"]] == "casdo-ocena"][:20]
+    for v in types.values():
+        chosen += v[:8]
+    seen: set[tuple] = set()
+    out_rows = []
+    for r in chosen:
+        if tuple(r) in seen:
+            continue
+        seen.add(tuple(r))
+        r = list(r)
+        for k in ("prog_purpose_en", "prog_purpose_fr", "description_en", "description_fr", "expected_results_en",
+                  "expected_results_fr", "additional_information_en", "additional_information_fr"):
+            r[col[k]] = ""
+        for k in ("agreement_title_en", "agreement_title_fr"):
+            r[col[k]] = cut(r[col[k]], 60)
+        out_rows.append(r)
+    out = io.StringIO(newline="")
+    csv.writer(out, lineterminator="\n").writerows([header] + out_rows[:320])
+    dst.write_bytes(bytes([0xEF, 0xBB, 0xBF]) + out.getvalue().encode("latin-1"))
+
+
+def trim_alberta(src: Path, dst: Path) -> None:
+    """The Employer Records workbook -> about 300 rows of the Injury sheet, whole accounts only.
+
+    Picked: accounts listed under two names, accounts with a fatality, with
+    claims, without a city, numbered companies, then a random rest; never an
+    account named as a person or a professional corporation. An empty Order
+    sheet stays, so the parser must find its sheet by name.
+    """
+    wb = openpyxl.load_workbook(src, read_only=True, data_only=True)
+    rows = wb["Injury (2020-2024)"].iter_rows(values_only=True)
+    header = next(rows)
+    order_header = next(wb["Order (2020-2024)"].iter_rows(values_only=True))
+    by_key: dict[str, list] = defaultdict(list)
+    for row in rows:
+        by_key[row[0]].append(row)
+    random.seed(11)
+    keys = [k for k, v in by_key.items()
+            if not _personish(split_trade_name(v[0][1] or "")[0]) and "PROF" not in (v[0][1] or "").upper()]
+    pick = [k for k in keys if len({r[7] for r in by_key[k]}) < len(by_key[k])][:4]
+    pick += [k for k in keys if any((r[11] or 0) > 0 for r in by_key[k])][:5]
+    pick += random.sample([k for k in keys if any((r[9] or 0) > 0 for r in by_key[k])], 12)
+    pick += random.sample([k for k in keys if not by_key[k][0][3]], 6)
+    pick += random.sample([k for k in keys if (by_key[k][0][1] or "")[:1].isdigit()], 6)
+    chosen: list[str] = []
+    for k in pick + random.sample(keys, 200):
+        if k not in chosen:
+            chosen.append(k)
+        if sum(len(by_key[c]) for c in chosen) >= 300:
+            break
+    out = openpyxl.Workbook()
+    sheet = out.active
+    sheet.title = "Injury (2020-2024)"
+    sheet.append(list(header))
+    for k in chosen:
+        for r in by_key[k]:
+            sheet.append(list(r))
+    out.create_sheet("Order (2020-2024)").append(list(order_header))
+    out.save(dst)
+
+
+def trim_fmcsa(src: Path, dst: Path) -> None:
+    """One API page of 1,500 Canadian carriers (fmcsa.FIELDS, $order=:id) -> 300 records.
+
+    Picked: rated carriers, active ones, records without a postal code, records
+    with a DBA name, then a random rest; never an individual or a name that
+    reads as a person.
+    """
+    recs = [r for r in json.loads(src.read_text(encoding="utf-8"))
+            if r.get("business_org_desc") != "INDIVIDUAL"
+            and not any(_personish(split_trade_name(r.get(k) or "")[0]) for k in ("legal_name", "dba_name"))]
+    assert all(set(r) <= set(fmcsa.FIELDS) for r in recs), "a field outside fmcsa.FIELDS was fetched"
+    random.seed(5)
+    pick = random.sample([r for r in recs if r.get("safety_rating")], 80)
+    pick += [r for r in recs if r.get("status_code") == "A"][:60]
+    pick += random.sample([r for r in recs if (r.get("phy_zip") or "").upper() == "CANADA"], 20)
+    pick += [r for r in recs if r.get("dba_name")][:30]
+    seen: set[str] = set()
+    out = []
+    for r in pick + random.sample(recs, 300):
+        if r["dot_number"] not in seen and len(out) < 300:
+            seen.add(r["dot_number"])
+            out.append(r)
+    out.sort(key=lambda r: int(r["dot_number"]))
+    dst.write_bytes(json.dumps(out, ensure_ascii=False, indent=0).encode("utf-8"))
+
+
 def main() -> None:
     trim_search(RAW / "jobbank" / "jb_bc_requested.html", HERE / "jobbank_requested.html")
     trim_search(RAW / "jobbank" / "jb_bc_approved.html", HERE / "jobbank_approved.html")
@@ -195,6 +336,12 @@ def main() -> None:
     trim_vacancies(cached(vacancies.URL), HERE / "vacancies_14100444_trim.zip")
     trim_noc(cached(vacancies.NOC_URLS["en"]), HERE / "noc2021_en_trim.csv")
     trim_noc(cached(vacancies.NOC_URLS["fr"]), HERE / "noc2021_fr_trim.csv")
+    # The public records, from files saved by hand once (the stages keep no
+    # copy): the first 40 MB of grants.csv, the Employer Records workbook, and
+    # one API page of Canadian carriers requested with fmcsa.FIELDS.
+    trim_grants(RAW / "grants" / "grants_head.csv", HERE / "grants_trim.csv")
+    trim_alberta(RAW / "alberta" / "employer_records_2020_2024.xlsx", HERE / "alberta_employer_records_trim.xlsx")
+    trim_fmcsa(RAW / "fmcsa" / "canada_page.json", HERE / "fmcsa_canada_trim.json")
     print("fixtures written to", HERE)
 
 

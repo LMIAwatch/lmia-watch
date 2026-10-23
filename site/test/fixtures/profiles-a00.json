@@ -86,7 +86,78 @@
         "computed_at": "2026-10-12T09:10:00Z"
       }
     ],
-    "findings": []
+    "findings": [],
+    "grants": [
+      {
+        "agreement_type": "G",
+        "agreement_value": 48500.0,
+        "amendment_number": 0,
+        "basis": "name_postal_area",
+        "department_en": "Employment and Social Development Canada",
+        "department_fr": "Emploi et Développement social Canada",
+        "end_date": "2026-03-31",
+        "grade": "exact",
+        "owner_org": "esdc-edsc",
+        "program_en": "Canada Summer Jobs",
+        "program_fr": "Emplois d'été Canada",
+        "ref_number": "005-2025-2026-Q1-00042",
+        "start_date": "2025-05-01"
+      },
+      {
+        "agreement_type": "C",
+        "agreement_value": 120000.0,
+        "amendment_number": 2,
+        "basis": "name_province",
+        "department_en": "Pacific Economic Development Canada",
+        "department_fr": "Développement économique Canada pour le Pacifique",
+        "end_date": null,
+        "grade": "probable",
+        "owner_org": "pacifican",
+        "program_en": "Business Scale-up and Productivity",
+        "program_fr": null,
+        "ref_number": "PAC 2023 117",
+        "start_date": "2023-09-14"
+      }
+    ],
+    "grants_total": 3,
+    "alberta": [
+      {
+        "basis": "name_city",
+        "city": "CALGARY",
+        "cor_year": null,
+        "disabling_injuries": 2,
+        "disabling_rate": 4.12,
+        "emp_key": "00000000-0000-0000-0000-00000000A001",
+        "employer_name": "PINKCLOUD CLEANING & HOME SERVICES LTD.",
+        "fatalities": 0,
+        "first_year": 2020,
+        "grade": "exact",
+        "industry": "JANITORIAL/CLEANING SERVICES",
+        "lost_time_claims": 1,
+        "lost_time_rate": 2.06,
+        "person_years": 48.53,
+        "trade_name": null,
+        "year": 2024
+      }
+    ],
+    "us_carrier": [
+      {
+        "basis": "name_postal_code",
+        "city": "SQUAMISH",
+        "dba_name": "PINKCLOUD HAULING",
+        "dot_number": 3000001,
+        "drivers": 4,
+        "grade": "exact",
+        "legal_name": "PINKCLOUD CLEANING & HOME SERVICES LTD",
+        "postal_code": "V0N 1H0",
+        "power_units": 3,
+        "province": "BC",
+        "record_date": "2026-04-21",
+        "safety_rating": "S",
+        "safety_rating_date": "2019-06-11",
+        "status": "A"
+      }
+    ]
   },
   "emp-a000000002": {
     "employer": {
@@ -202,7 +273,11 @@
         "computed_at": "2026-10-12T09:10:00Z"
       }
     ],
-    "findings": []
+    "findings": [],
+    "grants": [],
+    "grants_total": 0,
+    "alberta": [],
+    "us_carrier": []
   },
   "emp-a000000008": {
     "employer": {
@@ -254,7 +329,11 @@
     ],
     "registry": [],
     "indicators": [],
-    "findings": []
+    "findings": [],
+    "grants": [],
+    "grants_total": 0,
+    "alberta": [],
+    "us_carrier": []
   },
   "emp-a000000009": {
     "employer": {
@@ -357,6 +436,10 @@
     ],
     "registry": [],
     "indicators": [],
-    "findings": []
+    "findings": [],
+    "grants": [],
+    "grants_total": 0,
+    "alberta": [],
+    "us_carrier": []
   }
 }

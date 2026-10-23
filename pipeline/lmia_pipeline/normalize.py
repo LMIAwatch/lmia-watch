@@ -448,6 +448,40 @@ def period_end_date(period: str) -> str | None:
     return date(year, month, last).isoformat()
 
 
+# A business number as the federal corporations extract and the grants
+# disclosures write it: nine digits, sometimes with a program account after
+# them ("123456789RC0001", "123456789 RC0001", "123 456 789").
+BN_RE = re.compile(r"^(\d{9})(?:[A-Z]{2}\d{0,4})?$")
+
+
+def _luhn_ok(digits: str) -> bool:
+    total = 0
+    for i, ch in enumerate(reversed(digits)):
+        d = int(ch) * (2 if i % 2 else 1)
+        total += d - 9 if d > 9 else d
+    return total % 10 == 0
+
+
+def business_number(raw: object) -> str | None:
+    """The nine-digit business number, or None for a blank, a placeholder or a typo.
+
+    The ninth digit is a check digit (the Luhn rule): in the grants file 18,037
+    of 18,156 nine-digit numbers pass it and the rest are typed wrong, so a
+    number that fails could belong to another business and is not used.
+    Placeholders such as 000000000 pass the rule and are refused by shape.
+    """
+    if raw is None:
+        return None
+    text = re.sub(r"[\s-]", "", str(raw)).upper()
+    m = BN_RE.match(text)
+    if not m:
+        return None
+    digits = m.group(1)
+    if len(set(digits)) == 1 or not _luhn_ok(digits):
+        return None
+    return digits
+
+
 def to_int(value: object) -> int | None:
     if value is None or value == "":
         return None

@@ -16,7 +16,9 @@ employers table from the records themselves:
   one its display name maps to, else the one most of its records went to).
   A BC Registry check is kept only where the id did not change, so a renamed
   employer is looked up again under its legal name. Bulk registries (the
-  federal and Quebec extracts) are re-normalized and matched again;
+  federal and Quebec extracts) are re-normalized and matched again, and
+  the public records (grants, Alberta employer records, the carrier census)
+  are matched again;
 * an employer row keeps the earliest first_seen and any location field one
   of its merged rows had; counts, status and display names are recomputed by
   status.recompute.
@@ -40,7 +42,7 @@ from dataclasses import asdict, dataclass
 from . import status
 from .db import get_meta, log_run, now_iso, set_meta
 from .normalize import NORMALIZE_VERSION, employer_id, norm_name, parse_address, split_trade_name
-from .sources import ircc, registry_bc, registry_federal, registry_quebec
+from .sources import alberta_records, fmcsa, grants, ircc, registry_bc, registry_federal, registry_quebec
 
 log = logging.getLogger(__name__)
 
@@ -51,6 +53,10 @@ BULK_REGISTRIES = {
     registry_federal.REGISTRY: registry_federal,
     registry_quebec.REGISTRY: registry_quebec,
 }
+# Public records joined to employers by name (sources/matching.py): their
+# match tables are rebuilt whole under the new ids, after the registries,
+# since the grants match reads the federal business numbers.
+PUBLIC_RECORDS = (grants, alberta_records, fmcsa)
 
 
 @dataclass
@@ -211,6 +217,8 @@ def rederive(conn: sqlite3.Connection, *, now: str | None = None) -> Report:
 
     for module in BULK_REGISTRIES.values():
         report.registry_renormalized += module.renormalize(conn)
+        module.match(conn, now=stamp)
+    for module in PUBLIC_RECORDS:
         module.match(conn, now=stamp)
     report.names_added, report.streets_added = ircc.enrich_employers(conn, now=stamp)
     status.recompute(conn, now=stamp)

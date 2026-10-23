@@ -204,6 +204,56 @@ class PoliteClient:
                 self._store(url, resp, content)
             return content
 
+    def download(self, url: str, dest: Path, *, timeout: float = 600) -> int:
+        """Stream a large file to dest with the same spacing, retries and breaker as get().
+
+        Why: the grants disclosure is 2.3 GB, which get() would hold in
+        memory. Nothing is cached (the file is read once and deleted), the
+        body goes to dest + '.part' and is renamed only when complete, and the
+        byte count is returned.
+        """
+        host = urlsplit(url).hostname or ""
+        dest = Path(dest)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        part = dest.with_name(dest.name + ".part")
+        body_limit = max(MIN_BODY_SECONDS, 4 * timeout)
+        attempt = 0
+        while True:
+            attempt += 1
+            self._wait_for_host(host)
+            started = self._clock()
+            try:
+                resp = self.session.get(url, headers={"User-Agent": self.user_agent},
+                                        timeout=(min(CONNECT_TIMEOUT_S, timeout), timeout), stream=True)
+            except requests.RequestException as exc:
+                self._mark(host)
+                self._retry_or_fail(url, attempt, repr(exc), host=host,
+                                    connect=isinstance(exc, requests.ConnectionError))
+                continue
+            self._mark(host)
+            self._connect_failures.pop(host, None)
+            self.requests_made += 1
+            if resp.status_code >= 500 or resp.status_code == 429:
+                wait = retry_after_seconds(_header(resp, "Retry-After"))
+                _close(resp)
+                self._retry_or_fail(url, attempt, f"HTTP {resp.status_code}", wait)
+                continue
+            if resp.status_code >= 400:
+                _close(resp)
+                raise FetchError(f"HTTP {resp.status_code} for {url}")
+            try:
+                size = self._write_body(resp, part, started, body_limit)
+            except (requests.RequestException, _SlowBody, OSError) as exc:
+                _close(resp)
+                part.unlink(missing_ok=True)
+                self._mark(host)
+                self._retry_or_fail(url, attempt, repr(exc))
+                continue
+            self._mark(host)
+            self._consecutive_failures = 0
+            part.replace(dest)
+            return size
+
     def get_text(self, url: str, **kwargs: Any) -> str:
         return decode_text(self.get(url, **kwargs))
 
@@ -240,6 +290,21 @@ class PoliteClient:
             if self._clock() - started > limit:
                 raise _SlowBody(f"body still arriving after {limit:.0f} s")
         return b"".join(parts)
+
+    def _write_body(self, resp: Any, path: Path, started: float, limit: float) -> int:
+        chunks = getattr(resp, "iter_content", None)
+        size = 0
+        with path.open("wb") as fh:
+            if chunks is None:  # a stand-in response that holds its body already
+                fh.write(resp.content)
+                return len(resp.content)
+            for chunk in chunks(chunk_size=CHUNK_BYTES):
+                if chunk:
+                    fh.write(chunk)
+                    size += len(chunk)
+                if self._clock() - started > limit:
+                    raise _SlowBody(f"body still arriving after {limit:.0f} s")
+        return size
 
     def _retry_or_fail(self, url: str, attempt: int, reason: str, wait: float | None = None, *,
                        host: str | None = None, connect: bool = False) -> None:
