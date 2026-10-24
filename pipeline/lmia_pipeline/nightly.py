@@ -27,6 +27,9 @@ one, and always leaves a status file the site's daily check can read.
   checks    the monthly expiry checks of the tokens and the domain.
   attention list the items needing attention and write the GitHub issue's
             texts; exits 1 when there are any.
+  indexnow  after a deploy that worked: send the pages changed since the
+            run's start to IndexNow (indexnow.py) and write the outcome.
+            Exits 1 only when the key or the payload was rejected.
   site-bundle-check
             for the site-only deploy (deploy-site.yml): compare the data
             files of an unpacked static.tar.gz with the ones the live site
@@ -55,7 +58,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from . import config, resilience
+from . import config, indexnow, resilience
 
 log = logging.getLogger("lmia_pipeline.nightly")
 
@@ -344,17 +347,20 @@ def run_status(
     zenodo: str | None = None, search: str | None = None, views: str | None = None,
     restore_info: dict[str, Any] | None = None, smoke: dict[str, Any] | None = None,
     rollback: str | None = None, version_before: str | None = None, checks: dict[str, Any] | None = None,
+    indexnow_outcome: str | None = None,
 ) -> dict[str, Any]:
     """status.json for the site's daily check. Every input may be missing: the
     status then says what is missing rather than failing to be written.
 
-    outcome, bluesky, zenodo, search and views are the outcomes the X post,
-    the Bluesky post, the Zenodo deposit, the search database sync ("synced",
-    "nothing to send" or "failed") and the audience roll-up ("rolled up",
-    "no data", "no token" or "failed") wrote; "not run" when the step did
-    not run. They are reported beside the stages, not as stages, so a
-    refused post, a failed deposit, sync or roll-up alerts without marking
-    the data refresh failed.
+    outcome, bluesky, zenodo, search, views and indexnow_outcome are the
+    outcomes the X post, the Bluesky post, the Zenodo deposit, the search
+    database sync ("synced", "nothing to send" or "failed"), the audience
+    roll-up ("rolled up", "no data", "no token" or "failed") and the IndexNow
+    submission ("submitted <n> URLs", "rejected (<status>)", "rate limited",
+    "failed" or "off") wrote; "not run" when the step did not run. They are
+    reported beside the stages, not as stages, so a refused post, a failed
+    deposit, sync, roll-up or submission alerts without marking the data
+    refresh failed.
 
     The resilience fields: steps (every workflow step's outcome, which the
     retry gate reads), restore (where the database came from), smoke (the
@@ -409,6 +415,7 @@ def run_status(
         "zenodo_deposit": zenodo or "not run",
         "search_sync": search or "not run",
         "views_rollup": views or "not run",
+        "indexnow": indexnow_outcome or "not run",
         "restore": restored,
         "smoke": verdict,
         "smoke_detail": str(smoke.get("detail") or "")[:300] if isinstance(smoke, dict) else "",
@@ -580,6 +587,7 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--zenodo-outcome", default=None, help="the Zenodo deposit's outcome file")
     s.add_argument("--search-outcome", default=None, help="the search database sync's outcome file")
     s.add_argument("--views-outcome", default=None, help="the audience roll-up's outcome file")
+    s.add_argument("--indexnow-outcome", default=None, help="the IndexNow submission's outcome file")
     s.add_argument("--restore", default=None, help="the restore record")
     s.add_argument("--smoke", default=None, help="the smoke test's result file")
     s.add_argument("--rollback-outcome", default=None, help="the rollback step's outcome file")
@@ -625,6 +633,14 @@ def main(argv: list[str] | None = None) -> int:
     at.add_argument("--status", required=True)
     at.add_argument("--run-url", required=True)
     at.add_argument("--out-dir", required=True, help="where the issue's texts are written")
+    ix = sub.add_parser("indexnow", help="send the pages changed since the run's start to IndexNow")
+    ix.add_argument("--db", required=True)
+    ix.add_argument("--since", required=True,
+                    help="the run's start, an ISO time in UTC (the workflow's data/out/run_started.txt)")
+    ix.add_argument("--site-url", default=config.SITE_URL, help="the live site (default $LMIAWATCH_SITE_URL)")
+    ix.add_argument("--out-dir", default=None,
+                    help="where last_outcome.txt and urls.txt are written (default data/out/indexnow)")
+    ix.add_argument("--dry-run", action="store_true", help="select and list the URLs, send nothing")
     args = parser.parse_args(argv)
 
     if args.command == "pack":
@@ -668,6 +684,8 @@ def main(argv: list[str] | None = None) -> int:
         return _attention(args)
     if args.command == "site-bundle-check":
         return _site_bundle_check(args)
+    if args.command == "indexnow":
+        return _indexnow(args)
 
     verify_result = None
     try:
@@ -680,7 +698,7 @@ def main(argv: list[str] | None = None) -> int:
                         search=_read(args.search_outcome), views=_read(args.views_outcome),
                         restore_info=_read_json(args.restore), smoke=_read_json(args.smoke),
                         rollback=_read(args.rollback_outcome), version_before=_read(args.version_before),
-                        checks=_read_json(args.checks))
+                        checks=_read_json(args.checks), indexnow_outcome=_read(args.indexnow_outcome))
     _write_json(Path(args.out), status)
     print(json.dumps(status, indent=1))
     return 0
@@ -760,6 +778,20 @@ def _attention(args: argparse.Namespace) -> int:
     for item in items:
         print("ATTENTION:", item)
     return 1 if items else 0
+
+
+def _indexnow(args: argparse.Namespace) -> int:
+    # Exit 1 only for a rejection: the key file or the payload is wrong and
+    # stays wrong until someone fixes it, so the step shows red. A rate limit
+    # or an outage clears by itself; the run status records it either way.
+    out = Path(args.out_dir) if args.out_dir else config.OUT_DIR / "indexnow"
+    record = indexnow.run(Path(args.db), args.since, args.site_url, out, http_factory=_session, dry_run=args.dry_run)
+    rejected = record["outcome"].startswith("rejected")
+    detail = f" ({record['detail']})" if record.get("detail") else ""
+    (log.error if rejected else log.info)("indexnow: %s%s", record["outcome"], detail)
+    log.info("indexnow: %d URLs selected, %d accepted, %d of %d batches sent; the list is in %s",
+             record["urls"], record["accepted"], record["sent"], record["batches"], out / indexnow.URLS_FILE)
+    return 1 if rejected else 0
 
 
 def _summary(lines: list[str]) -> None:

@@ -657,6 +657,15 @@ def test_attention_items_keep_the_existing_wording():
     assert resilience.attention_items({"stages": [], "x_post": "posted", "smoke": "unverifiable"}) == []
 
 
+def test_only_an_indexnow_rejection_is_an_item():
+    rejected = {"stages": [], "indexnow": "rejected (403)"}
+    assert resilience.attention_items(rejected) == ["IndexNow: rejected; check the key file"]
+    for outcome in ("submitted 613 URLs", "rate limited", "failed", "off", "dry run (12 URLs)", "not run", None, 403):
+        assert resilience.attention_items({"stages": [], "indexnow": outcome}) == []
+    # A status from before the field existed.
+    assert resilience.attention_items({"stages": []}) == []
+
+
 def test_an_unverified_x_post_asks_for_a_look_at_the_account():
     status = {"stages": [], "x_post": "unverified", "bluesky_post": "posted"}
     assert resilience.attention_items(status) == ["X post: unverified after an error from X; check the account"]

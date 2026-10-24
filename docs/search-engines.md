@@ -6,8 +6,9 @@ them adds a cookie or a script to the pages:
 1. Google Search Console and Bing Webmaster Tools: which searches show the
    site, how often people click, and which pages the engines have indexed.
    Each needs one DNS record to prove the domain is ours.
-2. Cloudflare's Crawler Hints, which tells the engines that take IndexNow
-   (Bing and others, not Google) when pages change.
+2. IndexNow, which tells the engines that take it (Bing and others, not
+   Google) which pages changed. The nightly run submits them itself after
+   each deploy (section 5); Cloudflare's Crawler Hints can stay on beside it.
 3. The Worker's own counts in Workers Analytics Engine (`site/src/views.ts`):
    one data point per response, holding the route template, the page
    language, the country code Cloudflare's edge attaches, the referring
@@ -109,15 +110,119 @@ Bing's index also serves DuckDuckGo, Ecosia and Yahoo.
    in place.
 4. Sitemaps: Submit sitemap, `https://lmiawatch.ca/sitemap.xml`.
 
-## 5. Crawler Hints (IndexNow)
+## 5. IndexNow
+
+Bing reads the sitemap, but with about 160,000 employer pages its crawl takes
+weeks to come back to a page that changed. IndexNow lets the site name the
+changed pages itself, and Bing and the other engines that share the protocol
+take that as a cue to crawl them. Google does not take IndexNow and is
+unaffected.
+
+### What the nightly run sends
+
+After a deploy that worked and that the smoke test did not find broken, the
+workflow step "Tell IndexNow which pages changed" runs
+
+```
+python -m lmia_pipeline.nightly indexnow --db data/lmia.sqlite --since <run start> \
+  --site-url https://lmiawatch.ca
+```
+
+(`pipeline/lmia_pipeline/indexnow.py`). It selects:
+
+- the home, search, trends, occupations, places, releases and program pages,
+  which follow the nightly data;
+- every employer page whose row changed during the run. `--since` is the
+  time in `data/out/run_started.txt`, written as the pipeline step starts.
+  The status stage rewrites `employers.updated_at` only when something in an
+  employer's summary changed, and a new employer row carries the time it was
+  first written.
+
+At most 20,000 URLs a night, the most recently changed first. A night with
+more (a new ESDC quarter changes tens of thousands of profiles) leaves the
+rest to the sitemap, which lists every profile with its `lastmod`. The list
+goes to the shared endpoint, which passes it to every participating engine,
+in batches of at most 10,000 URLs:
+
+```
+POST https://api.indexnow.org/indexnow
+Content-Type: application/json; charset=utf-8
+User-Agent: LMIAWatch/<version> (+https://lmiawatch.ca; https://lmiawatch.ca/corrections)
+
+{"host": "lmiawatch.ca", "key": "<key>", "keyLocation": "https://lmiawatch.ca/<key>.txt",
+ "urlList": ["https://lmiawatch.ca/", "https://lmiawatch.ca/search", ...]}
+```
+
+The step's log gives the counts. On the runner the list sent is in
+`data/out/indexnow/urls.txt`, and `--dry-run` writes that list without
+sending anything.
+
+### The key
+
+The key is the 32-character text in `INDEXNOW_KEY`
+(`pipeline/lmia_pipeline/indexnow.py`). The site serves it at
+`https://lmiawatch.ca/<key>.txt` from `site/public/<key>.txt`, a file whose
+entire content is the key, with no newline. An engine fetches that file to
+check that a submission comes from the site. The key is public by design, so
+there is no secret to set, and a pipeline test fails when the code and the
+file disagree.
+
+To change the key: 32 new lowercase hex characters, the file renamed and its
+content replaced, and `INDEXNOW_KEY` changed, all in one commit. The new key
+is in use from the next nightly run, whose deploy publishes the new file.
+
+### Outcomes
+
+The outcome goes to the run status as `indexnow` and to `LAST_RUN.md` as
+"IndexNow: <outcome>".
+
+| Outcome | Meaning |
+|---|---|
+| `submitted <n> URLs` | every batch answered 200 (submitted) or 202 (received, the key check still pending) |
+| `rejected (400)`, `rejected (403)`, `rejected (422)` | 400: the request was malformed. 403: the key is not valid (the key file was not found, or it does not hold the key). 422: a URL is not on the host, or the key does not match. Nothing more is sent that night, and the step exits 1 so it shows red |
+| `rate limited` | 429, too many requests. Nothing more is sent that night |
+| `failed` | no answer, or a 500 to 599, on the first try and on the retry 10 seconds later; or the step could not run (no start time, no database) |
+| `off` | the repository variable `INDEXNOW_ENABLED` is `false` |
+| `not run` | the step did not run: the deploy failed or the smoke test found it broken |
+
+Only a rejection is an item needing attention ("IndexNow: rejected; check
+the key file"). A rate limit or a failure clears by itself, and the pages
+stay in the sitemap meanwhile. No outcome stops the run. Pages a night did
+not get through are not queued for the next; the sitemap carries them.
+
+### When it reads rejected
+
+The engines could not match the request with the key file, so the key file
+is the first thing to check:
+
+1. Open `https://lmiawatch.ca/<key>.txt`, with the key from `INDEXNOW_KEY`.
+   It must answer 200 with the key as its entire content.
+2. A 404: the file is missing from `site/public` or the last deploy did not
+   carry it. Check that it is committed and that the deploy step succeeded.
+3. A 403 or a challenge page: a rule in the zone refuses the request. The
+   file must be open to crawlers like any page.
+4. Another text: the file and `INDEXNOW_KEY` disagree. The pipeline test
+   catches this before a push; fix whichever one changed.
+5. A 422 with a good key file: the URLs name a host other than the one
+   serving the file, usually the repository variable `SITE_URL` (the step
+   falls back to `https://lmiawatch.ca` only when the variable is empty).
+
+The next nightly run submits again once the cause is fixed.
+
+### Turning it off
+
+GitHub, the repository, Settings, Secrets and variables, Actions, Variables:
+set `INDEXNOW_ENABLED` to `false`. Any other value, or no variable, leaves it
+on. While it is off the step writes `off` and sends nothing.
+
+### Cloudflare's Crawler Hints (optional)
 
 1. The zone, Caching, Configuration, Crawler Hints: On.
-2. Cloudflare then tells the search engines that take IndexNow when content
-   it serves changes, so they recrawl sooner. Google does not take IndexNow
-   and is unaffected. It costs nothing.
+2. Cloudflare then sends IndexNow notices of its own when content it serves
+   changes, handling its side of the protocol itself. It costs nothing.
 
-The site's pages change every night, so the hints mostly help new employer
-profiles reach Bing quickly.
+The operator can leave it on beside the nightly submission; neither depends
+on the other.
 
 ## 6. Reading the counts
 
@@ -337,6 +442,11 @@ same queries with no token at all. It needs Wrangler 4.145 or later; the site
 pins 4.105 for its test pool.
 
 ## Sources (read 2026-10-18)
+
+- IndexNow protocol (the endpoint, the request body, 10,000 URLs a request,
+  the key file at the root, the answers 200, 202, 400, 403, 422 and 429),
+  read 2026-10-24: `indexnow.org/documentation`; no published daily limit,
+  and only changed URLs to be sent: `indexnow.org/faq`
 
 - Analytics Engine binding, SQL API and the Account Analytics Read
   permission: `developers.cloudflare.com/analytics/analytics-engine/get-started/`

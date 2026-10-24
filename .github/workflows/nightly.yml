@@ -20,9 +20,9 @@
 # check the database and the export, send the changed rows to the search
 # database (D1 lmia-watch-search), record the Worker version serving traffic,
 # deploy the Worker with that data as its assets, check the live site and roll
-# the Worker back when the deploy broke it, post the daily digest to X and to
-# Bluesky when their secrets exist, deposit a new ESDC quarter on Zenodo when
-# its token exists, save the database and the public files back to R2, keep
+# the Worker back when the deploy broke it, tell IndexNow which pages changed,
+# post the daily digest to X and to Bluesky when their secrets exist, deposit
+# a new ESDC quarter on Zenodo when its token exists, save the database and the public files back to R2, keep
 # the audience counts of the finished days in R2 when the analytics token
 # exists, run the monthly expiry checks on the first of a month, write the run
 # status, and report the items needing attention (failed run, one GitHub
@@ -53,6 +53,9 @@
 # - An audience roll-up that fails is reported (views_rollup: failed) and
 #   caught up the next night; it never stops the run, and a summary that
 #   could not be downloaded is never replaced.
+# - An IndexNow submission that fails is reported (indexnow in the run status)
+#   and never stops the run; only a rejection (the key file or the payload is
+#   wrong) is an item needing attention.
 # - A fault in the retry gate, the version record, the smoke test, the expiry
 #   checks or the issue update never stops the run: the gate then runs the
 #   refresh, a missing version means no rollback tonight, and each outcome is
@@ -71,7 +74,10 @@
 # post with a link at thirteen times the rate; the attached card carries the
 # address instead); BSKY_POST_ENABLED must be "true" for the Bluesky step;
 # optional ZENODO_SANDBOX, set to true to deposit on sandbox.zenodo.org (test
-# DOIs that never reach the site) instead of zenodo.org.
+# DOIs that never reach the site) instead of zenodo.org; optional
+# INDEXNOW_ENABLED, set to false to stop the IndexNow submission (it runs
+# unless the variable reads exactly "false"; the key is in the code, so it
+# needs no secret).
 # The repository is public, so Actions minutes are unlimited; the only pace
 # limit is Job Bank's five-second crawl delay, which puts a full sweep at a
 # few hours. The job must finish before the next midnight run.
@@ -399,6 +405,41 @@ jobs:
           done
           exit 1
 
+      # IndexNow (docs/search-engines.md, section 5): Bing and the other engines
+      # that take it (Google does not) hear about tonight's changed pages
+      # without waiting for a crawl. The command sends the employer pages whose
+      # row changed since the run's start (run_started.txt, written as the
+      # pipeline step began, in the same form as employers.updated_at) and the
+      # pages that follow the nightly data, at most 20,000 a night in batches
+      # of 10,000, to api.indexnow.org. An engine checks the request against
+      # the key file at the site's root (site/public/<key>.txt), which this
+      # deploy has just published; the key is in the code, so no secret is
+      # needed. Only after a deploy that worked and was not found broken, so
+      # the engines are pointed at pages the site serves. "failed" is written
+      # first, so a step stopped by its time limit reads as failed. Exits 1
+      # only on a rejection (the step shows red; an attention item); a rate
+      # limit or an outage is recorded and nothing more. Never stops the run.
+      # INDEXNOW_ENABLED=false turns it off.
+      - name: Tell IndexNow which pages changed
+        id: indexnow
+        if: ${{ !cancelled() && steps.deploy.outcome == 'success' && steps.smoke.outputs.verdict != 'broken' }}
+        continue-on-error: true
+        timeout-minutes: 10
+        env:
+          INDEXNOW_ENABLED: ${{ vars.INDEXNOW_ENABLED }}
+        run: |
+          out=data/out/indexnow
+          mkdir -p "$out"
+          echo "failed" > "$out/last_outcome.txt"
+          if [ "$INDEXNOW_ENABLED" = "false" ]; then
+            echo "INDEXNOW_ENABLED is false; nothing sent."
+            echo "off" > "$out/last_outcome.txt"
+            exit 0
+          fi
+          since=$(cat data/out/run_started.txt 2>/dev/null || true)
+          python -m lmia_pipeline.nightly indexnow --db data/lmia.sqlite --since "$since" \
+            --site-url "${LMIAWATCH_SITE_URL:-https://lmiawatch.ca}"
+
       # After the deploy, so the link shows the postings the digest counts, and
       # before the R2 save, so the recorded post date travels with the database.
       # Opt-in (X_POST_ENABLED) because every post costs credits. Skips without
@@ -625,12 +666,13 @@ jobs:
       # What the daily check in the Worker and the next retry's gate read: when
       # the run finished, which stages and steps succeeded (every step's
       # outcome under steps), what the checks found, the outcomes of the X
-      # post, the Bluesky post, the Zenodo deposit, the search database sync
-      # and the audience roll-up, where the database came from (restore), the
-      # smoke test and any rollback, and the expiry checks. Written whatever
-      # happened above. The Bluesky, Zenodo, search-sync, roll-up and rollback
-      # steps write "failed" before they start, so a step stopped by its time
-      # limit still reads as failed.
+      # post, the Bluesky post, the Zenodo deposit, the search database sync,
+      # the audience roll-up and the IndexNow submission, where the database
+      # came from (restore), the smoke test and any rollback, and the expiry
+      # checks. Written whatever happened above. The Bluesky, Zenodo,
+      # search-sync, roll-up, IndexNow and rollback steps write "failed"
+      # before they start, so a step stopped by its time limit still reads as
+      # failed.
       - name: Write the run status
         if: ${{ always() }}
         run: |
@@ -641,6 +683,7 @@ jobs:
             --zenodo-outcome data/out/zenodo/last_outcome.txt \
             --search-outcome data/out/search/last_outcome.txt \
             --views-outcome data/out/views/last_outcome.txt \
+            --indexnow-outcome data/out/indexnow/last_outcome.txt \
             --restore data/out/restore.json --smoke data/out/deploy/smoke.json \
             --rollback-outcome data/out/deploy/rollback.txt --version-before data/out/deploy/version_before.txt \
             --checks data/out/checks.json \
@@ -684,6 +727,10 @@ jobs:
           if [ -f data/out/views/last_outcome.txt ]; then
             echo "" >> LAST_RUN.md
             echo "Audience roll-up: $(cat data/out/views/last_outcome.txt)" >> LAST_RUN.md
+          fi
+          if [ -f data/out/indexnow/last_outcome.txt ]; then
+            echo "" >> LAST_RUN.md
+            echo "IndexNow: $(cat data/out/indexnow/last_outcome.txt)" >> LAST_RUN.md
           fi
           git config user.name "LMIA Watch"
           git config user.email "ops@lmiawatch.invalid"

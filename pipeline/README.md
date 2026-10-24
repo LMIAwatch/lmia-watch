@@ -91,7 +91,7 @@ marking, because a capped run has not seen the whole feed.
 | `social_card.py` | the card image attached to the digest, drawn with Pillow from the day's figures |
 | `bluesky.py` | the same digest and card on Bluesky over the AT Protocol, with a link facet (separate `post-bluesky` command) |
 | `zenodo.py` | the citable release: a new Zenodo version of the OGL CSVs per ESDC quarter, DOIs into `meta` (separate `deposit-zenodo` command) |
-| `nightly.py` | the workflow's restore, verify, status and pack commands (pack writes the R2 backup: a `VACUUM INTO` copy without the secondary indexes, checked, gzipped, refused above Wrangler's 300 MiB upload cap), and `site-bundle-check` for the site-only deploy (`docs/site-deploy.md`) |
+| `nightly.py` | the workflow's restore, verify, status and pack commands (pack writes the R2 backup: a `VACUUM INTO` copy without the secondary indexes, checked, gzipped, refused above Wrangler's 300 MiB upload cap), `site-bundle-check` for the site-only deploy (`docs/site-deploy.md`), and `indexnow`, which after the deploy sends the pages changed since the run's start to IndexNow (`indexnow.py`; `--dry-run` lists them; `../docs/search-engines.md` section 5) |
 
 ## Outputs
 ```
@@ -109,6 +109,8 @@ data/out/static/        the JSON the site serves as static assets (see export_st
 data/out/search/        written by `search-sync`: batch-0001.sql and on (at most 5 MB or
                         5,000 statements each, up to 100 rows per upsert statement),
                         manifest.json, last_outcome.txt
+data/out/indexnow/      written by `nightly indexnow`: urls.txt (the pages selected),
+                        last_outcome.txt
 ```
 The static export is deterministic (sorted keys and rows), so an unchanged file
 keeps its bytes and the deploy skips it. Each file stays under the 25 MiB

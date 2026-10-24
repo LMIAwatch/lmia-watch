@@ -690,6 +690,12 @@ def attention_items(status: Any) -> list[str]:
         items.append("Search database sync: failed (sent again next run)")
     if status.get("views_rollup") == "failed":
         items.append("Audience roll-up: failed (caught up next run)")
+    # Only a rejection: the key file or the payload is wrong and stays wrong
+    # until fixed. A rate limit or a failed request clears by itself, and the
+    # sitemap still carries every page meanwhile.
+    indexnow_outcome = status.get("indexnow")
+    if isinstance(indexnow_outcome, str) and indexnow_outcome.startswith("rejected"):
+        items.append("IndexNow: rejected; check the key file")
     if status.get("smoke") == "broken":
         detail = status.get("smoke_detail") or "server errors"
         if status.get("deploy_rolled_back") is True:
