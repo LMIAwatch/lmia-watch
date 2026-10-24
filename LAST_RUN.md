@@ -1,8 +1,8 @@
-Last successful refresh: 2026-10-23 12:40 UTC
+Last successful refresh: 2026-10-24 01:33 UTC
 
-X post: already posted
+X post: failed
 
-Bluesky post: already posted
+Bluesky post: posted
 
 Zenodo deposit: no new quarter
 
