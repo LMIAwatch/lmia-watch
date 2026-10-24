@@ -97,6 +97,12 @@ const STRINGS = {
   },
   "ind.high_volume": { en: "High volume", fr: "Volume élevé" },
   "ind.refused_then_reposted": { en: "Refused then re-posted", fr: "Refus suivi d'une nouvelle offre" },
+  // Short forms for the search results' narrow column, the full label in the
+  // chip's title. "High volume" and "Repeat applicant" are short already.
+  "ind_short.newly_incorporated": { en: "Newly incorporated", fr: "Constitué récemment" },
+  "ind_short.wage_at_floor": { en: "At the wage floor", fr: "Salaire au plancher" },
+  "ind_short.low_wage_high_unemployment": { en: "Low wage, high unemployment", fr: "Bas salaire, chômage élevé" },
+  "ind_short.refused_then_reposted": { en: "Refused, re-posted", fr: "Refus, nouvelle offre" },
   "ind_state.triggered": { en: "Triggered", fr: "Déclenché" },
   "ind_state.not_triggered": { en: "Not triggered", fr: "Non déclenché" },
   "ind_state.not_applicable": { en: "Not applicable", fr: "Sans objet" },
@@ -104,7 +110,6 @@ const STRINGS = {
   "col.status": { en: "Status", fr: "Statut" },
   "col.employer": { en: "Employer", fr: "Employeur" },
   "col.job": { en: "Job", fr: "Emploi" },
-  "col.job_or_occupation": { en: "Job or occupation", fr: "Emploi ou profession" },
   "col.location": { en: "Location", fr: "Lieu" },
   "col.wage": { en: "Wage", fr: "Salaire" },
   "col.date": { en: "Date", fr: "Date" },
@@ -313,6 +318,9 @@ const STRINGS = {
   "search.source_jobbank": { en: "Job Bank {ref}", fr: "Guichet-Emplois {ref}" },
   "search.source_positive": { en: "ESDC positive {period}", fr: "EDSC positive {period}" },
   "search.source_negative": { en: "ESDC negative {period}", fr: "EDSC négative {period}" },
+  // The search results' link text; the full form above is the link's title.
+  "search.source_jobbank_short": { en: "Job Bank", fr: "Guichet-Emplois" },
+  "search.source_esdc_short": { en: "ESDC", fr: "EDSC" },
   "search.no_match": { en: "No records match these filters.", fr: "Aucun dossier ne correspond à ces filtres." },
 
   // -- map ------------------------------------------------------------------------
@@ -2925,6 +2933,20 @@ const INDICATOR_KEY: Record<string, Key> = {
 export function indicatorLabel(lang: Lang, id: string): string {
   const key = INDICATOR_KEY[id];
   return key ? t(lang, key) : id;
+}
+
+// The label for a narrow column: the short form where one exists, else the
+// full label.
+const INDICATOR_SHORT_KEY: Record<string, Key> = {
+  newly_incorporated: "ind_short.newly_incorporated",
+  wage_at_floor: "ind_short.wage_at_floor",
+  low_wage_high_unemployment: "ind_short.low_wage_high_unemployment",
+  refused_then_reposted: "ind_short.refused_then_reposted",
+};
+
+export function indicatorShortLabel(lang: Lang, id: string): string {
+  const key = INDICATOR_SHORT_KEY[id];
+  return key ? t(lang, key) : indicatorLabel(lang, id);
 }
 
 const INDICATOR_STATE_KEY: Record<string, Key> = {

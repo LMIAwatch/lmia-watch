@@ -136,9 +136,10 @@
   // -- rendering -------------------------------------------------------------
 
   // Column headers as data-label on every cell, so a phone restacks each row
-  // as a labelled block. Same labels as SearchRowView in src/pages/search.tsx.
+  // as a labelled block. Same labels, short forms and titles as SearchRowView
+  // in src/pages/search.tsx, so a row drawn here matches the server's.
   var COLUMN = {
-    status: tx("col.status"), employer: tx("col.employer"), job: tx("col.job_or_occupation"), location: tx("col.location"),
+    status: tx("col.status"), employer: tx("col.employer"), job: tx("places.col_occupation"), location: tx("col.location"),
     wage: tx("col.wage"), date: tx("col.date"), positions: tx("col.positions"), indicators: tx("col.indicators"),
     source: tx("col.source"),
   };
@@ -153,6 +154,22 @@
     el.textContent = text == null ? "" : String(text);
     tr.appendChild(el);
     return el;
+  }
+  // A line-break opportunity after each slash of a title ("foreman/woman"),
+  // as slashBreaks in src/layout.tsx gives the server's rows.
+  function slashText(el, s) {
+    s.split("/").forEach(function (part, i) {
+      if (i) {
+        el.appendChild(document.createTextNode("/"));
+        el.appendChild(document.createElement("wbr"));
+      }
+      if (part) el.appendChild(document.createTextNode(part));
+    });
+  }
+  // City, province and postal code in the cell; the full address, street
+  // included, in its title (placeLabel and addressLabel in search.tsx).
+  function place(r, withStreet) {
+    return [withStreet ? r.street : null, r.city, r.prov].filter(Boolean).join(", ") + (r.postal ? " " + r.postal : "");
   }
   function renderRows(slice) {
     var body = document.getElementById("results-body");
@@ -174,19 +191,24 @@
       a.href = "/employers/" + encodeURIComponent(r.employer_id);
       a.textContent = r.employer || "";
       tdE.appendChild(a); tr.appendChild(tdE);
-      cell(tr, (r.kind === "esdc" && r.noc ? r.noc + " " : "") + (r.job || ""), null, COLUMN.job);
-      cell(tr, [r.street, r.city].filter(Boolean).join(", ") + (r.prov ? ", " + r.prov : "") + (r.postal ? " " + r.postal : ""), null, COLUMN.location);
+      var tdJ = cell(tr, r.kind === "esdc" && r.noc ? r.noc + " " : "", null, COLUMN.job);
+      slashText(tdJ, r.job || "");
+      var tdL = cell(tr, place(r, false), null, COLUMN.location);
+      if (r.street) tdL.title = place(r, true);
       cell(tr, wage(r), "mono", COLUMN.wage);
-      cell(tr, r.kind === "posting" ? (r.date || "") : periodLabel(r.period), "mono", COLUMN.date);
-      cell(tr, r.positions == null ? tx("common.see_posting") : fmt(r.positions), "mono num", COLUMN.positions);
+      cell(tr, r.kind === "posting" ? (r.date || "") : periodLabel(r.period), r.kind === "posting" ? "mono" : "mono period", COLUMN.date);
+      cell(tr, r.positions == null ? tx("common.see_posting") : fmt(r.positions), "mono", COLUMN.positions);
       var tdI = td(COLUMN.indicators);
       if ((r.ind || []).length) {
         var chips = document.createElement("span");
         chips.className = "chips";
         r.ind.forEach(function (i) {
           var chip = document.createElement("span");
+          var full = has("ind." + i) ? tx("ind." + i) : i;
+          var short = has("ind_short." + i) ? tx("ind_short." + i) : full;
           chip.className = "chip";
-          chip.textContent = has("ind." + i) ? tx("ind." + i) : i;
+          chip.textContent = short;
+          if (short !== full) chip.title = full;
           chips.appendChild(chip);
         });
         tdI.appendChild(chips);
@@ -195,9 +217,10 @@
       var tdSrc = td(COLUMN.source);
       var src = document.createElement("a");
       src.href = r.source; src.rel = "nofollow noopener"; src.className = "mono";
-      src.textContent = r.kind === "posting"
+      src.title = r.kind === "posting"
         ? tx("search.source_jobbank", { ref: r.ref })
         : tx(r.status === "refused" ? "search.source_negative" : "search.source_positive", { period: r.period || "" });
+      src.textContent = r.kind === "posting" ? tx("search.source_jobbank_short") : tx("search.source_esdc_short");
       tdSrc.appendChild(src); tr.appendChild(tdSrc);
       body.appendChild(tr);
     });

@@ -2,7 +2,7 @@ import type { Context } from "hono";
 import { loadFacets, loadStats, type SearchRow } from "../data";
 import type { AppEnv } from "../env";
 import { provinceName, streamLabel, t, tj, tn } from "../i18n";
-import { Badge, Layout, fmtInt, noDataPage, page, periodLabel } from "../layout";
+import { Badge, Layout, fmtInt, noDataPage, page, periodLabel, slashBreaks } from "../layout";
 import { homeJsonLd, pageSeo } from "../seo";
 import { isListOf, isNum, isObj, isStr, isStrOrNull } from "../valid";
 import { FeedLinks } from "./feeds";
@@ -21,9 +21,6 @@ const isTopRow = (r: unknown): boolean => isObj(r) && isStr(r.employer_id) && is
 const isCountRow = (r: unknown): boolean => isObj(r) && isStr(r.k) && isNum(r.n);
 // A pending-by-occupation row: a five-digit NOC 2021 code, its count and its titles.
 const isNocRow = (r: unknown): boolean => isObj(r) && isStr(r.k) && /^[0-9]{5}$/.test(r.k) && isNum(r.n) && isBilingual(r.title);
-// NOC titles join gendered forms with a slash ("Cuisiniers/cuisinières"),
-// which leaves a phone's narrow label column no place to break the line.
-const slashBreaks = (s: string) => s.split("/").flatMap((part, i) => (i ? ["/", <wbr />, part] : [part]));
 
 export async function homePage(c: Context<AppEnv>): Promise<Response> {
   const lang = c.get("lang");

@@ -218,7 +218,7 @@ describe("page metadata", () => {
     const refused = await (await get("/employers/emp-a000000008")).text();
     expect(refused).toMatch(/rel="nofollow noopener">ESDC negative 2026Q1<\/a>/);
     const search = await (await get("/search")).text();
-    expect(search).toContain('rel="nofollow noopener">Job Bank 50456228</a>');
+    expect(search).toContain('rel="nofollow noopener" title="Job Bank 50456228">Job Bank</a>');
   });
 
   it("the response form stays out of the index and error pages carry only the site description", async () => {

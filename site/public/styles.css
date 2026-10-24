@@ -266,6 +266,11 @@ td.mono { white-space: nowrap; }
 .inline-fields input { width: 64px !important; min-width: 0; }
 .check { display: flex; gap: 8px; align-items: flex-start; font-size: 15px; line-height: 1.4; }
 .check input { margin-top: 2px; }
+/* A filter label is its box, the label text taking the free width, and for
+   statuses and provinces a count, right-aligned in a column of its own so a
+   live count never moves with the label's length. */
+.filters .check > .lbl { flex: 1 1 auto; min-width: 0; }
+.filters .check > [data-count] { flex: 0 0 auto; margin-left: auto; padding-left: 8px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 /* Filters apply as they change; the only actions are Clear and, on a phone where
    the results sit below the rail, a jump down to them. */
 .filter-actions { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 0; }
@@ -288,6 +293,38 @@ td.mono { white-space: nowrap; }
 .results td[data-label="Employer"] { min-width: 8.5rem; }
 .results td[data-label="Wage"], .results td[data-label="Positions"] { white-space: normal; }
 .results td[data-label="Wage"] { min-width: 5.5em; }
+/* Desktop: nine fixed columns whose widths add up to the results column at
+   its full width (873 px, from a 1215 px window with a scrollbar), so the
+   table fits with no sideways scroll there. A fixed layout never shrinks a
+   column below its width, so between 1100 px and that point the table keeps
+   873 px and scrolls inside its wrapper, as the automatic layout does below
+   1100 px; phones restack the rows. Columns are picked by position because
+   data-label changes with the language. */
+@media (min-width: 1100px) {
+  .results table { table-layout: fixed; width: 100%; font-size: 14px; }
+  .results th, .results td { padding-right: 10px; }
+  .results td { overflow-wrap: break-word; }
+  .results th:nth-child(1), .results td:nth-child(1) { width: 84px; }
+  .results th:nth-child(2), .results td:nth-child(2) { width: 138px; }
+  .results th:nth-child(3), .results td:nth-child(3) { width: 112px; }
+  .results th:nth-child(4), .results td:nth-child(4) { width: 114px; }
+  .results th:nth-child(5), .results td:nth-child(5) { width: 82px; }
+  .results th:nth-child(6), .results td:nth-child(6) { width: 100px; }
+  .results th:nth-child(7), .results td:nth-child(7) { width: 74px; }
+  .results th:nth-child(8), .results td:nth-child(8) { width: 110px; }
+  .results th:nth-child(9), .results td:nth-child(9) { width: 59px; padding-right: 0; }
+  /* The wage and "see posting" wrap. A posting's date stays on one line
+     (td.mono); a list's period may wrap at a space, since a range such as
+     "2017 Q1 to Q2" is wider than the column. */
+  .results td:nth-child(5) { white-space: normal; font-size: 13px; }
+  .results td:nth-child(7), .results td.period { white-space: normal; }
+  /* French status labels are longer ("En attente", "Approuvée"): a step
+     smaller and tighter, so the badge stays inside its column. */
+  .results td:nth-child(1) .badge:lang(fr) { font-size: 13px; padding-left: 4px; padding-right: 4px; }
+  .results td:nth-child(9) a { font-size: 13px; }
+  /* Chips wrap between words only, never inside one. */
+  .results .chip { font-size: 12px; max-width: 100%; margin: 1px 0 2px; padding: 0 4px; overflow-wrap: normal; }
+}
 
 /* employer */
 .breadcrumb { margin: 20px 0 0; font-size: 14px; color: var(--muted); }

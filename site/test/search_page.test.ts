@@ -29,6 +29,8 @@ interface Seed {
   sort_date: string;
   year: number;
   ind: string;
+  street?: string;
+  postal?: string;
 }
 
 const fold = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -44,9 +46,10 @@ function esdc(ref: number, employer: string, prov: string | null, period: string
 
 const NAMED: Seed[] = [
   {
-    kind: "posting", ref: 9001, employer: "Tim Hortons #1234 (Horton Holdings Ltd)", job: "Food counter attendant", noc: "65201",
+    kind: "posting", ref: 9001, employer: "Tim Hortons #1234 (Horton Holdings Ltd)", job: "Food counter attendant/server", noc: "65201",
     city: "Toronto", prov: "ON", wage_min: 16.55, wage_max: 17, date: "2026-10-20", period: null, positions: null, status: "pending",
-    stream: null, sort_date: "2026-10-20", year: 2026, ind: "",
+    stream: null, sort_date: "2026-10-20", year: 2026, ind: "low_wage_high_unemployment,repeat_applicant",
+    street: "123 Queen Street West", postal: "M5H 2M9",
   },
   esdc(1, "Ferme Éloïse Québec Inc.", "QC", "2026Q1", 12, "approved", "Primary Agriculture", "repeat_applicant"),
   esdc(2, "O'Brien Farms Ltd", "BC", "2015Q4", 2, "refused", null, "high_volume,repeat_applicant"),
@@ -69,7 +72,8 @@ function values(s: Seed): (string | number | null)[] {
   const rid = s.kind === "posting" ? s.ref * 2 + 1 : s.ref * 2;
   const row: Record<string, string | number | null> = {
     ...s, rid, key: `${s.kind === "posting" ? "p" : "e"}:${s.ref}`, employer_id: `emp-${s.kind === "posting" ? "a" : "e"}${String(s.ref).padStart(9, "0")}`,
-    street: null, postal: null, unit: s.kind === "posting" ? "HOUR" : null, source: sourceOf(s), name_fold: fold(s.employer), hash: `h${rid}`,
+    street: s.street ?? null, postal: s.postal ?? null, unit: s.kind === "posting" ? "HOUR" : null, source: sourceOf(s),
+    name_fold: fold(s.employer), hash: `h${rid}`,
   };
   return COLUMNS.map((c) => row[c]);
 }
@@ -116,7 +120,7 @@ async function api(qs: string) {
 }
 
 const tbody = (page: string) => page.match(/<tbody id="results-body">([\s\S]*?)<\/tbody>/)?.[1] ?? "";
-const sources = (page: string) => [...tbody(page).matchAll(/<a href="([^"]+)" class="mono" rel="nofollow noopener">/g)].map((m) => m[1]);
+const sources = (page: string) => [...tbody(page).matchAll(/<a href="([^"]+)" class="mono" rel="nofollow noopener"[^>]*>/g)].map((m) => m[1]);
 const unescape = (s: string) => s.replace(/&amp;/g, "&");
 const nextHref = (page: string) => {
   const m = /<a href="([^"]*)" class="btn" id="page-next">/.exec(page);
@@ -186,8 +190,52 @@ describe("the first view from the search database", () => {
     expect(attr(t, "data-page")).toBe("1");
     expect(attr(t, "data-total")).toBe("126");
     expect(attr(t, "data-capped")).toBe("0");
-    expect(t).toMatch(/name="date" value="any" checked=""\/> Any date since 2014/);
-    expect(t).toMatch(/name="date" value="last_quarter"\/> Postings of the last 92 days and the 2026 Q1 lists/);
+    expect(t).toMatch(/name="date" value="any" checked=""\/><span class="lbl">Any date since 2014<\/span>/);
+    expect(t).toMatch(/name="date" value="last_quarter"\/><span class="lbl">Postings of the last 92 days and the 2026 Q1 lists<\/span>/);
+  });
+
+  it("puts each filter's count in its own box after the label, where search.js finds it", async () => {
+    const t = (await html("/search")).text;
+    const q = parseQuery(new URL("https://x.invalid/search")) as { ok: true; query: any };
+    const { facets } = countsFor(COUNTS, q.query);
+    // Input, label, count: the CSS right-aligns the third in a column.
+    expect(t).toContain('<label class="check"><input type="checkbox" name="province" value="ON"/><span class="lbl">Ontario</span>' +
+      `<span class="mono muted" data-count="province:ON"> ${facets.prov.ON}</span></label>`);
+    expect(t).toContain('<label class="check"><input type="checkbox" name="status" value="pending"/><span class="lbl">' +
+      '<span class="badge badge-pending">Pending</span></span><span class="mono muted" data-count="status:pending">');
+    // Streams and the radios take the same shape, without a count.
+    expect(t).toContain('<label class="check"><input type="checkbox" name="stream" value="Low Wage"/><span class="lbl">Low Wage</span></label>');
+    expect(t).toContain('<label class="check"><input type="radio" name="indicator" value="high_volume"/><span class="lbl">High volume</span></label>');
+    // Every status and province box keeps its data-count span (search.js selects by it).
+    expect(t.match(/ data-count="(status|province):[A-Za-z]+"/g)).toHaveLength(3 + 14);
+  });
+
+  it("draws short cells with the full text in each title, and a header that fits", async () => {
+    const t = (await html("/search")).text;
+    expect(t).toContain("<th>Status</th><th>Employer</th><th>Occupation</th><th>Location</th><th>Wage</th><th>Date</th>" +
+      "<th>Positions</th><th>Indicators</th><th>Source</th>");
+    expect(t).not.toContain("Job or occupation");
+    const body = tbody(t);
+    // A slash in a title is a place to break the line, not a new character.
+    expect(body).toContain('<td data-label="Occupation">Food counter attendant/<wbr/>server</td>');
+    expect(body).toContain('<td data-label="Occupation">85100 Harvesting labourers</td>');
+    // The street moves to the title; city, province and postal code stay.
+    expect(body).toContain('<td data-label="Location" title="123 Queen Street West, Toronto, ON M5H 2M9">Toronto, ON M5H 2M9</td>');
+    expect(body).toContain('<td data-label="Location">Town, ON</td>');
+    expect(body).not.toMatch(/data-label="Location" title="[^"]*">Town/);
+    // A posting's date never wraps; a list's period may (the CSS reads the class).
+    expect(body).toContain('<td data-label="Date" class="mono">2026-10-20</td>');
+    expect(body).toMatch(/<td data-label="Date" class="mono period">\d{4} Q\d<\/td>/);
+    // Positions are left-aligned, with no num class.
+    expect(body).toContain('<td data-label="Positions" class="mono">see posting</td>');
+    expect(t.match(/<table class="restack">[\s\S]*?<\/table>/)?.[0]).not.toMatch(/class="[^"]*\bnum\b/);
+    // Long indicator labels shorten, the full label in the chip's title; short ones stay as they are.
+    expect(body).toContain('<span class="chips"><span class="chip" title="Low-wage stream in a high-unemployment region">Low wage, high unemployment</span>' +
+      '<span class="chip">Repeat applicant</span></span>');
+    // The source link names the source; the record it points at is in the title.
+    expect(body).toContain('<a href="https://www.jobbank.gc.ca/jobsearch/jobposting/9001" class="mono" rel="nofollow noopener" title="Job Bank 9001">Job Bank</a>');
+    expect(body).toMatch(/<a href="https:\/\/open\.canada\.ca\/x\/resource\/r\d+" class="mono" rel="nofollow noopener" title="ESDC (positive|negative) \d{4}Q\d">ESDC<\/a>/);
+    expect(body).not.toMatch(/>Job Bank \d+<\/a>|>ESDC (positive|negative)/);
   });
 
   it("renders the last-quarter window: recent postings and the latest period's list rows", async () => {
@@ -337,6 +385,12 @@ describe("the first view from the search database", () => {
   it("renders in French", async () => {
     const t = nbsp((await html("/search", withCounts(), { cookie: "lang=fr" })).text);
     expect(t).toContain('<html lang="fr">');
+    expect(t).toContain("<th>Statut</th><th>Employeur</th><th>Profession</th><th>Lieu</th><th>Salaire</th><th>Date</th>" +
+      "<th>Postes</th><th>Indicateurs</th><th>Source</th>");
+    expect(t).toContain('<td data-label="Profession">Food counter attendant/<wbr/>server</td>');
+    expect(t).toContain('<span class="chip" title="Volet des postes à bas salaire dans une région à chômage élevé">Bas salaire, chômage élevé</span>');
+    expect(t).toContain('rel="nofollow noopener" title="Guichet-Emplois 9001">Guichet-Emplois</a>');
+    expect(t).toMatch(/rel="nofollow noopener" title="EDSC (positive|négative) \d{4}Q\d">EDSC<\/a>/);
     expect(t).toContain("<strong>126 dossiers</strong>");
     expect(t).toContain("offres du Guichet-Emplois et listes d’EDSC depuis 2014");
     expect(t).toContain("Affichage de 1 à 50 sur 126");

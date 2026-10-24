@@ -4,9 +4,9 @@ import { INDICATORS, PAGE_SIZE as FIRST_PAGE_SIZE, PROVINCES, STREAMS } from "..
 import { loadFacets, loadFirst, loadSearchCounts, loadStats, type SearchRow } from "../data";
 import type { AppEnv, Env } from "../env";
 import {
-  clientStrings, indicatorLabel, numberLocale, provinceName, streamLabel, t, tj, tn, type Key, type Lang,
+  clientStrings, indicatorLabel, indicatorShortLabel, numberLocale, provinceName, streamLabel, t, tj, tn, type Key, type Lang,
 } from "../i18n";
-import { Badge, Chip, ClientData, Layout, fmtInt, fmtWage, noDataPage, page, periodLabel } from "../layout";
+import { Badge, Chip, ClientData, Layout, fmtInt, fmtWage, noDataPage, page, periodLabel, slashBreaks } from "../layout";
 import {
   PAGE_SIZE, STATUSES, YEAR_MIN, parseQuery, runSearch, type Facets, type SearchQuery, type SearchResult,
 } from "../search_db";
@@ -29,7 +29,9 @@ export const SEARCH_CLIENT_KEYS: readonly Key[] = [
   "status.pending", "status.approved", "status.refused", "status.lapsed",
   "ind.newly_incorporated", "ind.repeat_applicant", "ind.wage_at_floor", "ind.low_wage_high_unemployment",
   "ind.high_volume", "ind.refused_then_reposted",
-  "col.status", "col.employer", "col.job_or_occupation", "col.location", "col.wage", "col.date", "col.positions",
+  "ind_short.newly_incorporated", "ind_short.wage_at_floor", "ind_short.low_wage_high_unemployment",
+  "ind_short.refused_then_reposted",
+  "col.status", "col.employer", "places.col_occupation", "col.location", "col.wage", "col.date", "col.positions",
   "col.indicators", "col.source",
   "common.na", "common.see_posting",
   "period.quarter", "period.range",
@@ -37,7 +39,8 @@ export const SEARCH_CLIENT_KEYS: readonly Key[] = [
   "wage.unit.DAY", "wage.unit.BIWEEK", "wage.unit.WEEKLY", "wage.unit.BIWEEKLY", "wage.unit.SEMIMONTH",
   "search.records_one", "search.records_many", "search.records_capped", "search.total_capped", "search.note_all",
   "search.no_match", "search.showing", "search.page_of", "search.page",
-  "search.source_jobbank", "search.source_positive", "search.source_negative",
+  "search.source_jobbank", "search.source_positive", "search.source_negative", "search.source_jobbank_short",
+  "search.source_esdc_short",
   "search.unavailable", "search.unavailable_kept",
 ];
 
@@ -50,9 +53,21 @@ export function sourceLabel(lang: Lang, r: Pick<SearchRow, "kind" | "ref" | "sta
   return t(lang, r.status === "refused" ? "search.source_negative" : "search.source_positive", { period: r.period ?? "" });
 }
 
+// The location cell shows the city, province and postal code. A street, when
+// the row has one, goes in the cell's title with the full address (the
+// employer page shows it too).
+export function placeLabel(r: Pick<SearchRow, "city" | "prov" | "postal">): string {
+  return [r.city, r.prov].filter(Boolean).join(", ") + (r.postal ? ` ${r.postal}` : "");
+}
+
+export function addressLabel(r: Pick<SearchRow, "street" | "city" | "prov" | "postal">): string {
+  return [r.street, r.city, r.prov].filter(Boolean).join(", ") + (r.postal ? ` ${r.postal}` : "");
+}
+
 // Each cell carries its column header as data-label, so on a phone the row
 // restacks as a labelled block. search.js builds the same row with the same
-// labels; keep the two in step with the table header below.
+// labels, short forms and titles; keep the two in step with the table
+// header below.
 export const SearchRowView = ({ r, lang }: { r: SearchRow; lang: Lang }) => (
   <tr>
     <td data-label={t(lang, "col.status")}>
@@ -61,34 +76,36 @@ export const SearchRowView = ({ r, lang }: { r: SearchRow; lang: Lang }) => (
     <td data-label={t(lang, "col.employer")}>
       <a href={`/employers/${r.employer_id}`}>{r.employer}</a>
     </td>
-    <td data-label={t(lang, "col.job_or_occupation")}>
+    <td data-label={t(lang, "places.col_occupation")}>
       {r.kind === "esdc" && r.noc ? `${r.noc} ` : ""}
-      {r.job ?? ""}
+      {slashBreaks(r.job ?? "")}
     </td>
-    <td data-label={t(lang, "col.location")}>
-      {[r.street, r.city].filter(Boolean).join(", ")}
-      {r.prov ? `, ${r.prov}` : ""}
-      {r.postal ? ` ${r.postal}` : ""}
+    <td data-label={t(lang, "col.location")} title={r.street ? addressLabel(r) : undefined}>
+      {placeLabel(r)}
     </td>
     <td data-label={t(lang, "col.wage")} class="mono">
       {r.kind === "posting" ? fmtWage(r.wage_min, r.wage_max, r.unit, lang) : t(lang, "common.na")}
     </td>
-    <td data-label={t(lang, "col.date")} class="mono">{r.kind === "posting" ? r.date ?? "" : periodLabel(r.period ?? "", lang)}</td>
-    <td data-label={t(lang, "col.positions")} class="mono num">
+    <td data-label={t(lang, "col.date")} class={r.kind === "posting" ? "mono" : "mono period"}>
+      {r.kind === "posting" ? r.date ?? "" : periodLabel(r.period ?? "", lang)}
+    </td>
+    <td data-label={t(lang, "col.positions")} class="mono">
       {r.positions === null ? t(lang, "common.see_posting") : fmtInt(r.positions, lang)}
     </td>
     <td data-label={t(lang, "col.indicators")}>
       {r.ind.length ? (
         <span class="chips">
-          {r.ind.map((i) => (
-            <Chip>{indicatorLabel(lang, i)}</Chip>
-          ))}
+          {r.ind.map((i) => {
+            const short = indicatorShortLabel(lang, i);
+            const full = indicatorLabel(lang, i);
+            return <Chip title={short === full ? undefined : full}>{short}</Chip>;
+          })}
         </span>
       ) : null}
     </td>
     <td data-label={t(lang, "col.source")}>
-      <a href={r.source} class="mono" rel="nofollow noopener">
-        {sourceLabel(lang, r)}
+      <a href={r.source} class="mono" rel="nofollow noopener" title={sourceLabel(lang, r)}>
+        {t(lang, r.kind === "posting" ? "search.source_jobbank_short" : "search.source_esdc_short")}
       </a>
     </td>
   </tr>
@@ -211,10 +228,13 @@ export async function searchPage(c: Context<AppEnv>): Promise<Response> {
   ].filter(Boolean).length;
 
   const count = (kind: "status" | "prov", key: string) => (view.facets ? n(view.facets[kind][key] ?? 0) : "");
+  // Each filter label holds its input, the label text in a .lbl box and, for
+  // statuses and provinces, the count search.js keeps current, so the counts
+  // line up in a column on the right.
   const check = (name: string, value: string, label: unknown, checked: boolean, countKey?: "status" | "prov") => (
     <label class="check">
       <input type="checkbox" name={name} value={value} checked={checked} />
-      {label}
+      <span class="lbl">{label}</span>
       {countKey ? <span class="mono muted" data-count={`${name}:${value}`}> {count(countKey, value)}</span> : null}
     </label>
   );
@@ -287,7 +307,8 @@ export async function searchPage(c: Context<AppEnv>): Promise<Response> {
                 ] as const
               ).map(([v, label]) => (
                 <label class="check">
-                  <input type="radio" name="date" value={v} checked={query.date === v} /> {label}
+                  <input type="radio" name="date" value={v} checked={query.date === v} />
+                  <span class="lbl">{label}</span>
                 </label>
               ))}
               <p class="muted small filter-hint">{t(lang, "search.year_hint")}</p>
@@ -301,11 +322,13 @@ export async function searchPage(c: Context<AppEnv>): Promise<Response> {
             <fieldset>
               <legend>{t(lang, "col.indicators")}</legend>
               <label class="check">
-                <input type="radio" name="indicator" value="" checked={!query.indicator} /> {t(lang, "search.any_state")}
+                <input type="radio" name="indicator" value="" checked={!query.indicator} />
+                <span class="lbl">{t(lang, "search.any_state")}</span>
               </label>
               {INDICATORS.map((i) => (
                 <label class="check">
-                  <input type="radio" name="indicator" value={i} checked={query.indicator === i} /> {indicatorLabel(lang, i)}
+                  <input type="radio" name="indicator" value={i} checked={query.indicator === i} />
+                  <span class="lbl">{indicatorLabel(lang, i)}</span>
                 </label>
               ))}
             </fieldset>
@@ -341,11 +364,11 @@ export async function searchPage(c: Context<AppEnv>): Promise<Response> {
                   <tr>
                     <th>{t(lang, "col.status")}</th>
                     <th>{t(lang, "col.employer")}</th>
-                    <th>{t(lang, "col.job_or_occupation")}</th>
+                    <th>{t(lang, "places.col_occupation")}</th>
                     <th>{t(lang, "col.location")}</th>
                     <th>{t(lang, "col.wage")}</th>
                     <th>{t(lang, "col.date")}</th>
-                    <th class="num">{t(lang, "col.positions")}</th>
+                    <th>{t(lang, "col.positions")}</th>
                     <th>{t(lang, "col.indicators")}</th>
                     <th>{t(lang, "col.source")}</th>
                   </tr>

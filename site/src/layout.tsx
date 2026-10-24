@@ -24,7 +24,14 @@ export const Badge: FC<{ status: string; lang: Lang }> = ({ status, lang }) => {
   return <span class={`badge badge-${status}`}>{t(lang, key)}</span>;
 };
 
-export const Chip: FC<PropsWithChildren> = ({ children }) => <span class="chip">{children}</span>;
+export const Chip: FC<PropsWithChildren<{ title?: string }>> = ({ children, title }) => (
+  <span class="chip" title={title}>{children}</span>
+);
+
+// Titles join gendered forms with a slash ("Cuisiniers/cuisinières",
+// "vineyard foreman/woman"), which gives a narrow column no place to break
+// the line. A <wbr> after each slash adds one without a visible character.
+export const slashBreaks = (s: string) => s.split("/").flatMap((part, i) => (i ? ["/", <wbr />, part] : [part]));
 
 const INDICATOR_IDS = [
   "newly_incorporated",
@@ -171,7 +178,7 @@ export const Layout: FC<
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>{title}</title>
-        <link rel="stylesheet" href="/styles.css?v=17" />
+        <link rel="stylesheet" href="/styles.css?v=18" />
         <script src="/theme.js"></script>
         <script src="/links.js" defer></script>
         <link rel="preload" href="/fonts/public-sans-latin-var.woff2" as="font" type="font/woff2" crossorigin="anonymous" />

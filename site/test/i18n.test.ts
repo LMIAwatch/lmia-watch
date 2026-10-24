@@ -3,9 +3,10 @@ import mapJs from "../public/map.js?raw";
 import searchJs from "../public/search.js?raw";
 import { app } from "../src/index";
 import {
-  SAME_IN_BOTH, allKeys, basisText, fmtInt, fmtWage, frTypography, periodLabel, provinceName, rawEntry, streamLabel, t,
-  type Key,
+  SAME_IN_BOTH, allKeys, basisText, fmtInt, fmtWage, frTypography, indicatorLabel, indicatorShortLabel, periodLabel, provinceName,
+  rawEntry, streamLabel, t, type Key,
 } from "../src/i18n";
+import { INDICATORS } from "../src/constants";
 import { MAP_CLIENT_KEYS } from "../src/pages/map";
 import { SEARCH_CLIENT_KEYS } from "../src/pages/search";
 import { emptyAssets, testEnv } from "./assets";
@@ -171,6 +172,27 @@ describe("formats", () => {
     expect(fmtWage(1500, 1500, "BIWEEKLY", "en")).toBe("$1500.00 biweek");
   });
 
+  it("shortens the long indicator labels for the search results, both languages", () => {
+    expect(indicatorShortLabel("en", "low_wage_high_unemployment")).toBe("Low wage, high unemployment");
+    expect(indicatorShortLabel("en", "wage_at_floor")).toBe("At the wage floor");
+    expect(indicatorShortLabel("en", "newly_incorporated")).toBe("Newly incorporated");
+    expect(indicatorShortLabel("en", "refused_then_reposted")).toBe("Refused, re-posted");
+    expect(indicatorShortLabel("fr", "low_wage_high_unemployment")).toBe("Bas salaire, chômage élevé");
+    expect(indicatorShortLabel("fr", "wage_at_floor")).toBe("Salaire au plancher");
+    expect(indicatorShortLabel("fr", "newly_incorporated")).toBe("Constitué récemment");
+    expect(indicatorShortLabel("fr", "refused_then_reposted")).toBe("Refus, nouvelle offre");
+    for (const lang of ["en", "fr"] as const) {
+      // Short already: the full label.
+      for (const id of ["high_volume", "repeat_applicant"]) expect(indicatorShortLabel(lang, id)).toBe(indicatorLabel(lang, id));
+      for (const id of INDICATORS) expect(indicatorShortLabel(lang, id).length).toBeLessThanOrEqual(indicatorLabel(lang, id).length);
+    }
+    expect(indicatorShortLabel("en", "something_new")).toBe("something_new");
+    expect(t("en", "search.source_jobbank_short")).toBe("Job Bank");
+    expect(t("fr", "search.source_jobbank_short")).toBe("Guichet-Emplois");
+    expect(t("en", "search.source_esdc_short")).toBe("ESDC");
+    expect(t("fr", "search.source_esdc_short")).toBe("EDSC");
+  });
+
   it("names provinces and streams in French", () => {
     expect(provinceName("fr", "BC")).toBe("Colombie-Britannique");
     expect(provinceName("fr", "PE")).toBe("Île-du-Prince-Édouard");
@@ -296,7 +318,7 @@ describe("client scripts", () => {
   it("ask only for strings their page supplies", () => {
     const search = new Set<string>(SEARCH_CLIENT_KEYS);
     for (const key of literalKeys(searchJs)) expect(search.has(key), `search.js uses ${key}`).toBe(true);
-    for (const key of allKeys().filter((k) => /^(ind\.|wage\.unit\.)/.test(k))) expect(search.has(key), key).toBe(true);
+    for (const key of allKeys().filter((k) => /^(ind\.|ind_short\.|wage\.unit\.)/.test(k))) expect(search.has(key), key).toBe(true);
     for (const s of ["pending", "approved", "refused", "lapsed"]) expect(search.has(`status.${s}`)).toBe(true);
     const map = new Set<string>(MAP_CLIENT_KEYS);
     for (const key of literalKeys(mapJs)) expect(map.has(key), `map.js uses ${key}`).toBe(true);
@@ -359,7 +381,8 @@ describe("rendered French pages", () => {
     const search = nbsp(await (await get("/search?lang=fr")).text());
     expect(search).toContain("5 dossiers");
     expect(search).toContain("Colombie-Britannique");
-    expect(search).toContain("Guichet-Emplois 50456228");
+    expect(search).toContain('title="Guichet-Emplois 50456228">Guichet-Emplois</a>');
+    expect(search).toContain("<th>Profession</th>");
     expect(search).toContain("38,00 à 40,00 $/h");
     expect(search).toContain("Télécharger ces résultats (CSV)");
     expect(search).toContain("Page 1 sur 1");
