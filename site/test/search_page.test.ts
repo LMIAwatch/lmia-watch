@@ -213,7 +213,7 @@ describe("the first view from the search database", () => {
   it("draws short cells with the full text in each title, and a header that fits", async () => {
     const t = (await html("/search")).text;
     expect(t).toContain("<th>Status</th><th>Employer</th><th>Occupation</th><th>Location</th><th>Wage</th><th>Date</th>" +
-      "<th>Positions</th><th>Indicators</th><th>Source</th>");
+      "<th class=\"num\">Positions</th><th>Indicators</th><th>Source</th>");
     expect(t).not.toContain("Job or occupation");
     const body = tbody(t);
     // A slash in a title is a place to break the line, not a new character.
@@ -226,8 +226,8 @@ describe("the first view from the search database", () => {
     // A posting's date never wraps; a list's period may (the CSS reads the class).
     expect(body).toContain('<td data-label="Date" class="mono">2026-10-20</td>');
     expect(body).toMatch(/<td data-label="Date" class="mono period">\d{4} Q\d<\/td>/);
-    // Positions are left-aligned, with no num class.
-    expect(body).toContain('<td data-label="Positions" class="mono">see posting</td>');
+    // Positions keep their right alignment beside the date column.
+    expect(body).toContain('<td data-label="Positions" class="mono num">see posting</td>');
     expect(t.match(/<table class="restack">[\s\S]*?<\/table>/)?.[0]).not.toMatch(/class="[^"]*\bnum\b/);
     // Long indicator labels shorten, the full label in the chip's title; short ones stay as they are.
     expect(body).toContain('<span class="chips"><span class="chip" title="Low-wage stream in a high-unemployment region">Low wage, high unemployment</span>' +

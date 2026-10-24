@@ -89,7 +89,7 @@ export const SearchRowView = ({ r, lang }: { r: SearchRow; lang: Lang }) => (
     <td data-label={t(lang, "col.date")} class={r.kind === "posting" ? "mono" : "mono period"}>
       {r.kind === "posting" ? r.date ?? "" : periodLabel(r.period ?? "", lang)}
     </td>
-    <td data-label={t(lang, "col.positions")} class="mono">
+    <td data-label={t(lang, "col.positions")} class="mono num">
       {r.positions === null ? t(lang, "common.see_posting") : fmtInt(r.positions, lang)}
     </td>
     <td data-label={t(lang, "col.indicators")}>
@@ -368,7 +368,7 @@ export async function searchPage(c: Context<AppEnv>): Promise<Response> {
                     <th>{t(lang, "col.location")}</th>
                     <th>{t(lang, "col.wage")}</th>
                     <th>{t(lang, "col.date")}</th>
-                    <th>{t(lang, "col.positions")}</th>
+                    <th class="num">{t(lang, "col.positions")}</th>
                     <th>{t(lang, "col.indicators")}</th>
                     <th>{t(lang, "col.source")}</th>
                   </tr>

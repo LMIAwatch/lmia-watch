@@ -197,7 +197,7 @@
       if (r.street) tdL.title = place(r, true);
       cell(tr, wage(r), "mono", COLUMN.wage);
       cell(tr, r.kind === "posting" ? (r.date || "") : periodLabel(r.period), r.kind === "posting" ? "mono" : "mono period", COLUMN.date);
-      cell(tr, r.positions == null ? tx("common.see_posting") : fmt(r.positions), "mono", COLUMN.positions);
+      cell(tr, r.positions == null ? tx("common.see_posting") : fmt(r.positions), "mono num", COLUMN.positions);
       var tdI = td(COLUMN.indicators);
       if ((r.ind || []).length) {
         var chips = document.createElement("span");
