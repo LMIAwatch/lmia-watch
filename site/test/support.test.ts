@@ -139,12 +139,12 @@ describe("support page", () => {
   it("is in the main navigation after Data & About, in both languages, and in the footer", async () => {
     const html = await (await get("/")).text();
     const nav = mainNav(html);
-    expect(nav).toContain(">Support</a>");
-    expect(nav.indexOf(">Data &amp; About</a>")).toBeLessThan(nav.indexOf(">Support</a>"));
+    expect(nav).toContain(">Donate</a>");
+    expect(nav.indexOf(">Data &amp; About</a>")).toBeLessThan(nav.indexOf(">Donate</a>"));
     expect(html).toContain('<a href="/support">Support the Site</a>');
 
     const fr = mainNav(await (await get("/", { cookie: "lang=fr" })).text());
-    expect(fr).toContain(">Soutenir</a>");
+    expect(fr).toContain(">Faire un don</a>");
 
     const own = mainNav(await (await get("/support")).text());
     expect(own).toContain('href="/support" class="active"');

@@ -29,7 +29,7 @@ const STRINGS = {
   "nav.releases": { en: "Releases", fr: "Publications" },
   "nav.methodology": { en: "Methodology", fr: "Méthodologie" },
   "nav.data": { en: "Data & About", fr: "Données et à propos" },
-  "nav.support": { en: "Support", fr: "Soutenir" },
+  "nav.support": { en: "Donate", fr: "Faire un don" },
   "nav.lang": { en: "FR", fr: "EN" },
   "nav.dark": { en: "Dark", fr: "Sombre" },
   "nav.light": { en: "Light", fr: "Clair" },
