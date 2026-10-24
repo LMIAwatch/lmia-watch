@@ -297,11 +297,11 @@ export function wageLine(lang: Lang, row: WageRow): string | null {
 
 // -- shared sections -----------------------------------------------------------------
 
-// Approved positions as bars (newest last) and every figure in a table; a long
-// history shows the newest rows open and the rest collapsed.
+// Approved positions as bars and every figure in a table, both newest first;
+// a long history shows the newest rows open and the rest collapsed.
 export const QuarterSection = ({ lang, quarters, open = 12 }: { lang: Lang; quarters: Quarter[]; open?: number }) => {
   const n = (v: number) => fmtInt(v, lang);
-  const recent = quarters.slice(-open);
+  const recent = quarters.slice(-open).reverse();
   const max = Math.max(1, ...recent.map((q) => q[2]));
   const rows = [...quarters].reverse();
   const head = (

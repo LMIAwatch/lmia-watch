@@ -326,6 +326,12 @@ describe("place pages", () => {
 
   it("read a metropolitan area with its vacancies and unemployment rate", async () => {
     const html = await text("/places/mb/winnipeg-cma");
+    // The quarterly bars run newest first, like the table under them.
+    const bars = [...html.matchAll(/<span class="bar-label mono">([^<]+)<\/span>/g)].map((m) => m[1]);
+    const firstRow = html.match(/<td class="mono">([0-9]{4} Q[1-4])<\/td>/);
+    expect(bars.length).toBeGreaterThan(1);
+    expect(bars[0]).toBe(firstRow?.[1]);
+    expect(bars[0] > bars[bars.length - 1]).toBe(true);
     expect(html).toContain("<h1>Winnipeg (census metropolitan area)</h1>");
     expect(html).toContain("Job vacancies counted by Statistics Canada in all occupations, 2026 Q2: 11,315 (Winnipeg economic region), at an average offered wage of $26.00/h.");
     expect(html).toContain("A year earlier: 12,200 vacancies.");
