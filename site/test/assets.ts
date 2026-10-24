@@ -36,17 +36,35 @@ const FILES: Record<string, unknown> = {
   "program/index.json": program,
 };
 
-export const fakeAssets = {
-  fetch: async (input: RequestInfo | URL) => {
-    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-    const path = new URL(url).pathname.replace(/^\/data\//, "");
-    const text = TEXT_FILES[path];
-    if (text !== undefined) return new Response(text, { headers: { "content-type": "application/xml" } });
-    const file = FILES[path];
-    if (file === undefined) return new Response("not found", { status: 404 });
-    return new Response(JSON.stringify(file), { headers: { "content-type": "application/json" } });
-  },
-} as unknown as Fetcher;
+// The assets binding sends a strong ETag that changes with the file's
+// content, and loadJson keeps parsed files by it. The fake derives its ETag
+// from the body in the same way, so a fixture a test changes gets a new one.
+export async function contentEtag(body: string): Promise<string> {
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(body)));
+  return `"${[...digest.slice(0, 16)].map((b) => b.toString(16).padStart(2, "0")).join("")}"`;
+}
+
+// The fixtures above, each with its content's ETag. A path named in etags
+// gets that ETag instead, or none when it is null.
+export function makeFakeAssets(etags: Record<string, string | null> = {}): Fetcher {
+  const respond = async (body: string, path: string, type: string) => {
+    const etag = path in etags ? etags[path] : await contentEtag(body);
+    return new Response(body, { headers: { "content-type": type, ...(etag === null ? {} : { etag }) } });
+  };
+  return {
+    fetch: async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      const path = new URL(url).pathname.replace(/^\/data\//, "");
+      const text = TEXT_FILES[path];
+      if (text !== undefined) return respond(text, path, "application/xml");
+      const file = FILES[path];
+      if (file === undefined) return new Response("not found", { status: 404 });
+      return respond(JSON.stringify(file), path, "application/json");
+    },
+  } as unknown as Fetcher;
+}
+
+export const fakeAssets = makeFakeAssets();
 
 export const emptyAssets = {
   fetch: async () => new Response("not found", { status: 404 }),

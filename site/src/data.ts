@@ -181,17 +181,105 @@ export async function assetResponse(env: Env, path: string): Promise<Response | 
   }
 }
 
+// Parsed files are kept for the life of the isolate and shared by every
+// request it serves, so a crawler walking pages that read the same file pays
+// for parsing it once. Each read still fetches the asset and compares its
+// ETag with the kept one: the assets layer gives a file a new ETag whenever
+// its content changes, and a deploy ships changed files, so a stale value is
+// never served and no expiry time is needed. A response without an ETag is
+// parsed and not kept.
+//
+// Memory: the largest file a page parses is a profile shard of about 250 KB,
+// and parsed JSON measured about 1.35 times its text in V8, so 64 entries of
+// that size are about 16 MB of text and 22 MB of heap. Entries are capped at
+// 2 MB of text and the whole cache at 24 MB of text (about 32 MB of heap),
+// well inside the isolate's 128 MB whatever the files become; 64 entries of
+// 2 MB with no total cap would be 128 MB of text, more than the isolate
+// holds. A file past the entry cap still loads; it is parsed on every read.
+// Sizes are the text's length, known for every response (the assets binding
+// in the test runtime sends no Content-Length).
+const CACHE_MAX_ENTRIES = 64;
+const CACHE_MAX_ENTRY_CHARS = 2 * 1024 * 1024;
+const CACHE_MAX_TOTAL_CHARS = 24 * 1024 * 1024;
+
+interface Parsed {
+  etag: string;
+  value: unknown;
+  chars: number;
+}
+
+// A Map iterates in insertion order, and a hit is moved to the end, so the
+// first key is always the least recently used.
+const parsed = new Map<string, Parsed>();
+let parsedChars = 0;
+
+function forget(path: string): void {
+  const old = parsed.get(path);
+  if (!old) return;
+  parsed.delete(path);
+  parsedChars -= old.chars;
+}
+
+function keep(path: string, entry: Parsed): void {
+  forget(path);
+  parsed.set(path, entry);
+  parsedChars += entry.chars;
+  for (const [oldest, e] of parsed) {
+    if (parsed.size <= CACHE_MAX_ENTRIES && parsedChars <= CACHE_MAX_TOTAL_CHARS) break;
+    parsed.delete(oldest);
+    parsedChars -= e.chars;
+  }
+}
+
+// For the tests: the cache starts empty in each one that asks.
+export function clearParsedCache(): void {
+  parsed.clear();
+  parsedChars = 0;
+}
+
+// A kept value is shared between requests, so it is frozen all the way down:
+// a page that changed it in place would change it for every later request,
+// and in strict mode (every module is) the attempt throws instead. Every
+// loaded value is frozen, kept or not, so a page behaves the same either way
+// and the tests, whose fake files often carry no ETag, see what production
+// sees. A parsed file is a tree, so no node is visited twice.
+function deepFreeze<T>(root: T): T {
+  const stack: unknown[] = [root];
+  while (stack.length > 0) {
+    const v = stack.pop() as object;
+    Object.freeze(v);
+    for (const child of Object.values(v)) if (typeof child === "object" && child !== null) stack.push(child);
+  }
+  return root;
+}
+
 // A file that does not parse (a truncated or corrupt deploy) reads as missing,
 // so a page answers "not published" or "not found" instead of an error page.
+// The value returned is frozen and may be shared: copy before changing it.
 export async function loadJson<T>(env: Env, path: string): Promise<T | null> {
   const res = await assetResponse(env, path);
   if (!res) return null;
+  const etag = res.headers.get("etag");
+  const hit = etag ? parsed.get(path) : undefined;
+  if (hit && hit.etag === etag) {
+    parsed.delete(path);
+    parsed.set(path, hit);
+    await res.body?.cancel().catch(() => undefined);
+    return hit.value as T;
+  }
+  forget(path);
+  let text: string;
+  let value: unknown;
   try {
-    return (await res.json()) as T;
+    text = await res.text();
+    value = JSON.parse(text);
   } catch (e) {
     console.error(`asset ${path} is not valid JSON: ${String(e).slice(0, 200)}`);
     return null;
   }
+  if (typeof value === "object" && value !== null) deepFreeze(value);
+  if (etag && text.length <= CACHE_MAX_ENTRY_CHARS) keep(path, { etag, value, chars: text.length });
+  return value as T;
 }
 
 const OPTIONAL_COUNTS = ["grant_employers", "grant_agreements", "alberta_employers", "carrier_employers", "pending_with_noc"] as const;
@@ -202,9 +290,13 @@ export async function loadStats(env: Env): Promise<Stats | null> {
   const stats = await loadJson<Stats>(env, "stats.json");
   if (!isObj(stats) || !isObj(stats.counts)) return null;
   // Optional counts: a value that is not a number reads as absent, so it
-  // hides the home page's tile or chart instead of failing every page.
-  for (const k of OPTIONAL_COUNTS) if (!optional(stats.counts[k], isNum)) delete stats.counts[k];
-  return stats;
+  // hides the home page's tile or chart instead of failing every page. The
+  // loaded file is shared and frozen, so they are dropped from a copy.
+  const bad = OPTIONAL_COUNTS.filter((k) => !optional(stats.counts[k], isNum));
+  if (bad.length === 0) return stats;
+  const counts: Record<string, unknown> = { ...stats.counts };
+  for (const k of bad) delete counts[k];
+  return { ...stats, counts } as Stats;
 }
 
 // The search page's fallback reads the default scope's total and its status
@@ -356,10 +448,16 @@ export async function loadProfile(env: Env, id: string): Promise<Profile | null>
   // must be readable whole, like the lists above.
   if (!PUBLIC_LISTS.every((k) => optional(profile[k], (v) => isListOf(v, PUBLIC_ROWS[k])))) return null;
   if (!optional(profile.grants_total, isNum)) return null;
-  for (const k of PUBLIC_LISTS) profile[k] ??= [];
-  // The count of agreements is never below the agreements listed.
-  profile.grants_total = Math.max(profile.grants_total ?? 0, profile.grants.length);
-  return profile as unknown as Profile;
+  // The shard is shared and frozen, so the lists filled in go on a copy.
+  const grants: unknown[] = profile.grants ?? [];
+  return {
+    ...profile,
+    grants,
+    alberta: profile.alberta ?? [],
+    us_carrier: profile.us_carrier ?? [],
+    // The count of agreements is never below the agreements listed.
+    grants_total: Math.max(profile.grants_total ?? 0, grants.length),
+  } as unknown as Profile;
 }
 
 // The id that took a retired employer id's records (ids change when employer

@@ -253,6 +253,24 @@ describe("page metadata", () => {
   });
 });
 
+// Whether a group's rules let a crawler fetch a path, as Google and Bing read
+// them: the longest matching pattern wins, Allow on a tie; "*" matches any
+// run of characters and a final "$" anchors the end. With no match, allowed.
+function robotsAllow(rules: string[], path: string): boolean {
+  let best = { length: -1, allow: true };
+  for (const rule of rules) {
+    const m = /^(Allow|Disallow):\s*(\S*)$/.exec(rule);
+    if (!m || m[2] === "") continue;
+    const pattern = m[2];
+    const anchored = pattern.endsWith("$");
+    const parts = (anchored ? pattern.slice(0, -1) : pattern).split("*").map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    if (!new RegExp(`^${parts.join(".*")}${anchored ? "$" : ""}`).test(path)) continue;
+    const allow = m[1] === "Allow";
+    if (pattern.length > best.length || (pattern.length === best.length && allow)) best = { length: pattern.length, allow };
+  }
+  return best.allow;
+}
+
 describe("crawler files", () => {
   it("/sitemap.xml is the index and each part streams from data/sitemaps", async () => {
     const index = await get("/sitemap.xml");
@@ -275,18 +293,33 @@ describe("crawler files", () => {
     expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
     const text = await res.text();
     const rules = text.split("\n").filter((l) => l && !l.startsWith("#"));
-    // Everyone may crawl the pages, at a polite pace; the hooks, API, downloads and the response form are not pages.
-    expect(rules.slice(0, 7)).toEqual([
+    // Everyone may crawl the pages, at a polite pace; the hooks, API, downloads and the response form are not pages,
+    // and the search's filter and cursor combinations all name /search as their canonical URL.
+    expect(rules.slice(0, 9)).toEqual([
       "User-agent: *",
       "Allow: /",
       "Disallow: /hooks/",
       "Disallow: /api/",
       "Disallow: /downloads/",
       "Disallow: /employers/*/respond",
+      "Disallow: /search?",
+      "Allow: /search?lang=fr$",
       "Crawl-delay: 5",
     ]);
+    const lines = text.split("\n");
+    expect(lines).toContain("Disallow: /search?");
+    expect(lines).toContain("Allow: /search?lang=fr$");
+    // The search page itself is never shut out.
+    expect(lines).not.toContain("Disallow: /search");
+    const everyone = rules.slice(0, rules.indexOf("Crawl-delay: 5"));
+    for (const path of ["/", "/search", "/search?lang=fr", "/employers/x", "/employers/x?lang=fr", "/places/bc"]) {
+      expect(robotsAllow(everyone, path), path).toBe(true);
+    }
+    for (const path of ["/search?q=a", "/search?lang=fr&q=a", "/search?cursor=abc", "/search?status=pending&province=BC", "/employers/x/respond", "/api/stats"]) {
+      expect(robotsAllow(everyone, path), path).toBe(false);
+    }
     // Training and bulk-scraping crawlers are kept off the Worker entirely.
-    const aiGroup = rules.slice(7, rules.indexOf("Disallow: /") + 1);
+    const aiGroup = rules.slice(9, rules.indexOf("Disallow: /") + 1);
     for (const bot of ["ClaudeBot", "GPTBot", "Google-Extended", "CCBot", "Bytespider"]) expect(aiGroup).toContain(`User-agent: ${bot}`);
     expect(aiGroup[aiGroup.length - 1]).toBe("Disallow: /");
     expect(rules[rules.length - 1]).toBe("Sitemap: https://lmiawatch.ca/sitemap.xml");

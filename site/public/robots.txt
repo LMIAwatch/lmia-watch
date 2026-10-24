@@ -7,6 +7,11 @@ Disallow: /hooks/
 Disallow: /api/
 Disallow: /downloads/
 Disallow: /employers/*/respond
+# A search with filters or a page cursor names /search as its canonical URL,
+# so crawlers need not walk the combinations. The search page itself and its
+# French version (/search?lang=fr) stay open.
+Disallow: /search?
+Allow: /search?lang=fr$
 Crawl-delay: 5
 
 # Crawlers that gather pages for AI training or large-scale scraping are not
