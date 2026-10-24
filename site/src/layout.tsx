@@ -171,7 +171,7 @@ export const Layout: FC<
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>{title}</title>
-        <link rel="stylesheet" href="/styles.css?v=15" />
+        <link rel="stylesheet" href="/styles.css?v=16" />
         <script src="/theme.js"></script>
         <script src="/links.js" defer></script>
         <link rel="preload" href="/fonts/public-sans-latin-var.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
@@ -228,7 +228,13 @@ export const Layout: FC<
             <a href="/corrections">{t(lang, "footer.corrections")}</a>
             <a href="/cite">{t(lang, "footer.cite")}</a>
             <a href="/support">{t(lang, "footer.support")}</a>
-            <span class="footer-copyright">{t(lang, "footer.copyright")}</span>
+            <span class="footer-copyright">
+              {/* The maple leaf of the flag, the same path the marketing site uses. */}
+              <svg class="leaf" viewBox="2900 380 3800 3960" width="13" height="14" aria-hidden="true">
+                <path fill="currentColor" d="m 4800,595 -299,551 c -34,61 -95,55 -156,22 l -216,-112 161,855 c 34,156 -75,156 -128,88 l -378,-423 -61,214 c -7,28 -38,57 -82,51 l -475,-100 125,454 c 27,101 48,143 -27,170 l -170,60 820,666 c 32,25 48,70 37,110 l -72,235 802,-92 c 68,-8 91,29 92,86 l -37,845 h 136 l -36,-845 c 1,-57 24,-94 92,-86 l 802,92 -72,-235 c -11,-40 5,-85 37,-110 l 820,-666 -170,-60 c -75,-27 -54,-69 -27,-170 l 125,-454 -475,100 c -44,6 -75,-23 -82,-51 l -61,-214 -378,423 c -53,68 -162,68 -128,-88 l 161,-855 -216,112 c -61,33 -122,39 -156,-22 z" />
+              </svg>
+              {t(lang, "footer.copyright")}
+            </span>
             <a href={X_ACCOUNT_URL} class="footer-x" target="_blank" rel="noopener" aria-label={t(lang, "footer.x")} title={t(lang, "footer.x")}>
               <XMark />
             </a>
