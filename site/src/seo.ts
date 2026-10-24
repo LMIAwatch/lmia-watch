@@ -6,7 +6,7 @@
 // the dictionary in i18n.ts; the result-list titles and descriptions live here.
 
 import type { Context } from "hono";
-import { assetResponse, type Profile } from "./data";
+import { assetResponse, lmiaGap, type Profile } from "./data";
 import type { AppEnv } from "./env";
 import { fmtInt, frTypography, provinceName, t, type Key, type Lang } from "./i18n";
 import { ESDC_HISTORY_START_YEAR } from "./support";
@@ -373,16 +373,23 @@ function profileFacts(profile: Profile, lang: Lang): { full: string; short: stri
       ? plural(e.pending_count, "offre en attente au Guichet-Emplois", "offres en attente au Guichet-Emplois", lang)
       : plural(e.pending_count, "pending Job Bank posting", "pending Job Bank postings", lang));
   }
-  if (e.approved_lmias > 0) {
-    const n = fr
-      ? plural(e.approved_lmias, "EIMT approuvée", "EIMT approuvées", lang)
-      : plural(e.approved_lmias, "approved LMIA", "approved LMIAs", lang);
+  // The LMIA counts read as the page's summary card does: rows from files
+  // without an LMIA count add one each, and the figure is then a floor.
+  const gapApproved = lmiaGap(profile.esdc, "positive");
+  const gapRefused = lmiaGap(profile.esdc, "negative");
+  const atLeast = (gap: number, text: string) => (gap > 0 ? `${fr ? "au moins" : "at least"} ${text}` : text);
+  const approved = e.approved_lmias + gapApproved;
+  if (approved > 0) {
+    const n = atLeast(gapApproved, fr
+      ? plural(approved, "EIMT approuvée", "EIMT approuvées", lang)
+      : plural(approved, "approved LMIA", "approved LMIAs", lang));
     add(`${n} (${positions(e.approved_positions)})`, n);
   }
-  if (e.refused_lmias > 0) {
-    const n = fr
-      ? plural(e.refused_lmias, "EIMT refusée", "EIMT refusées", lang)
-      : plural(e.refused_lmias, "refused LMIA", "refused LMIAs", lang);
+  const refused = e.refused_lmias + gapRefused;
+  if (refused > 0) {
+    const n = atLeast(gapRefused, fr
+      ? plural(refused, "EIMT refusée", "EIMT refusées", lang)
+      : plural(refused, "refused LMIA", "refused LMIAs", lang));
     add(`${n} (${positions(e.refused_positions)})`, n);
   }
   if (e.finding_count > 0) {

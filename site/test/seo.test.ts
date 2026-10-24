@@ -109,6 +109,28 @@ describe("page metadata", () => {
     }
   });
 
+  it("profile descriptions show LMIA counts as a floor where ESDC rows carry no count", () => {
+    const base = profiles["emp-a000000005"];
+    const row = base.esdc[0];
+    const uncounted: Profile = {
+      ...base,
+      employer: { ...base.employer, approved_lmias: 19, approved_positions: 760, refused_lmias: 0, refused_positions: 1 },
+      esdc: [
+        { ...row, list: "positive", lmias: null }, { ...row, list: "positive", lmias: null },
+        { ...row, list: "negative", lmias: null, positions: 1 },
+      ],
+    };
+    const en = profileDescription(uncounted, "en");
+    expect(en).toContain("at least 21 approved LMIAs (760 positions)");
+    expect(en).toContain("at least 1 refused LMIA (1 position)");
+    expect(en.length).toBeLessThanOrEqual(DESCRIPTION_MAX);
+    const fr = profileDescription(uncounted, "fr");
+    expect(fr).toContain("au moins 21 EIMT approuvées");
+    expect(fr).toContain("au moins 1 EIMT refusée");
+    // Rows that all carry a count read as before.
+    expect(profileDescription(base, "en")).toContain("19 approved LMIAs (760 positions)");
+  });
+
   it("long names and busy records still fit, dropping the closing sentence first", () => {
     const base = profiles["emp-a000000005"];
     const busy = (name: string): Profile => ({

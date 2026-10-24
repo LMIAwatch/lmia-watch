@@ -438,6 +438,13 @@ const PUBLIC_ROWS: Record<(typeof PUBLIC_LISTS)[number], (v: unknown) => boolean
     isStrOrNull(v.safety_rating_date) && isStrOrNull(v.record_date),
 };
 
+// Rows of one list with no LMIA count (from ESDC files that carry positions
+// only, 2014 through 2021 Q3). Each such row is at least one LMIA, so the
+// employer page and its description show the sum plus these rows as a floor.
+export function lmiaGap(esdc: Profile["esdc"], list: "positive" | "negative" = "positive"): number {
+  return esdc.filter((r) => r.list === list && r.lmias === null).length;
+}
+
 export async function loadProfile(env: Env, id: string): Promise<Profile | null> {
   if (!EMPLOYER_ID_RE.test(id)) return null;
   const shard = await loadJson<Record<string, Profile>>(env, `profiles/${id.slice(4, 7)}.json`);

@@ -1,6 +1,6 @@
 import type { Context } from "hono";
 import {
-  type AlbertaRow, type Area, type CarrierRow, esdcSource, type GrantRow, loadAlias, loadJson, loadProfile, loadStats,
+  type AlbertaRow, type Area, type CarrierRow, esdcSource, type GrantRow, loadAlias, loadJson, loadProfile, lmiaGap, loadStats,
   type Profile,
 } from "../data";
 import type { AppEnv } from "../env";
@@ -236,10 +236,7 @@ const EsdcRecordRow = ({ r, lang }: { r: Profile["esdc"][number]; lang: Lang }) 
 interface ResponseRow { received_at: string; statement: string; contact_name: string | null }
 interface CorrectionRow { received_at: string; record_ref: string | null; request: string; resolution: string | null; resolved_at: string | null }
 
-// Rows of one list with no LMIA count (from files that carry positions only).
-export function lmiaGap(esdc: Profile["esdc"], list: "positive" | "negative" = "positive"): number {
-  return esdc.filter((r) => r.list === list && r.lmias === null).length;
-}
+export { lmiaGap } from "../data";
 
 export function periodEnd(period: string): string {
   const m = /^(\d{4})Q(\d)(?:-Q(\d))?$/.exec(period);
