@@ -120,6 +120,7 @@ also given read access to the account's registrar domains.
 | Stage `jobbank` failed | Job Bank changed its pages or blocked the crawler | Check the run log; the page structure may need a parser update |
 | Stage `esdc` failed | The open-data portal changed a file layout | Same |
 | X post refused | Credits exhausted, keys revoked, or X down | X developer console: credits and app keys |
+| X post unverified | X answered the post with a server error or not at all, and the account's posts could not be read to see whether it went out | Look at the account once. The date is recorded, so no run posts that digest again; a missing post means that pass goes unposted (`docs/x-account.md`) |
 | Bluesky post refused | App password revoked, the handle changed without the `BSKY_HANDLE` secret, or Bluesky down | `docs/bluesky-account.md`: make a new app password, update the secrets |
 | Zenodo deposit failed | Token revoked or expired, Zenodo down, or a field refused | The run log quotes Zenodo's answer; the next night tries again (`docs/zenodo.md`) |
 | Search database sync failed | Wrangler could not apply a batch, or the count read back disagreed | Nothing, usually: the next run sends the changes again (`docs/hosted-search.md`) |

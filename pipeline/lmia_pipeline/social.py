@@ -16,14 +16,22 @@ save the database.
 
 Why the meta table: the date of the Job Bank pass last posted is stored there,
 so a re-run of a night, or a second run on the same data, posts nothing.
+
+Why the post is looked for after a server error: X can answer 5xx, or not at
+all, to a post it has published (it did on 2026-10-24). Calling that a failure
+leaves the date unrecorded, and a re-run would post the digest twice. So the
+account's newest posts are read once and the answer decides; when they cannot
+be read either, the date is recorded and the outcome is "unverified".
 """
 
 from __future__ import annotations
 
+import html
 import logging
 import os
 import re
 import sqlite3
+import time
 import unicodedata
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -42,6 +50,17 @@ POST_URL = "https://api.x.com/2/tweets"
 # Simple upload (images only, multipart with raw bytes) and the alt-text call.
 UPLOAD_URL = "https://api.x.com/2/media/upload"
 METADATA_URL = "https://api.x.com/2/media/metadata"
+# Read only after a post X answered 5xx or not at all, to see whether it went out.
+ME_URL = "https://api.x.com/2/users/me"
+TIMELINE_URL = "https://api.x.com/2/users/{id}/tweets"
+LOOKUP_COUNT = 5  # the endpoint's minimum; the post is the newest unless something else posted since
+# The post can take a moment to show on the account's timeline after X's own
+# timeout, and a lookup that misses it would read as a failure.
+LOOKUP_DELAY = 10.0
+# send_post's answer when the post's fate is unknown: X answered 5xx or not at
+# all and the account's posts could not be read. The date is recorded anyway.
+UNVERIFIED = "unverified"
+TCO_RE = re.compile(r"https?://t\.co/\S*", re.I)
 MAX_CHARS = 280
 # X wraps every link in t.co and counts it as this many characters, whatever its length.
 URL_CHARS = 23
@@ -355,7 +374,9 @@ def credentials_from_env(env: Mapping[str, str] | None = None) -> Credentials | 
 def send_post(text: str, creds: Credentials, *, session: Any | None = None, timeout: float = 30,
               image: bytes | None = None, alt: str | None = None) -> str | None:
     """POST /2/tweets as the account that owns the access token, with the card attached
-    when its upload succeeds. The new post id, or None when the post itself failed."""
+    when its upload succeeds. The new post id ("unknown" when X accepted it without a
+    readable one), UNVERIFIED when X answered 5xx or not at all and the account's posts
+    could not be read, or None when the post failed. A 4xx is a refusal and final."""
     try:
         import requests
         from requests_oauthlib import OAuth1
@@ -377,13 +398,14 @@ def send_post(text: str, creds: Credentials, *, session: Any | None = None, time
                 _alt_text(http, auth, headers, media_id, alt, timeout)
     try:
         resp = http.post(POST_URL, json=payload, auth=auth, timeout=timeout, headers=headers)
-    except Exception as exc:  # network, TLS, signing: all of it is a skipped post, never a failed run
+    except Exception as exc:  # network, TLS, signing: never a failed run
+        # A timeout or a dropped connection can come after X has made the post.
         log.error("x: request failed (%s): %s", type(exc).__name__, str(exc)[:200])
-        return None
+        return _find_post(http, auth, headers, text, timeout)
     status = int(getattr(resp, "status_code", 0) or 0)
     if not 200 <= status < 300:
         log.error("x: HTTP %s: %s", status, _body(resp))
-        return None
+        return _find_post(http, auth, headers, text, timeout) if status >= 500 else None
     try:
         return str(resp.json()["data"]["id"])
     except Exception:
@@ -391,6 +413,51 @@ def send_post(text: str, creds: Credentials, *, session: Any | None = None, time
         # the date is recorded and a re-run does not post it again.
         log.warning("x: HTTP %s without a readable post id: %s", status, _body(resp))
         return "unknown"
+
+
+def _comparable(text: str) -> str:
+    # X returns a post's text with every link rewritten as t.co, a t.co link
+    # appended for an attached image, and &, < and > escaped.
+    return " ".join(html.unescape(TCO_RE.split(text, maxsplit=1)[0]).split())
+
+
+def _find_post(http: Any, auth: Any, headers: dict, text: str, timeout: float) -> str | None:
+    """After a 5xx or no answer, look for the post among the account's newest. Its id
+    when listed, None when the list is read and it is not there, UNVERIFIED when the
+    list cannot be read. A listed post is this one when it starts with the text's
+    first line, which holds the pass's date and counts."""
+    lead = _comparable(text.split("\n", 1)[0])
+    try:
+        time.sleep(LOOKUP_DELAY)
+        me = http.get(ME_URL, auth=auth, timeout=timeout, headers=headers)
+        status = int(getattr(me, "status_code", 0) or 0)
+        if not 200 <= status < 300:
+            raise ValueError(f"users/me HTTP {status}: {_body(me)}")
+        user_id = str(me.json()["data"]["id"])
+        if not user_id.isdigit():
+            raise ValueError("users/me gave no numeric id")
+        resp = http.get(TIMELINE_URL.format(id=user_id), params={"max_results": LOOKUP_COUNT, "tweet.fields": "created_at"},
+                        auth=auth, timeout=timeout, headers=headers)
+        status = int(getattr(resp, "status_code", 0) or 0)
+        if not 200 <= status < 300:
+            raise ValueError(f"timeline HTTP {status}: {_body(resp)}")
+        body = resp.json()
+        posts = body.get("data", [])
+        # An account with no posts answers without "data"; errors without it are no answer.
+        if not isinstance(posts, list) or (not posts and body.get("errors")):
+            raise ValueError(f"timeline without a list of posts: {_body(resp)}")
+    except Exception as exc:
+        log.error("x: the account's posts could not be read to look for the post (%s): %s",
+                  type(exc).__name__, str(exc)[:200])
+        return UNVERIFIED
+    for post in posts:
+        if isinstance(post, dict) and lead and _comparable(str(post.get("text") or "")).startswith(lead):
+            post_id = str(post.get("id") or "unknown")
+            log.warning("x: the post went out despite the error: listed as %s, created %s",
+                        post_id, post.get("created_at") or "at an unknown time")
+            return post_id
+    log.error("x: the post is not among the account's %d newest, so it failed", len(posts))
+    return None
 
 
 def _upload(http: Any, auth: Any, headers: dict, image: bytes, timeout: float) -> str | None:
@@ -523,5 +590,9 @@ def _run(
     set_meta(conn, LAST_POST_KEY, digest.data_date)
     set_meta(conn, LAST_POST_ID_KEY, post_id)
     conn.commit()
+    if post_id == UNVERIFIED:
+        log.warning("x: the Job Bank pass of %s is recorded as posted so a re-run cannot post it twice, "
+                    "but nothing confirms the post; check the account", digest.data_date)
+        return "unverified"
     log.info("x: posted %s for the Job Bank pass of %s", post_id, digest.data_date)
     return "posted"

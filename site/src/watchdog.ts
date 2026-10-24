@@ -107,6 +107,8 @@ export function collectAlerts(i: Inputs): string[] {
     }
     if (i.status.x_post === "failed" || i.status.x_post === "no credentials") {
       out.push(`The daily X post did not go out (${i.status.x_post}). Check the credits in the X developer console and the run log.`);
+    } else if (i.status.x_post === "unverified") {
+      out.push("X answered the daily post with an error and its account could not be read afterwards. Check the account: the post is recorded as made so no run repeats it.");
     }
     if (i.status.bluesky_post === "failed" || i.status.bluesky_post === "no credentials") {
       out.push(`The daily Bluesky post did not go out (${i.status.bluesky_post}). Check the app password in the BSKY_APP_PASSWORD secret and the run log.`);

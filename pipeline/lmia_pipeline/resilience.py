@@ -679,6 +679,9 @@ def attention_items(status: Any) -> list[str]:
              if isinstance(x, dict) and not x.get("ok")]
     if status.get("x_post") in ("failed", "no credentials"):
         items.append(f"X post: {status['x_post']}")
+    elif status.get("x_post") == "unverified":
+        # Recorded as posted so no run repeats it, but X never confirmed it.
+        items.append("X post: unverified after an error from X; check the account")
     if status.get("bluesky_post") in ("failed", "no credentials"):
         items.append(f"Bluesky post: {status['bluesky_post']}")
     if status.get("zenodo_deposit") == "failed":

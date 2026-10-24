@@ -156,13 +156,14 @@ def _command(conn: sqlite3.Connection, args: argparse.Namespace) -> int:
     if args.command == "post-digest":
         outcome = social.run(conn, dry_run=args.dry_run, link=args.link, image=not args.no_image)
         log.info("post-digest: %s", outcome)
-        # The outcome is written for the workflow to record, and a failure exits 1
-        # so the step shows red in the run; the workflow itself carries on, since
-        # the post is optional and the data save is not.
+        # The outcome is written for the workflow to record, and a failure (or a
+        # post X may or may not have made, "unverified") exits 1 so the step shows
+        # red in the run; the workflow itself carries on, since the post is
+        # optional and the data save is not.
         out = config.OUT_DIR / "social"
         out.mkdir(parents=True, exist_ok=True)
         (out / "last_outcome.txt").write_text(outcome + "\n", encoding="utf-8")
-        return 1 if outcome in ("failed", "no credentials") else 0
+        return 1 if outcome in ("failed", "no credentials", "unverified") else 0
 
     # Same shape as post-digest. "failed" is written first and replaced by the
     # real outcome at the end, so a step the workflow kills part way (its time

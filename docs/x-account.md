@@ -174,6 +174,19 @@ in X's records.
 7. The text is in the step's log in the Actions run. A failed post (no
    credits, X refusing, network trouble) exits 1, so the step shows red in the
    run while the refresh carries on, and LAST_RUN.md records the outcome.
+8. X can publish a post and still answer with a server error (it answered
+   503 to a published post on 2026-10-24), and a timeout can come after the
+   post is made. After an answer of HTTP 500 or above, or no answer, the job
+   reads the account's five newest posts once (two API reads, billed as
+   reads) and looks for one that starts with the digest's first line. If it
+   is listed, the outcome is `posted` and the date is recorded; if the list
+   comes back without it, the outcome is `failed`. When the list cannot be
+   read either, the outcome is `unverified`. The date is then recorded
+   anyway, so no later run posts the digest twice, the step shows red, and
+   the run lists "X post: unverified after an error from X; check the
+   account". Look at the account once. If the post is missing, that pass
+   goes unposted and the next one posts as usual. A 4xx answer (no credits,
+   a rate limit, a duplicate) is final and triggers no reads.
 
 Example:
 

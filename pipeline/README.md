@@ -29,7 +29,7 @@ python -m lmia_pipeline deposit-zenodo --dry-run                 # list what a Z
 `post-digest` posts one message a day to X from the postings first seen on the
 latest Job Bank pass, when `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN` and
 `X_ACCESS_TOKEN_SECRET` are set. It records the posted date in `meta`, so a
-re-run posts nothing, and it always exits 0. Setup: `../docs/x-account.md`.
+re-run posts nothing; it exits 1 when the post failed or X never confirmed it, and the workflow carries on. Setup: `../docs/x-account.md`.
 `post-bluesky` posts the same digest to Bluesky, with the link, when
 `BSKY_HANDLE` and `BSKY_APP_PASSWORD` are set; its own date in `meta` keeps
 it to one post per pass. Setup: `../docs/bluesky-account.md`.

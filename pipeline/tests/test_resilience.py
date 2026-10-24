@@ -657,6 +657,11 @@ def test_attention_items_keep_the_existing_wording():
     assert resilience.attention_items({"stages": [], "x_post": "posted", "smoke": "unverifiable"}) == []
 
 
+def test_an_unverified_x_post_asks_for_a_look_at_the_account():
+    status = {"stages": [], "x_post": "unverified", "bluesky_post": "posted"}
+    assert resilience.attention_items(status) == ["X post: unverified after an error from X; check the account"]
+
+
 def test_attention_items_for_a_rollback_a_weekly_restore_and_the_checks():
     status = {"stages": [], "smoke": "broken", "smoke_detail": "/ answered 500 and 500", "deploy_rolled_back": True,
               "version_before": VERSION_A, "restore": {"source": "weekly", "weekly_key": "backups/weekly/db-slot-4.sqlite.gz",

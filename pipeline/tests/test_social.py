@@ -3,7 +3,7 @@ import json
 import pytest
 import requests
 
-from lmia_pipeline import cli, config, social
+from lmia_pipeline import cli, config, nightly, resilience, social
 from lmia_pipeline.db import connect, get_meta, set_meta, upsert_employer
 from lmia_pipeline.social import Digest, EmployerLine, compose, x_length
 
@@ -13,6 +13,12 @@ CREDS = {
     "X_API_KEY": "key", "X_API_SECRET": "secret",
     "X_ACCESS_TOKEN": "token", "X_ACCESS_TOKEN_SECRET": "token-secret",
 }
+ACCOUNT_ID = "1846000000000000001"
+
+
+@pytest.fixture(autouse=True)
+def no_lookup_delay(monkeypatch):
+    monkeypatch.setattr(social, "LOOKUP_DELAY", 0)
 
 
 class FakeJSON:
@@ -30,15 +36,32 @@ class FakeJSON:
 class FakePoster:
     """Stands in for requests.Session: records each request, answers or raises as told.
 
-    `response`/`exc` apply to the post itself; `upload`/`metadata` to the two media calls."""
+    `response`/`exc` apply to the post itself; `upload`/`metadata` to the two media calls;
+    `me`/`timeline` to the two reads made after a post X answered 5xx or not at all
+    (by default the account answers and lists no posts)."""
 
     def __init__(self, response: FakeJSON | None = None, exc: Exception | None = None, *,
-                 upload: FakeJSON | Exception | None = None, metadata: FakeJSON | Exception | None = None) -> None:
+                 upload: FakeJSON | Exception | None = None, metadata: FakeJSON | Exception | None = None,
+                 me: FakeJSON | Exception | None = None, timeline: FakeJSON | Exception | None = None) -> None:
         self.response = response or FakeJSON(201, {"data": {"id": "1850000000000000001", "text": "t"}})
         self.exc = exc
         self.upload = upload or FakeJSON(200, {"data": {"id": "1850000000000000777", "media_key": "3_1850000000000000777"}})
         self.metadata = metadata or FakeJSON(200, {"data": {"id": "1850000000000000777"}})
+        self.me = me or FakeJSON(200, {"data": {"id": ACCOUNT_ID, "name": "LMIA Watch", "username": "lmiawatch"}})
+        self.timeline = timeline or FakeJSON(200, {"meta": {"result_count": 0}})
         self.calls: list[dict] = []
+
+    def get(self, url, params=None, auth=None, timeout=None, headers=None):
+        self.calls.append({"url": url, "params": params, "auth": auth, "headers": headers, "timeout": timeout})
+        if url == social.ME_URL:
+            answer = self.me
+        elif url == social.TIMELINE_URL.format(id=ACCOUNT_ID):
+            answer = self.timeline
+        else:
+            answer = FakeJSON(404, {"title": "Not Found"})
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
 
     def post(self, url, json=None, auth=None, timeout=None, headers=None, files=None, data=None):
         self.calls.append({"url": url, "json": json, "auth": auth, "headers": headers, "files": files, "data": data})
@@ -285,6 +308,105 @@ def test_failed_post_is_logged_not_raised(conn, tmp_path, poster, caplog):
     assert "token-secret" not in caplog.text
 
 
+def listing(*texts: str) -> FakeJSON:
+    """The account's timeline as X lists it, newest first."""
+    posts = [{"id": str(1850000000000000100 - i), "text": t, "created_at": "2026-10-17T12:06:0%dZ" % i,
+              "edit_history_tweet_ids": [str(1850000000000000100 - i)]} for i, t in enumerate(texts)]
+    return FakeJSON(200, {"data": posts, "meta": {"result_count": len(posts)}})
+
+
+def digest_text(conn) -> str:
+    return compose(social.collect(conn), link=None)
+
+
+YESTERDAY = 'Newly flagged "LMIA requested" on Job Bank, 2026-10-16: 4 postings, 20 positions. https://t.co/Yy1Yy1Yy1Y'
+
+
+def test_a_503_for_a_post_x_made_is_confirmed_and_recorded(conn, tmp_path, caplog):
+    seed(conn)
+    # X lists the post with the image's t.co link appended, newest first.
+    poster = FakePoster(FakeJSON(503, {"detail": "Service Unavailable"}),
+                        timeline=listing(digest_text(conn) + " https://t.co/AbCdEf1234", YESTERDAY))
+    assert social.run(conn, out_dir=tmp_path, env=CREDS, session=poster) == "posted"
+    assert [c["url"] for c in poster.calls] == [social.UPLOAD_URL, social.METADATA_URL, social.POST_URL,
+                                                social.ME_URL, social.TIMELINE_URL.format(id=ACCOUNT_ID)]
+    me, timeline = poster.calls[3:]
+    assert timeline["params"] == {"max_results": 5, "tweet.fields": "created_at"}
+    for call in (me, timeline):
+        assert call["auth"] is poster.calls[2]["auth"] and call["timeout"] == 30
+        assert call["headers"]["User-Agent"].startswith("LMIAWatch/")
+    assert get_meta(conn, "x_last_post_date") == "2026-10-17"
+    assert get_meta(conn, "x_last_post_id") == "1850000000000000100"
+    assert "went out despite the error" in caplog.text
+    # The re-run that trusted "failed" before now posts nothing.
+    assert social.run(conn, out_dir=tmp_path, env=CREDS, session=poster) == "already posted"
+    assert len(poster.tweets()) == 1
+
+
+@pytest.mark.parametrize("timeline", [
+    listing(YESTERDAY),
+    # Same day, other counts: an earlier digest of a different pass, not this text.
+    listing('Newly flagged "LMIA requested" on Job Bank, 2026-10-17: 2 postings. https://t.co/Zz', "Unrelated post"),
+    FakeJSON(200, {"meta": {"result_count": 0}}),
+])
+def test_a_503_for_a_post_the_account_does_not_list_is_a_failure(conn, tmp_path, timeline):
+    seed(conn)
+    poster = FakePoster(FakeJSON(503, {"detail": "Service Unavailable"}), timeline=timeline)
+    assert social.run(conn, out_dir=tmp_path, env=CREDS, session=poster) == "failed"
+    assert get_meta(conn, "x_last_post_date") is None and get_meta(conn, "x_last_post_id") is None
+    assert [c["url"] for c in poster.calls][-2:] == [social.ME_URL, social.TIMELINE_URL.format(id=ACCOUNT_ID)]
+
+
+@pytest.mark.parametrize("lookup", [
+    {"me": FakeJSON(500, {"title": "Internal Server Error"})},
+    {"me": requests.ConnectionError("unreachable")},
+    {"me": FakeJSON(200, {"data": {"id": "../2/tweets"}})},
+    {"timeline": FakeJSON(500, {"title": "Internal Server Error"})},
+    {"timeline": FakeJSON(429, {"title": "Too Many Requests"})},
+    {"timeline": FakeJSON(200, None, text="<html>Bad gateway</html>")},
+    {"timeline": FakeJSON(200, {"errors": [{"title": "Service Unavailable"}]})},
+])
+def test_a_503_that_cannot_be_checked_is_recorded_as_unverified(conn, tmp_path, lookup, caplog):
+    seed(conn)
+    poster = FakePoster(FakeJSON(503, {"detail": "Service Unavailable"}), **lookup)
+    outcome = social.run(conn, out_dir=tmp_path, env=CREDS, session=poster)
+    assert outcome == "unverified"
+    # The date is recorded, so no later run posts the same digest a second time.
+    assert get_meta(conn, "x_last_post_date") == "2026-10-17"
+    assert get_meta(conn, "x_last_post_id") == social.UNVERIFIED
+    assert social.run(conn, out_dir=tmp_path, env=CREDS, session=FakePoster()) == "already posted"
+    assert "check the account" in caplog.text and "token-secret" not in caplog.text
+    status = nightly.run_status(tmp_path / "no.sqlite", None, None, outcome, {})
+    assert status["x_post"] == "unverified"
+    assert "X post: unverified after an error from X; check the account" in resilience.attention_items(status)
+
+
+def test_a_timeout_on_the_post_is_followed_by_the_lookup(conn, tmp_path):
+    seed(conn)
+    text = digest_text(conn)
+    found = FakePoster(exc=requests.ReadTimeout("read timed out"), timeline=listing(text + " https://t.co/AbCdEf1234"))
+    creds = social.credentials_from_env(CREDS)
+    assert social.send_post(text, creds, session=found) == "1850000000000000100"
+    assert [c["url"] for c in found.calls] == [social.POST_URL, social.ME_URL, social.TIMELINE_URL.format(id=ACCOUNT_ID)]
+    assert social.run(conn, out_dir=tmp_path, env=CREDS, session=found) == "posted"
+    assert get_meta(conn, "x_last_post_id") == "1850000000000000100"
+
+
+@pytest.mark.parametrize("status", [400, 401, 402, 403, 429])
+def test_a_4xx_is_final_and_reads_nothing(conn, tmp_path, status):
+    seed(conn)
+    poster = FakePoster(FakeJSON(status, {"title": "Refused"}),
+                        timeline=listing(digest_text(conn)))
+    assert social.run(conn, image=False, out_dir=tmp_path, env=CREDS, session=poster) == "failed"
+    assert [c["url"] for c in poster.calls] == [social.POST_URL]
+    assert get_meta(conn, "x_last_post_date") is None
+
+
+def test_listed_text_is_compared_before_the_first_tco_link_with_entities_decoded():
+    assert social._comparable("A &amp; B\n  C https://t.co/AbC tail") == "A & B C"
+    assert social._comparable('Newly  flagged\n"x"') == 'Newly flagged "x"'
+
+
 def test_created_without_a_readable_id_still_counts_as_posted(conn, tmp_path):
     seed(conn)
     poster = FakePoster(FakeJSON(201, None, text="not json"))
@@ -373,6 +495,10 @@ def test_cli_exit_code_and_outcome_file(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(social, "send_post", lambda *a, **k: None)
     assert cli.main(["post-digest", "--db", str(db), "--no-image"]) == 1
     assert (tmp_path / "out" / "social" / "last_outcome.txt").read_text(encoding="utf-8").strip() == "failed"
+    # A post X may have made: recorded, but the step still shows red so the operator looks.
+    monkeypatch.setattr(social, "send_post", lambda *a, **k: social.UNVERIFIED)
+    assert cli.main(["post-digest", "--db", str(db), "--no-image"]) == 1
+    assert (tmp_path / "out" / "social" / "last_outcome.txt").read_text(encoding="utf-8").strip() == "unverified"
 
 
 def test_cli_dry_run_returns_zero(tmp_path, monkeypatch, capsys):

@@ -24,6 +24,7 @@ describe("daily check", () => {
     const failed = collectAlerts({ ...healthy, status: { ...healthy.status, stages: [{ source: "jobbank", ok: false, detail: "HTTP 503" }] } });
     expect(failed).toEqual(['Stage "jobbank" failed in the last run: HTTP 503.']);
     expect(collectAlerts({ ...healthy, status: { ...healthy.status, x_post: "failed" } })[0]).toContain("daily X post did not go out (failed)");
+    expect(collectAlerts({ ...healthy, status: { ...healthy.status, x_post: "unverified" } })[0]).toContain("account could not be read");
     expect(collectAlerts({ ...healthy, status: { ...healthy.status, x_post: "no new postings" } })).toEqual([]);
     expect(collectAlerts({ ...healthy, status: { ...healthy.status, run_at: "2026-10-17T00:48:00Z" } })[0]).toContain("last completed run was 2026-10-17");
   });
