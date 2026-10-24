@@ -26,6 +26,8 @@ export interface SearchRow {
   stream: string | null;
   source: string;
   sort_date: string;
+  // Home page only: the day the "LMIA requested" flag was first seen (recent_pending rows).
+  flagged?: string;
   ind: string[];
 }
 

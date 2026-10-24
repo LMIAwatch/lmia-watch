@@ -109,6 +109,9 @@ const STRINGS = {
   "col.wage": { en: "Wage", fr: "Salaire" },
   "col.date": { en: "Date", fr: "Date" },
   "col.posted": { en: "Posted", fr: "Publication" },
+  // The home page's pending table: the day the "LMIA requested" flag was first seen.
+  "col.flagged": { en: "Flagged", fr: "Signalée" },
+  "home.posted_on": { en: "posted {date}", fr: "publiée le {date}" },
   "col.positions": { en: "Positions", fr: "Postes" },
   "col.indicators": { en: "Indicators", fr: "Indicateurs" },
   "col.source": { en: "Source", fr: "Source" },
@@ -1444,6 +1447,10 @@ const STRINGS = {
     fr: "{n} dossier(s) de refus, aucune nouvelle offre dans les {days} jours suivant la publication.",
   },
   "home.week_caption": { en: "Job Bank postings carrying the \"LMIA requested\" flag, newest first.", fr: "Offres d'emploi du Guichet-Emplois portant la mention « EIMT demandée », les plus récentes en premier." },
+  "home.week_caption_flagged": {
+    en: "Job Bank postings that gained the \"LMIA requested\" flag most recently. The flag follows the posting by days, so the posting itself can be older.",
+    fr: "Offres d'emploi du Guichet-Emplois ayant reçu la mention « EIMT demandée » le plus récemment. La mention suit l'offre de quelques jours, si bien que l'offre elle-même peut être plus ancienne.",
+  },
   "home.pending_by_prov": { en: "Pending by province, all {n} postings.", fr: "En attente par province, {n} offres au total." },
   "home.pending_by_noc_one": { en: "Pending by occupation, of {n} posting with a NOC 2021 code.", fr: "En attente par profession, sur {n} offre portant un code de la CNP 2021." },
   "home.pending_by_noc_many": { en: "Pending by occupation, of {n} postings with a NOC 2021 code.", fr: "En attente par profession, sur {n} offres portant un code de la CNP 2021." },

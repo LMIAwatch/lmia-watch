@@ -17,7 +17,7 @@ describe("pages", () => {
     expect(html).toContain("Data as of 2026-10-12");
     expect(html).toContain("Primary Agriculture");
     expect(html).toContain("2026 Q1");
-    expect(html).toContain("Job Bank postings carrying the &quot;LMIA requested&quot; flag, newest first.");
+    expect(html).toContain("Job Bank postings that gained the &quot;LMIA requested&quot; flag most recently.");
     expect(html).toContain("Pending by province, all 5,883 postings.");
     expect(html).toContain('<a href="/search?status=pending&amp;province=BC">British Columbia</a>');
     // Search covers every year, so the last-quarter links carry the window.
@@ -49,6 +49,25 @@ describe("pages", () => {
     expect(fr).toContain('<a href="/data#public-records">dossiers de transporteurs américains</a>');
     // The anchor the tile and the list link to.
     expect(await (await get("/data")).text()).toContain('<p id="public-records">');
+  });
+
+  it("home ranks the pending table by the day the flag was seen, with the posting date under it", async () => {
+    const html = await (await get("/")).text();
+    expect(html).toContain("<th>Flagged</th><th>Employer</th>");
+    expect(html).toContain('class="mono"><span>2026-10-12<br/><span class="muted small">posted 2026-10-10</span></span></td>');
+    expect(html).toContain("gained the &quot;LMIA requested&quot; flag most recently");
+    const fr = await (await get("/?lang=fr")).text();
+    expect(fr).toContain("<th>Signalée</th>");
+    expect(fr).toContain("publiée le 2026-10-10");
+    // A stats file from before the field lists by posting date, as before.
+    const older = { ...stats, recent_pending: stats.recent_pending.map(({ flagged, ...row }) => row) };
+    const assets = {
+      fetch: async (input: Request) =>
+        new URL(input.url).pathname === "/data/stats.json" ? new Response(JSON.stringify(older)) : fakeAssets.fetch(input),
+    } as unknown as Fetcher;
+    const old = await (await app.request("/", {}, testEnv(assets))).text();
+    expect(old).toContain("<th>Posted</th><th>Employer</th>");
+    expect(old).not.toContain("Flagged");
   });
 
   it("home shows four tiles when stats.json has no public-record counts, or none matched yet", async () => {

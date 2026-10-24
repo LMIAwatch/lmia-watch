@@ -14,7 +14,7 @@ import { isBilingual } from "./places";
 // export can write it: a posting's title, date, city and province, and a top
 // employer's city, province and stream.
 const isPostingRow = (r: unknown): boolean => isObj(r) && isStr(r.employer_id) && isStr(r.employer) && isStrOrNull(r.date) &&
-  isStrOrNull(r.job) && isStrOrNull(r.city) && isStrOrNull(r.prov);
+  isStrOrNull(r.job) && isStrOrNull(r.city) && isStrOrNull(r.prov) && (r.flagged === undefined || isStr(r.flagged));
 const isTopRow = (r: unknown): boolean => isObj(r) && isStr(r.employer_id) && isStr(r.employer) && isStrOrNull(r.city) &&
   isStrOrNull(r.prov) && isStrOrNull(r.stream) && isNum(r.positions);
 // The export writes "Unknown" where the quarter's rows have no stream or province, so a key is never null.
@@ -45,16 +45,20 @@ export async function homePage(c: Context<AppEnv>): Promise<Response> {
   const withNoc = stats.counts.pending_with_noc;
   const pendingByNoc = withNoc !== undefined && isListOf(stats.pending_by_noc, isNocRow) ? stats.pending_by_noc : [];
   const nocTitle = new Map(pendingByNoc.map((r) => [r.k, r.title[lang]]));
+  const byFlag = stats.recent_pending.length > 0 && stats.recent_pending.every((r) => typeof r.flagged === "string" && r.flagged !== "");
   const periodText = stats.esdc_latest_period ? periodLabel(stats.esdc_latest_period, lang) : t(lang, "home.latest_quarter");
   const n = (v: number | null | undefined) => fmtInt(v, lang);
   const { grant_employers: grantEmployers, grant_agreements: grantAgreements } = stats.counts;
 
-  const PostingTable = ({ rows }: { rows: SearchRow[] }) => (
+  // The pending table ranks by the day the flag was first seen once the export
+  // carries it (every row), and shows the posting date under it; an older stats
+  // file, without the field, lists by posting date as before.
+  const PostingTable = ({ rows, byFlag = false }: { rows: SearchRow[]; byFlag?: boolean }) => (
     <div class="table-wrap">
       <table class="restack">
         <thead>
           <tr>
-            <th>{t(lang, "col.posted")}</th>
+            <th>{t(lang, byFlag ? "col.flagged" : "col.posted")}</th>
             <th>{t(lang, "col.employer")}</th>
             <th>{t(lang, "col.job")}</th>
             <th>{t(lang, "col.location")}</th>
@@ -68,7 +72,17 @@ export async function homePage(c: Context<AppEnv>): Promise<Response> {
           ) : (
             rows.map((r) => (
               <tr>
-                <td data-label={t(lang, "col.posted")} class="mono">{r.date ?? ""}</td>
+                {/* One element in the flagged cell, so the phone's restack grid keeps both lines in the value column. */}
+                {byFlag ? (
+                  <td data-label={t(lang, "col.flagged")} class="mono">
+                    <span>
+                      {r.flagged}
+                      {r.date ? <><br /><span class="muted small">{t(lang, "home.posted_on", { date: r.date })}</span></> : null}
+                    </span>
+                  </td>
+                ) : (
+                  <td data-label={t(lang, "col.posted")} class="mono">{r.date ?? ""}</td>
+                )}
                 <td data-label={t(lang, "col.employer")}>
                   <a href={`/employers/${r.employer_id}`}>{r.employer}</a>
                 </td>
@@ -174,8 +188,8 @@ export async function homePage(c: Context<AppEnv>): Promise<Response> {
             <h2>{t(lang, "home.applying")}</h2>
             <a href="/search?status=pending">{t(lang, "home.all_pending", { n: n(stats.counts.pending) })}</a>
           </div>
-          <p class="muted small">{t(lang, "home.week_caption")}</p>
-          <PostingTable rows={stats.recent_pending} />
+          <p class="muted small">{t(lang, byFlag ? "home.week_caption_flagged" : "home.week_caption")}</p>
+          <PostingTable rows={stats.recent_pending} byFlag={byFlag} />
           {pendingByProv.length ? (
             <>
               <p class="muted small top-gap">{t(lang, "home.pending_by_prov", { n: n(stats.counts.pending) })}</p>

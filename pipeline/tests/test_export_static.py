@@ -120,6 +120,21 @@ def test_static_export_tree(conn, tmp_path):
     assert (out / "profiles" / f"{export_static.shard_key(a)}.json").read_bytes() == before
 
 
+def test_recent_pending_ranks_by_the_day_the_flag_was_seen(conn, tmp_path):
+    a, b, c, d = seed(conn)
+    # A newer posting whose flag was seen earlier than Beta Inn's ranks below it.
+    conn.execute("INSERT INTO jobbank_postings (posting_id, employer_id, employer_raw, title, date_posted, first_seen, last_seen, "
+                 "flag_current, flag_first, url, updated_at) VALUES (9, ?, 'Alpha Farms Ltd', 'picker', '2026-10-20', "
+                 "'2026-10-01T02:00:00Z', ?, 'requested', 'requested', 'u', ?)", (a, NOW, NOW))
+    out = tmp_path / "static"
+    export_static.export_static(conn, out)
+    rows = load(out, "stats.json")["recent_pending"]
+    assert [(r["employer"], r["flagged"], r["date"]) for r in rows] == [
+        ("Beta Inn", NOW[:10], "2026-10-06"), ("Alpha Farms Ltd", "2026-10-01", "2026-10-20")]
+    # The search files carry no such field, so their rows and hashes are unchanged.
+    assert all("flagged" not in r for r in load(out, "search/first.json"))
+
+
 def test_stats_count_the_public_records_matched_to_employers(conn, tmp_path):
     a, b, c, d = seed(conn)
     out = tmp_path / "static"

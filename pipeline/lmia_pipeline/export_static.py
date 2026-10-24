@@ -396,8 +396,17 @@ def write_stats(conn: sqlite3.Connection, out: Path, latest: str, ind: dict[str,
         "SELECT stream AS k, COUNT(*) AS n FROM esdc_records WHERE list = 'positive' AND period = ? GROUP BY stream ORDER BY n DESC", (latest,))]
     by_province = [{"k": r["k"] or "Unknown", "n": r["n"]} for r in conn.execute(
         "SELECT province AS k, COUNT(*) AS n FROM esdc_records WHERE list = 'positive' AND period = ? GROUP BY province ORDER BY n DESC", (latest,))]
-    recent_pending = [posting_row(p, ind) for p in conn.execute(
-        POSTING_SQL + " WHERE flag_current = 'requested' ORDER BY date_posted DESC, posting_id DESC LIMIT ?", (RECENT,))]
+    # The home page's "Applying This Week": the postings whose "LMIA requested"
+    # flag was first seen most recently, since the flag follows the posting by
+    # days. Each row carries that date as "flagged" beside the posting date;
+    # only these rows do, so the search files and their hashes are unchanged.
+    recent_pending = []
+    for p in conn.execute(
+            POSTING_SQL + " WHERE flag_current = 'requested' ORDER BY first_seen DESC, date_posted DESC, posting_id DESC LIMIT ?",
+            (RECENT,)):
+        row = posting_row(p, ind)
+        row["flagged"] = (p["first_seen"] or "")[:10]
+        recent_pending.append(row)
     recent_approved = [posting_row(p, ind) for p in conn.execute(
         POSTING_SQL + " WHERE approved_seen_at IS NOT NULL ORDER BY approved_seen_at DESC, date_posted DESC LIMIT ?", (RECENT,))]
     top = [dict(r) for r in conn.execute(
