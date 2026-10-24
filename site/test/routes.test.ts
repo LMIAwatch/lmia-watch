@@ -38,7 +38,7 @@ describe("pages", () => {
     expect(html).toContain("Each employer&#39;s page also carries its corporate registry record and, where the public records match,");
     expect(html).toContain('<span class="badge badge-neutral">Public money</span><span class="tile-value">2,140</span>');
     expect(html).toContain(
-      '<a href="/data#public-records">employers on this site matched to a disclosed federal grant or contribution (9,812 agreements)</a>',
+      '<a href="/data#public-records">employers matched to a federal grant or contribution (9,812 agreements)</a>',
     );
     expect(html).toContain('<a href="/methodology#matching">corporate registry record</a>');
     expect(html).toContain('<a href="/data#public-records">US carrier records</a>');

@@ -180,12 +180,12 @@ const STRINGS = {
   // a neutral tag, since a match links a record to a profile and is no status.
   "home.tile_grants_label": { en: "Public money", fr: "Fonds publics" },
   "home.tile_grants_one": {
-    en: "employers on this site matched to a disclosed federal grant or contribution ({agreements} agreement)",
-    fr: "employeurs du site jumelés à une subvention ou contribution fédérale divulguée ({agreements} accord)",
+    en: "employers matched to a federal grant or contribution ({agreements} agreement)",
+    fr: "employeurs jumelés à une subvention ou contribution fédérale ({agreements} accord)",
   },
   "home.tile_grants_many": {
-    en: "employers on this site matched to a disclosed federal grant or contribution ({agreements} agreements)",
-    fr: "employeurs du site jumelés à une subvention ou contribution fédérale divulguée ({agreements} accords)",
+    en: "employers matched to a federal grant or contribution ({agreements} agreements)",
+    fr: "employeurs jumelés à une subvention ou contribution fédérale ({agreements} accords)",
   },
   "home.applying": { en: "Applying This Week", fr: "Demandes de la semaine" },
   "home.all_pending": { en: "All Pending ({n})", fr: "Toutes en attente ({n})" },
