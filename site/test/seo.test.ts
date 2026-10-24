@@ -163,9 +163,9 @@ describe("page metadata", () => {
     const head = await headOf("/data");
     const [ld] = jsonLd(head);
     expect(ld["@type"]).toBe("Dataset");
-    // The files do not share one licence: none is claimed for the whole dataset.
-    expect(ld.license).toBeUndefined();
     expect(ld.usageInfo).toBe("https://lmiawatch.ca/data#licence");
+    // Google asks for a dataset-wide license; the terms differ by file, so it names the licence table.
+    expect(ld.license).toBe("https://lmiawatch.ca/data#licence");
     expect(ld.creditText).toContain("Open Government Licence, Canada");
     expect(ld.creditText).toContain("Job Bank and IRCC material reproduced under the Government of Canada terms of use");
     const files = Object.fromEntries(ld.distribution.map((d: any) => [d.name, d]));

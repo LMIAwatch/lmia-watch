@@ -275,8 +275,9 @@ const MIXED_NOTE: Both = {
 };
 
 // `contents` is each file's description in the page's language. The files do
-// not share one licence, so there is no dataset-wide `license`: each
-// distribution carries its own, and usageInfo points at the licence table.
+// not share one licence, so the dataset-wide `license` (a property Google's
+// Dataset guidance asks for) is the page's own licence table, which states
+// the terms file by file; each distribution carries its own licence too.
 export function datasetJsonLd(
   downloads: { file: string; contents: string; licence: DownloadLicence }[], dataAsOf: string | null, lang: Lang,
 ): object {
@@ -288,6 +289,7 @@ export function datasetJsonLd(
     description: local(lang, DATASET_DESCRIPTION),
     url: absoluteUrl("/data"),
     keywords: DATASET_KEYWORDS[lang],
+    license: `${absoluteUrl("/data")}#licence`,
     usageInfo: `${absoluteUrl("/data")}#licence`,
     isAccessibleForFree: true,
     creditText: local(lang, CREDIT),
