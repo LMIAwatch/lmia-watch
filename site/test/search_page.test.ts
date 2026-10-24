@@ -228,7 +228,6 @@ describe("the first view from the search database", () => {
     expect(body).toMatch(/<td data-label="Date" class="mono period">\d{4} Q\d<\/td>/);
     // Positions keep their right alignment beside the date column.
     expect(body).toContain('<td data-label="Positions" class="mono num">see posting</td>');
-    expect(t.match(/<table class="restack">[\s\S]*?<\/table>/)?.[0]).not.toMatch(/class="[^"]*\bnum\b/);
     // Long indicator labels shorten, the full label in the chip's title; short ones stay as they are.
     expect(body).toContain('<span class="chips"><span class="chip" title="Low-wage stream in a high-unemployment region">Low wage, high unemployment</span>' +
       '<span class="chip">Repeat applicant</span></span>');
@@ -386,7 +385,7 @@ describe("the first view from the search database", () => {
     const t = nbsp((await html("/search", withCounts(), { cookie: "lang=fr" })).text);
     expect(t).toContain('<html lang="fr">');
     expect(t).toContain("<th>Statut</th><th>Employeur</th><th>Profession</th><th>Lieu</th><th>Salaire</th><th>Date</th>" +
-      "<th>Postes</th><th>Indicateurs</th><th>Source</th>");
+      '<th class="num">Postes</th><th>Indicateurs</th><th>Source</th>');
     expect(t).toContain('<td data-label="Profession">Food counter attendant/<wbr/>server</td>');
     expect(t).toContain('<span class="chip" title="Volet des postes à bas salaire dans une région à chômage élevé">Bas salaire, chômage élevé</span>');
     expect(t).toContain('rel="nofollow noopener" title="Guichet-Emplois 9001">Guichet-Emplois</a>');
