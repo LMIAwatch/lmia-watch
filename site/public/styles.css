@@ -182,6 +182,20 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); width
 .bar-track { display: block; height: 12px; background: var(--panel); border: 1px solid var(--rule); }
 .bar-fill { display: block; height: 100%; background: var(--accent); }
 .bar-value { text-align: right; }
+/* Topic rows below the tiles: one subject per row under a full-width head
+   (status tag, title, count, and the link to the full list), the records on
+   the left and the breakdowns on the right. The head wraps on a phone. */
+.topic { margin-top: 40px; }
+.topic-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; border-bottom: 2px solid var(--text); padding-bottom: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+.topic-head h2 { margin: 0; font-size: 24px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.topic-count { color: var(--muted); font-size: 15px; font-weight: 400; }
+.topic-head > a { font-size: 15px; white-space: nowrap; }
+/* The row gap only shows once the columns stack, and keeps the breakdowns off the table above. */
+.topic .two-col { margin-top: 0; row-gap: 24px; }
+.sub { font-size: 15px; font-weight: 700; margin: 24px 0 6px; color: var(--text); }
+.two-col > div > .sub:first-child { margin-top: 0; }
+.sub + .bars, .sub + .table-wrap { margin-top: 4px; }
+.topic p.links { margin: 14px 0 0; font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px 20px; }
 .panel { background: var(--panel); padding: 20px 24px; margin-top: 24px; }
 .panel h2 { margin-top: 0; }
 .panel > :last-child { margin-bottom: 0; }

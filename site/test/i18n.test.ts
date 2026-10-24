@@ -40,6 +40,8 @@ const SENTINELS = [
   "Status Lifecycle",
   "Right of Reply",
   "Who Is Applying",
+  "now on Job Bank",
+  "By Occupation",
   "Pending now",
   "see posting",
   "Indicator Definitions",
@@ -349,6 +351,10 @@ describe("rendered French pages", () => {
     expect(home).toContain("5 883");
     expect(home).toContain("T1 2026");
     expect(home).toContain("« EIMT demandée »");
+    // The two topic rows' heads and sub-heads.
+    expect(home).toContain("</span> en ce moment au Guichet-Emplois <span class=\"topic-count\">5 883 offres portant la mention « EIMT demandée »</span>");
+    expect(home).toContain("</span> au T1 2026 <span class=\"topic-count\">8 790 dossiers d’employeurs, 33 216 postes</span>");
+    expect(home).toContain('<h3 class="sub">Par volet</h3>');
 
     const search = nbsp(await (await get("/search?lang=fr")).text());
     expect(search).toContain("5 dossiers");

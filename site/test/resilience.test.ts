@@ -164,7 +164,11 @@ describe("missing and corrupt data files", () => {
       expect(await search.text()).toContain('data-ssr="1"');
       const home = await req("/", { ASSETS: assets });
       expect(home.status).toBe(200);
-      expect(await home.text()).not.toContain("Pending by province");
+      // The pending row keeps its table but loses its province bars; the
+      // approved row's "By Province" comes from stats.json and stays.
+      const page = await home.text();
+      expect(page).not.toContain("status=pending&amp;province=");
+      expect(page.match(/<h3 class="sub">By Province<\/h3>/g)?.length).toBe(1);
     }
   });
 

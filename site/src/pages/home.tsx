@@ -32,8 +32,8 @@ export async function homePage(c: Context<AppEnv>): Promise<Response> {
     !stats || !isListOf(stats.recent_pending, isPostingRow) || !isListOf(stats.recent_approved, isPostingRow) ||
     !isListOf(stats.top_approvals, isTopRow) || !isListOf(stats.by_stream, isCountRow) || !isListOf(stats.by_province, isCountRow)
   ) return noDataPage(c, "common.home");
-  // Pending postings by province, from the search facets; fills the space under
-  // the week's postings and links each row to the filtered search.
+  // Pending postings by province, from the search facets, beside the week's
+  // postings in the pending row; each row links to the filtered search.
   const facets = await loadFacets(c.env).catch(() => null);
   const pendingByProv = Object.entries(facets?.default.status_prov ?? {})
     .filter(([k, n]) => k.startsWith("pending|") && n > 0)
@@ -182,75 +182,95 @@ export async function homePage(c: Context<AppEnv>): Promise<Response> {
         ) : null}
       </section>
 
-      <section class="two-col">
-        <div>
-          <div class="section-head">
-            <h2>{t(lang, "home.applying")}</h2>
-            <a href="/search?status=pending">{t(lang, "home.all_pending", { n: n(stats.counts.pending) })}</a>
-          </div>
-          <p class="muted small">{t(lang, byFlag ? "home.week_caption_flagged" : "home.week_caption")}</p>
-          <PostingTable rows={stats.recent_pending} byFlag={byFlag} />
-          {pendingByProv.length ? (
-            <>
-              <p class="muted small top-gap">{t(lang, "home.pending_by_prov", { n: n(stats.counts.pending) })}</p>
-              <Bars rows={pendingByProv} label={(k) => provinceName(lang, k)} href={(k) => `/search?status=pending&province=${k}`} limit={8} />
-            </>
-          ) : null}
-          {pendingByNoc.length && withNoc !== undefined ? (
-            <>
-              <p class="muted small top-gap">{tn(lang, "home.pending_by_noc_one", "home.pending_by_noc_many", withNoc, { n: n(withNoc) })}</p>
-              <Bars rows={pendingByNoc} label={(k) => nocTitle.get(k) || k} lead={(k) => k} href={(k) => `/search?status=pending&noc=${k}`} />
-            </>
-          ) : null}
+      {/* Below the tiles, one row per subject: a full-width head carrying the
+          status tag, the count and the link to the full list, then the records
+          on the left and the breakdowns on the right. */}
+      <section class="topic">
+        <div class="topic-head">
+          <h2>
+            <Badge status="pending" lang={lang} /> {t(lang, "home.topic_pending")}{" "}
+            <span class="topic-count">{t(lang, "home.topic_pending_count", { n: n(stats.counts.pending) })}</span>
+          </h2>
+          <a href="/search?status=pending">{t(lang, "home.all_pending", { n: n(stats.counts.pending) })}</a>
         </div>
-        <div>
-          <div class="section-head">
-            <h2>{t(lang, "home.recent_approved")}</h2>
-            <a href="/search?status=approved">{t(lang, "home.all_approved")}</a>
+        <div class="two-col">
+          <div>
+            <h3 class="sub">{t(lang, "home.applying")}</h3>
+            <p class="muted small">{t(lang, byFlag ? "home.week_caption_flagged" : "home.week_caption")}</p>
+            <PostingTable rows={stats.recent_pending} byFlag={byFlag} />
           </div>
-          <p class="muted small">{t(lang, "home.recent_approved_note")}</p>
-          <PostingTable rows={stats.recent_approved} />
-          <p class="muted small top-gap">{t(lang, "home.largest", { period: periodText })}</p>
-          <div class="table-wrap">
-            <table class="restack">
-              <thead>
-                <tr>
-                  <th>{t(lang, "col.employer")}</th>
-                  <th>{t(lang, "col.location")}</th>
-                  <th>{t(lang, "col.stream")}</th>
-                  <th class="num">{t(lang, "col.positions")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.top_approvals.map((r) => (
-                  <tr>
-                    <td data-label={t(lang, "col.employer")}>
-                      <a href={`/employers/${r.employer_id}`}>{r.employer}</a>
-                    </td>
-                    <td data-label={t(lang, "col.location")}>
-                      {r.city ?? ""}
-                      {r.prov ? `, ${r.prov}` : ""}
-                    </td>
-                    <td data-label={t(lang, "col.stream")}>{r.stream ? streamLabel(lang, r.stream) : ""}</td>
-                    <td data-label={t(lang, "col.positions")} class="mono num">{n(r.positions)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div>
+            {pendingByProv.length ? (
+              <>
+                <h3 class="sub">{t(lang, "home.by_province")}</h3>
+                <Bars rows={pendingByProv} label={(k) => provinceName(lang, k)} href={(k) => `/search?status=pending&province=${k}`} limit={8} />
+              </>
+            ) : null}
+            {pendingByNoc.length && withNoc !== undefined ? (
+              <>
+                <h3 class="sub">{t(lang, "home.by_occupation")}</h3>
+                <p class="muted small">{tn(lang, "home.pending_by_noc_one", "home.pending_by_noc_many", withNoc, { n: n(withNoc) })}</p>
+                <Bars rows={pendingByNoc} label={(k) => nocTitle.get(k) || k} lead={(k) => k} href={(k) => `/search?status=pending&noc=${k}`} />
+              </>
+            ) : null}
           </div>
-          <p class="small top-gap"><a href="/releases">{t(lang, "rel.home_link")}</a></p>
-          <p class="small"><a href="/trends">{t(lang, "trends.home_link")}</a></p>
         </div>
       </section>
 
-      <section class="two-col">
-        <div>
-          <h2>{t(lang, "home.by_stream", { period: periodText })}</h2>
-          <Bars rows={stats.by_stream} label={(k) => streamLabel(lang, k)} />
+      <section class="topic">
+        <div class="topic-head">
+          <h2>
+            <Badge status="approved" lang={lang} /> {t(lang, "home.topic_approved", { period: periodText })}{" "}
+            <span class="topic-count">
+              {t(lang, "home.topic_approved_count", { records: n(stats.counts.approved_records), positions: n(stats.counts.approved_positions) })}
+            </span>
+          </h2>
+          <a href="/search?status=approved">{t(lang, "home.all_approved")}</a>
         </div>
-        <div>
-          <h2>{t(lang, "home.by_province", { period: periodText })}</h2>
-          <Bars rows={stats.by_province} label={(k) => (k === "XX" ? provinceName(lang, "XX") : k)} />
+        <div class="two-col">
+          <div>
+            <h3 class="sub">{t(lang, "home.recent_approved")}</h3>
+            <p class="muted small">{t(lang, "home.recent_approved_note")}</p>
+            <PostingTable rows={stats.recent_approved} />
+            <p class="links">
+              <a href="/releases">{t(lang, "rel.home_link")}</a>
+              <a href="/trends">{t(lang, "trends.home_link")}</a>
+            </p>
+          </div>
+          <div>
+            <h3 class="sub">{t(lang, "home.by_stream")}</h3>
+            <Bars rows={stats.by_stream} label={(k) => streamLabel(lang, k)} />
+            <h3 class="sub">{t(lang, "home.by_province")}</h3>
+            <Bars rows={stats.by_province} label={(k) => (k === "XX" ? provinceName(lang, "XX") : k)} />
+            <h3 class="sub">{t(lang, "home.largest", { period: periodText })}</h3>
+            <div class="table-wrap">
+              <table class="restack">
+                <thead>
+                  <tr>
+                    <th>{t(lang, "col.employer")}</th>
+                    <th>{t(lang, "col.location")}</th>
+                    <th>{t(lang, "col.stream")}</th>
+                    <th class="num">{t(lang, "col.positions")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stats.top_approvals.map((r) => (
+                    <tr>
+                      <td data-label={t(lang, "col.employer")}>
+                        <a href={`/employers/${r.employer_id}`}>{r.employer}</a>
+                      </td>
+                      <td data-label={t(lang, "col.location")}>
+                        {r.city ?? ""}
+                        {r.prov ? `, ${r.prov}` : ""}
+                      </td>
+                      <td data-label={t(lang, "col.stream")}>{r.stream ? streamLabel(lang, r.stream) : ""}</td>
+                      <td data-label={t(lang, "col.positions")} class="mono num">{n(r.positions)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </section>
 

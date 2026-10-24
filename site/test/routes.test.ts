@@ -4,6 +4,12 @@ import { emptyAssets, fakeAssets, testEnv } from "./assets";
 import stats from "./fixtures/stats.json";
 
 const get = (path: string, headers: Record<string, string> = {}) => app.request(path, { headers }, testEnv());
+const nbsp = (s: string) => s.replace(/[\u00a0\u202f]/g, " ");
+// The home page's two topic rows, by the status tag that opens each head.
+const topic = (html: string, status: "pending" | "approved") => {
+  const start = html.indexOf(`<section class="topic"><div class="topic-head"><h2><span class="badge badge-${status}">`);
+  return start < 0 ? "" : html.slice(start, html.indexOf("</section>", start));
+};
 
 describe("pages", () => {
   it("home renders tiles and lists from stats.json", async () => {
@@ -18,7 +24,7 @@ describe("pages", () => {
     expect(html).toContain("Primary Agriculture");
     expect(html).toContain("2026 Q1");
     expect(html).toContain("Job Bank postings that gained the &quot;LMIA requested&quot; flag most recently.");
-    expect(html).toContain("Pending by province, all 5,883 postings.");
+    expect(topic(html, "pending")).toContain('<h3 class="sub">By Province</h3><div class="bars">');
     expect(html).toContain('<a href="/search?status=pending&amp;province=BC">British Columbia</a>');
     // Search covers every year, so the last-quarter links carry the window.
     expect(html).toContain('<a href="/search?status=approved&amp;date=last_quarter">Approved Last Quarter</a>');
@@ -31,6 +37,63 @@ describe("pages", () => {
     expect(html).toContain('<a href="https://bsky.app/profile/lmiawatch.ca" class="footer-x" target="_blank" rel="noopener" aria-label="LMIA Watch on Bluesky"');
     expect(html).toContain('<script src="/links.js" defer=""></script>');
     expect(html).toContain('<button type="button" class="theme-toggle"><span class="when-light">Dark</span><span class="when-dark">Light</span></button>');
+  });
+
+  it("home sets out two topic rows below the tiles, pending then approved, each under a full-width head", async () => {
+    const html = await (await get("/")).text();
+    const pendingHead =
+      '<div class="topic-head"><h2><span class="badge badge-pending">Pending</span> now on Job Bank ' +
+      '<span class="topic-count">5,883 postings flagged &quot;LMIA requested&quot;</span></h2>' +
+      '<a href="/search?status=pending">All Pending (5,883)</a></div>';
+    const approvedHead =
+      '<div class="topic-head"><h2><span class="badge badge-approved">Approved</span> in 2026 Q1 ' +
+      '<span class="topic-count">8,790 employer records, 33,216 positions</span></h2>' +
+      '<a href="/search?status=approved">All Approved</a></div>';
+    expect(html).toContain(pendingHead);
+    expect(html).toContain(approvedHead);
+    // Below the tiles and above the reading notes, pending first; the old
+    // headed columns and the second row of bars are gone.
+    expect(html.match(/<section class="topic">/g)?.length).toBe(2);
+    expect(html.indexOf('class="tiles"')).toBeLessThan(html.indexOf(pendingHead));
+    expect(html.indexOf(pendingHead)).toBeLessThan(html.indexOf(approvedHead));
+    expect(html.indexOf(approvedHead)).toBeLessThan(html.indexOf("How to Read This Site"));
+    expect(html).not.toContain("section-head");
+    expect(html).not.toContain('<section class="two-col">');
+    expect(html).not.toContain("Approved Records by");
+
+    // Each row: the records on the left, the breakdowns on the right.
+    const subs = (part: string) => [...part.matchAll(/<h3 class="sub">([^<]*)<\/h3>/g)].map((m) => m[1]);
+    const pending = topic(html, "pending");
+    expect(subs(pending)).toEqual(["Applying This Week", "By Province", "By Occupation"]);
+    expect(pending).toContain('<div class="two-col"><div><h3 class="sub">Applying This Week</h3><p class="muted small">Job Bank postings that gained');
+    expect(pending).toContain('<div><h3 class="sub">By Province</h3>');
+    const approved = topic(html, "approved");
+    expect(subs(approved)).toEqual(["Recently Approved", "By Stream", "By Province", "Largest Approvals in 2026 Q1, by Positions"]);
+    expect(approved).toContain('<div class="two-col"><div><h3 class="sub">Recently Approved</h3><p class="muted small">Postings whose flag changed');
+    expect(approved).toContain('<div><h3 class="sub">By Stream</h3><div class="bars">');
+    expect(approved).toContain('<h3 class="sub">Largest Approvals in 2026 Q1, by Positions</h3><div class="table-wrap">');
+    expect(approved).toContain(
+      '<p class="links"><a href="/releases">Every quarterly release, with its largest approvals</a>' +
+        '<a href="/trends">Approvals and refusals since 2014, year over year</a></p>',
+    );
+    // The links row closes the left column, before the breakdowns.
+    expect(approved.indexOf('<p class="links">')).toBeLessThan(approved.indexOf('<h3 class="sub">By Stream</h3>'));
+
+    const fr = nbsp(await (await get("/?lang=fr")).text());
+    expect(fr).toContain(
+      '<h2><span class="badge badge-pending">En attente</span> en ce moment au Guichet-Emplois ' +
+        '<span class="topic-count">5 883 offres portant la mention « EIMT demandée »</span></h2>' +
+        '<a href="/search?status=pending">Toutes en attente (5 883)</a>',
+    );
+    expect(fr).toContain(
+      '<h2><span class="badge badge-approved">Approuvée</span> au T1 2026 ' +
+        '<span class="topic-count">8 790 dossiers d’employeurs, 33 216 postes</span></h2>' +
+        '<a href="/search?status=approved">Toutes les approbations</a>',
+    );
+    expect(subs(topic(fr, "pending"))).toEqual(["Demandes de la semaine", "Par province", "Par profession"]);
+    expect(subs(topic(fr, "approved"))).toEqual([
+      "Approuvées récemment", "Par volet", "Par province", "Plus grandes approbations, T1 2026, selon le nombre de postes",
+    ]);
   });
 
   it("home names the public records on profiles and counts the employers matched to a federal agreement", async () => {
@@ -89,15 +152,16 @@ describe("pages", () => {
 
   it("home charts pending postings by occupation under the province bars", async () => {
     const html = await (await get("/")).text();
-    expect(html).toContain("Pending by occupation, of 1,204 postings with a NOC 2021 code.");
+    expect(html).toContain('<h3 class="sub">By Occupation</h3><p class="muted small">of 1,204 postings with a NOC 2021 code</p><div class="bars">');
     // The code in muted mono before the title, which links to the filtered search.
     expect(html).toContain('<span class="mono muted">85101</span> <a href="/search?status=pending&amp;noc=85101">Harvesting labourers</a>');
     expect(html).toContain('<a href="/search?status=pending&amp;noc=62020">Food service supervisors</a>');
     // Six rows of the eight the export writes, after the province bars.
     expect(html).not.toContain("noc=65201");
-    expect(html.indexOf("Pending by occupation")).toBeGreaterThan(html.indexOf("Pending by province"));
+    const pending = topic(html, "pending");
+    expect(pending.indexOf("By Occupation")).toBeGreaterThan(pending.indexOf("By Province"));
     const fr = await (await get("/?lang=fr")).text();
-    expect(fr).toContain("En attente par profession, sur");
+    expect(nbsp(fr)).toContain('<h3 class="sub">Par profession</h3><p class="muted small">sur 1 204 offres portant un code de la CNP 2021</p>');
     expect(fr).toContain('<a href="/search?status=pending&amp;noc=85101">Manœuvres à la récolte</a>');
     // A slash in a title is a place the line may break.
     expect(fr).toContain(">Cuisiniers/<wbr/>cuisinières</a>");
@@ -125,10 +189,10 @@ describe("pages", () => {
       const res = await app.request("/", {}, testEnv(assets));
       expect(res.status).toBe(200);
       const html = await res.text();
-      expect(html).not.toContain("Pending by occupation");
+      expect(html).not.toContain("By Occupation");
       expect(html).not.toContain("noc=");
       // The rest of the page stands.
-      expect(html).toContain("Pending by province, all 5,883 postings.");
+      expect(topic(html, "pending")).toContain('<h3 class="sub">By Province</h3>');
       expect(html).toContain("Jealous Fruits Ltd.");
     }
   });
