@@ -14,6 +14,18 @@ Disallow: /search?
 Allow: /search?lang=fr$
 Crawl-delay: 5
 
+# Bing honours Crawl-delay, and five seconds would cap it at about 17,000
+# pages a day against 160,000 employer pages. A crawler reads only the group
+# that names it, so Bingbot's group repeats the rules without the delay.
+User-agent: bingbot
+Allow: /
+Disallow: /hooks/
+Disallow: /api/
+Disallow: /downloads/
+Disallow: /employers/*/respond
+Disallow: /search?
+Allow: /search?lang=fr$
+
 # Crawlers that gather pages for AI training or large-scale scraping are not
 # needed to find the records (the data is downloadable on the Data page) and
 # at their pace they use up the daily request allowance that readers depend

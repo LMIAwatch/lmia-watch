@@ -328,6 +328,20 @@ describe("crawler files", () => {
       "Allow: /search?lang=fr$",
       "Crawl-delay: 5",
     ]);
+    // Bing obeys Crawl-delay, so its own group carries the same rules without one.
+    const bing = rules.indexOf("User-agent: bingbot");
+    expect(bing).toBeGreaterThan(0);
+    expect(rules.slice(bing, bing + 8)).toEqual([
+      "User-agent: bingbot",
+      "Allow: /",
+      "Disallow: /hooks/",
+      "Disallow: /api/",
+      "Disallow: /downloads/",
+      "Disallow: /employers/*/respond",
+      "Disallow: /search?",
+      "Allow: /search?lang=fr$",
+    ]);
+    expect(rules.slice(bing, bing + 9)).not.toContain("Crawl-delay: 5");
     const lines = text.split("\n");
     expect(lines).toContain("Disallow: /search?");
     expect(lines).toContain("Allow: /search?lang=fr$");
