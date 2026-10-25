@@ -25,8 +25,15 @@ cannot create it, so it is set in the dashboard:
 3. When incoming requests match, use the expression editor and paste:
 
    ```
-   (http.host in {"lmiawatch.ca" "www.lmiawatch.ca"} and not starts_with(http.request.uri.path, "/data/") and not starts_with(http.request.uri.path, "/fonts/"))
+   (http.host in {"lmiawatch.ca" "www.lmiawatch.ca"} and not starts_with(http.request.uri.path, "/data/") and not starts_with(http.request.uri.path, "/fonts/") and not cf.client.bot)
    ```
+
+   `cf.client.bot` is true for a crawler Cloudflare has verified (Googlebot,
+   Bingbot and the other search engines). Without that clause the cap counts
+   them like anyone else, and a crawler rendering pages fetches the stylesheet
+   and scripts with each page, so a burst from one of its addresses answers
+   429 and the search engine slows its crawl (seen 2026-10-25 as Googlebot
+   requests blocked at the edge).
 
 4. Characteristics: IP (the Free plan adds the data centre itself).
 5. Requests: 40 per 10 seconds. Action: Block. Duration: 10 seconds (the only
@@ -34,7 +41,8 @@ cannot create it, so it is set in the dashboard:
 6. Deploy.
 
 A page view fetches about ten files, so a reader never reaches 40 Worker
-requests in 10 seconds. A script fetching four pages a second is blocked.
+requests in 10 seconds. A script fetching four pages a second is blocked;
+a verified crawler is not.
 
 ## 2. Caps inside the Worker
 
