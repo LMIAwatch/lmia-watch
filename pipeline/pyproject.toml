@@ -26,7 +26,7 @@ where = ["."]
 include = ["lmia_pipeline*"]
 
 [tool.setuptools.package-data]
-lmia_pipeline = ["data/*.csv"]
+lmia_pipeline = ["data/*.csv", "data/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

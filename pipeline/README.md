@@ -215,3 +215,13 @@ agent names the project and its mailbox, read from `LMIAWATCH_SITE_URL` and
 `scripts/build_fsa_centroids.py` writes `lmia_pipeline/data/fsa_centroids.csv`
 from the GeoNames postal dataset (CC BY 4.0). The pipeline loads that file on
 every run. Map points sit at area centroids, never at an address.
+
+## Province boundaries for the daily card
+`scripts/build_province_boundaries.py` writes `lmia_pipeline/data/provinces_2021.json`,
+the outlines the daily card's map is drawn from: Statistics Canada's 2021 cartographic
+boundary file for provinces and territories, read from the same map service as the
+other boundaries and cut down for a 1200-pixel card (small islands dropped,
+Douglas-Peucker on the rest). The three Maritime provinces keep finer detail because
+the card's inset enlarges them. The file is committed and read at render time; rerun
+the script only for a new Statistics Canada edition. The Methodology and Data pages
+carry the credit.

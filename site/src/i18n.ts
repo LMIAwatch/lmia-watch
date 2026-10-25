@@ -752,8 +752,8 @@ const STRINGS = {
     fr: "Utilisé seulement par l'indicateur du volet des postes à bas salaire",
   },
   "methodology.sources.boundaries.source": {
-    en: "Statistics Canada 2021 Census boundary files: economic regions, census metropolitan areas, forward sortation areas",
-    fr: "Fichiers des limites du Recensement de 2021 de Statistique Canada : régions économiques, régions métropolitaines de recensement, régions de tri d'acheminement",
+    en: "Statistics Canada 2021 Census boundary files: economic regions, census metropolitan areas, forward sortation areas, and the provinces and territories that draw the map on the daily social card",
+    fr: "Fichiers des limites du Recensement de 2021 de Statistique Canada : régions économiques, régions métropolitaines de recensement, régions de tri d'acheminement, ainsi que les provinces et territoires qui tracent la carte de l'image jointe à la publication quotidienne",
   },
   "methodology.sources.boundaries.fields": {
     en: "Place each postal area in an economic region and, where it falls in one, a census metropolitan area. An area that straddles a boundary goes wholly to one side.",
@@ -1098,8 +1098,8 @@ const STRINGS = {
     fr: "{cc} : usage non commercial, partage sous la même licence, sans approbation du Registraire. Citation : REGISTRAIRE DES ENTREPRISES. Registre des entreprises, [Jeu de données], dans Données Québec.",
   },
   "data.lic.statcan": {
-    en: "Statistics Canada figures: the Labour Force Survey and job vacancy tables (14-10-0459-01, 14-10-0444-01), the NOC 2021 classification and the 2021 Census boundary files, in the indicators and on the occupation and place pages",
-    fr: "Chiffres de Statistique Canada : tableaux de l'Enquête sur la population active et des postes vacants (14-10-0459-01, 14-10-0444-01), classification CNP 2021 et fichiers des limites du Recensement de 2021, dans les indicateurs et les pages des professions et des lieux",
+    en: "Statistics Canada figures: the Labour Force Survey and job vacancy tables (14-10-0459-01, 14-10-0444-01), the NOC 2021 classification and the 2021 Census boundary files, in the indicators, on the occupation and place pages, and on the map in the daily post's image",
+    fr: "Chiffres de Statistique Canada : tableaux de l'Enquête sur la population active et des postes vacants (14-10-0459-01, 14-10-0444-01), classification CNP 2021 et fichiers des limites du Recensement de 2021, dans les indicateurs, les pages des professions et des lieux, et la carte de l'image jointe à la publication quotidienne",
   },
   "data.lic.statcan_terms": {
     en: "{statcan}. Source: Statistics Canada, tables 14-10-0459-01 and 14-10-0444-01, NOC 2021 Version 1.0 and the 2021 Census boundary files. Reproduced and distributed on an \"as is\" basis with the permission of Statistics Canada. Figures the site calculates from them are adapted from Statistics Canada; this does not constitute an endorsement by Statistics Canada of this product.",
