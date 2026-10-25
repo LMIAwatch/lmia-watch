@@ -131,6 +131,16 @@ def _post(http: Any, endpoint: str, body: bytes, headers: dict[str, str], sleep:
     return status, note
 
 
+def key_file_ok(http: Any, key_location: str, key: str) -> bool:
+    """True when the site serves the key file with the key as its content.
+    Any failure to fetch it reads as not ok. Never raises."""
+    try:
+        resp = http.get(key_location, headers={"User-Agent": config.USER_AGENT}, timeout=TIMEOUT)
+        return int(resp.status_code) == 200 and str(resp.text).strip() == key
+    except Exception:
+        return False
+
+
 def submit(http: Any, urls: Sequence[str], *, key: str, host: str, key_location: str,
            endpoint: str = ENDPOINT, batch_size: int = BATCH, sleep: Callable[[float], None] | None = None,
            retry_after: float | None = None) -> dict[str, Any]:
@@ -159,7 +169,13 @@ def submit(http: Any, urls: Sequence[str], *, key: str, host: str, key_location:
                 record["accepted"] += len(batch)
                 continue
             where = f"batch {n} of {len(batches)}"
-            if status in REJECTED:
+            if status in REJECTED and status != 400 and key_file_ok(http, key_location, key):
+                # The endpoint refused the key while the site serves it correctly:
+                # a key it has not fetched and verified yet (seen on the first
+                # night of a new key). Nothing to fix; the next night tries again.
+                record["outcome"] = f"not verified ({status})"
+                record["detail"] = f"{where} answered {status} although the key file answers correctly; nothing more sent"
+            elif status in REJECTED:
                 record["outcome"] = f"rejected ({status})"
                 record["detail"] = f"{where} answered {status}; nothing more sent"
             elif status == TOO_MANY:

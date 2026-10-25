@@ -179,7 +179,8 @@ The outcome goes to the run status as `indexnow` and to `LAST_RUN.md` as
 | Outcome | Meaning |
 |---|---|
 | `submitted <n> URLs` | every batch answered 200 (submitted) or 202 (received, the key check still pending) |
-| `rejected (400)`, `rejected (403)`, `rejected (422)` | 400: the request was malformed. 403: the key is not valid (the key file was not found, or it does not hold the key). 422: a URL is not on the host, or the key does not match. Nothing more is sent that night, and the step exits 1 so it shows red |
+| `not verified (403)`, `not verified (422)` | the endpoint refused the key while the site serves the key file correctly (the run fetches it to check). Seen on the first night of a new key, before the endpoint had fetched and verified it; the same request was accepted a few hours later. Nothing to fix; the next night tries again |
+| `rejected (400)`, `rejected (403)`, `rejected (422)` | 400: the request was malformed. 403 or 422 with a key file that does not answer 200 with the key as its content: the file is missing or wrong. Nothing more is sent that night, and the step exits 1 so it shows red |
 | `rate limited` | 429, too many requests. Nothing more is sent that night |
 | `failed` | no answer, or a 500 to 599, on the first try and on the retry 10 seconds later; or the step could not run (no start time, no database) |
 | `off` | the repository variable `INDEXNOW_ENABLED` is `false` |

@@ -46,6 +46,20 @@ class FakeHttp:
         self.closed = True
 
 
+class KeyFileHttp(FakeHttp):
+    """A FakeHttp that also answers GET for the key file."""
+
+    def __init__(self, key_status, key_text, *answers):
+        super().__init__(*answers)
+        self.key_status, self.key_text, self.gets = key_status, key_text, []
+
+    def get(self, url, headers=None, timeout=None, **kwargs):
+        self.gets.append(url)
+        r = Resp(self.key_status)
+        r.text = self.key_text
+        return r
+
+
 def send(http, urls, **kwargs):
     waits = []
     record = indexnow.submit(http, urls, key=KEY, host="lmiawatch.example", key_location=f"{BASE}/{KEY}.txt",
@@ -178,6 +192,29 @@ def test_a_rejection_stops_at_once(answer):
     assert record["outcome"] == f"rejected ({answer})"
     assert len(http.calls) == 1 and waits == [] and record["accepted"] == 0
     assert record["detail"] == f"batch 1 of 3 answered {answer}; nothing more sent"
+
+
+@pytest.mark.parametrize("answer", [403, 422])
+def test_a_refusal_with_a_correct_key_file_is_not_verified_yet(answer):
+    http = KeyFileHttp(200, KEY, answer)
+    record, _ = send(http, urls_of(25_000))
+    assert record["outcome"] == f"not verified ({answer})"
+    assert http.gets == [f"{BASE}/{KEY}.txt"]
+    assert len(http.calls) == 1 and record["accepted"] == 0
+    assert "although the key file answers correctly" in record["detail"]
+
+
+@pytest.mark.parametrize("key_status, key_text", [(404, ""), (200, "someone-else"), (200, "")])
+def test_a_refusal_with_a_wrong_key_file_is_rejected(key_status, key_text):
+    http = KeyFileHttp(key_status, key_text, 403)
+    record, _ = send(http, urls_of(5))
+    assert record["outcome"] == "rejected (403)"
+
+
+def test_a_bad_request_is_rejected_without_checking_the_key_file():
+    http = KeyFileHttp(200, KEY, 400)
+    record, _ = send(http, urls_of(5))
+    assert record["outcome"] == "rejected (400)" and http.gets == []
 
 
 def test_a_rejection_after_an_accepted_batch_sends_no_further_batches():
