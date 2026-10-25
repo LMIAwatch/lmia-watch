@@ -18,6 +18,7 @@ import { employerPage } from "./pages/employer";
 import { feedsPage } from "./pages/feeds";
 import { correctionsForm, correctionsSubmit, respondForm, respondSubmit } from "./pages/forms";
 import { homePage } from "./pages/home";
+import { internationalPage } from "./pages/international";
 import { mapPage } from "./pages/map";
 import { methodologyPage } from "./pages/methodology";
 import { rankingsPage } from "./pages/rankings";
@@ -98,6 +99,8 @@ app.get("/trends", trendsPage);
 app.get("/trends/:view", trendsPage);
 // What the program's own pages state is in force: one small JSON file.
 app.get("/program", programPage);
+// Postings open to international candidates and the designated-employer lists: one small JSON file.
+app.get("/international", internationalPage);
 app.get("/occupations", occupationsIndex);
 app.get("/occupations/:noc", occupationPage);
 app.get("/places", placesIndex);

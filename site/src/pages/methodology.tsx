@@ -1,10 +1,77 @@
 import type { Context } from "hono";
+import type { FC } from "hono/jsx";
 import { HowToCite } from "../cite";
 import { loadStats } from "../data";
 import type { AppEnv } from "../env";
-import { indicatorLabel, t, tj, type Key } from "../i18n";
+import { indicatorLabel, t, tj, type Key, type Lang } from "../i18n";
 import { Badge, Layout, page } from "../layout";
 import { pageSeo } from "../seo";
+import { isObj, isNum, isStrOrNull } from "../valid";
+
+// The high-wage list in use, as stats.json states it; anything else reads as absent.
+type ListVersion = { read_on: string | null; page_modified: string | null; count: number };
+function listVersion(v: unknown): ListVersion | null {
+  return isObj(v) && isStrOrNull(v.read_on) && isStrOrNull(v.page_modified) && isNum(v.count) && v.read_on
+    ? (v as ListVersion)
+    : null;
+}
+
+// IRCC's pages on the November 3, 2026 change, in each language. The
+// announcement is also the temporary notice bar's link (NOTICE_EE_URL in
+// i18n.ts); kept here on its own so the section outlives the bar.
+export const EE_LINKS: Record<"announcement" | "joboffer" | "list", Record<Lang, string>> = {
+  announcement: {
+    en: "https://www.canada.ca/en/immigration-refugees-citizenship/news/2026/10/canada-refocusing-express-entry-on-top-talent-that-drives-economic-growth.html",
+    fr: "https://www.canada.ca/fr/immigration-refugies-citoyennete/nouvelles/2026/10/le-canada-reoriente-le-systeme-entree-express-vers-les-travailleurs-qualifies-qui-stimulent-leconomie.html",
+  },
+  joboffer: {
+    en: "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/documents/job-offer.html",
+    fr: "https://www.canada.ca/fr/immigration-refugies-citoyennete/services/immigrer-canada/entree-express/documents/offre-emploi.html",
+  },
+  list: {
+    en: "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/check-score/high-wage.html",
+    fr: "https://www.canada.ca/fr/immigration-refugies-citoyennete/services/immigrer-canada/entree-express/verifier-note/salaire-eleve.html",
+  },
+};
+
+const EE_GRADES: Key[] = ["methodology.ee_grade_a", "methodology.ee_grade_b", "methodology.ee_grade_c", "methodology.ee_grade_none"];
+const EE_LIMITS: Key[] = [
+  "methodology.ee_limit_advertise", "methodology.ee_limit_staff", "methodology.ee_limit_floor", "methodology.ee_limit_facet",
+  "methodology.ee_limit_boards", "methodology.ee_limit_signal",
+];
+
+// The highlighted block at the top of the page (anchor express-entry), which
+// the notice bar and the international-candidates page link to.
+export const ExpressEntryBlock: FC<{ lang: Lang; version?: ListVersion | null }> = ({ lang, version }) => (
+  <section class="ee-block" id="express-entry" aria-labelledby="express-entry-h">
+    <h2 id="express-entry-h">{t(lang, "methodology.ee_h")}</h2>
+    <p>
+      {tj(lang, "methodology.ee_intro", {
+        announcement: <a href={EE_LINKS.announcement[lang]} rel="noopener">{t(lang, "methodology.ee_announced")}</a>,
+        list: <a href={EE_LINKS.list[lang]} rel="noopener">{t(lang, "intl.list_link")}</a>,
+        rules: <a href={EE_LINKS.joboffer[lang]} rel="noopener">{t(lang, "methodology.ee_rules")}</a>,
+      })}
+    </p>
+    <h3>{t(lang, "methodology.ee_records_h")}</h3>
+    <p>{t(lang, "methodology.ee_records")}</p>
+    <h3>{t(lang, "methodology.ee_grades_h")}</h3>
+    <p>{t(lang, "methodology.ee_grades_intro")}</p>
+    <ul>{EE_GRADES.map((k) => <li>{t(lang, k)}</li>)}</ul>
+    <p>{t(lang, "methodology.ee_grade_notes")}</p>
+    {version ? (
+      <p>
+        {t(lang, "methodology.ee_list", {
+          read: version.read_on ?? "", modified: version.page_modified ?? t(lang, "common.na"), count: version.count,
+        })}
+      </p>
+    ) : null}
+    <h3>{t(lang, "methodology.ee_registers_h")}</h3>
+    <p>{tj(lang, "methodology.ee_registers", { data: <a href="/data#registers">{t(lang, "places.sources_link")}</a> })}</p>
+    <h3>{t(lang, "methodology.ee_limits_h")}</h3>
+    <ul>{EE_LIMITS.map((k) => <li>{t(lang, k)}</li>)}</ul>
+    <p>{tj(lang, "methodology.ee_page", { page: <a href="/international">{t(lang, "intl.crumb")}</a> })}</p>
+  </section>
+);
 
 // Table rows as dictionary keys, in display order.
 const SOURCES: [Key, Key, Key, Key][] = [
@@ -57,6 +124,25 @@ const SOURCES: [Key, Key, Key, Key][] = [
   ["methodology.sources.grants.source", "methodology.sources.grants.fields", "methodology.sources.grants.cadence", "methodology.sources.profiles_only"],
   ["methodology.sources.alberta.source", "methodology.sources.alberta.fields", "methodology.sources.alberta.cadence", "methodology.sources.profiles_only"],
   ["methodology.sources.fmcsa.source", "methodology.sources.fmcsa.fields", "methodology.sources.fmcsa.cadence", "methodology.sources.profiles_only"],
+  // The November 3 change: postings open to international candidates, IRCC's list, the designated-employer lists.
+  [
+    "methodology.sources.jobbank_intl.source",
+    "methodology.sources.jobbank_intl.fields",
+    "methodology.sources.jobbank_intl.cadence",
+    "methodology.sources.jobbank_intl.lag",
+  ],
+  [
+    "methodology.sources.high_wage.source",
+    "methodology.sources.high_wage.fields",
+    "methodology.sources.high_wage.cadence",
+    "methodology.sources.high_wage.lag",
+  ],
+  [
+    "methodology.sources.registers.source",
+    "methodology.sources.registers.fields",
+    "methodology.sources.registers.cadence",
+    "methodology.sources.profiles_only",
+  ],
 ];
 
 const STATUS_ROWS: [string, Key, Key][] = [
@@ -103,6 +189,7 @@ export async function methodologyPage(c: Context<AppEnv>): Promise<Response> {
       <div class="doc-layout">
         <nav aria-label={t(lang, "toc.label")} class="toc">
           <span class="toc-title">{t(lang, "toc.title")}</span>
+          <a href="#express-entry">{t(lang, "methodology.toc_ee")}</a>
           <a href="#sources">{t(lang, "methodology.toc_sources")}</a>
           <a href="#status">{t(lang, "methodology.toc_status")}</a>
           <a href="#indicators">{t(lang, "col.indicators")}</a>
@@ -114,6 +201,7 @@ export async function methodologyPage(c: Context<AppEnv>): Promise<Response> {
         <div class="doc">
           <h1>{t(lang, "nav.methodology")}</h1>
           <p class="lead">{t(lang, "methodology.lead")}</p>
+          <ExpressEntryBlock lang={lang} version={listVersion(stats?.high_wage)} />
 
           <h2 id="sources">{t(lang, "methodology.toc_sources")}</h2>
           <div class="table-wrap bordered">

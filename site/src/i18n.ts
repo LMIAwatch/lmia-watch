@@ -18,8 +18,10 @@ type Entry = { en: string; fr: string };
 // notice-ee, strings notice_ee.*). IRCC's announcement of 2026-10-16: from
 // 2026-11-03 a job offer used for Express Entry points or for the Federal
 // Skilled Worker and Federal Skilled Trades job-offer requirements needs no
-// LMIA. Remove the bar, these two URLs, the two strings, the CSS block and
-// test/notice.test.ts once the methodology page covers the change.
+// LMIA. The bar points at the methodology section on the change
+// (/methodology#express-entry) and at IRCC's notice. Remove the bar, these
+// two URLs, the three strings, the CSS block and test/notice.test.ts when it
+// is no longer news.
 export const NOTICE_EE_URL: Record<Lang, string> = {
   en: "https://www.canada.ca/en/immigration-refugees-citizenship/news/2026/10/canada-refocusing-express-entry-on-top-talent-that-drives-economic-growth.html",
   fr: "https://www.canada.ca/fr/immigration-refugies-citoyennete/nouvelles/2026/10/le-canada-reoriente-le-systeme-entree-express-vers-les-travailleurs-qualifies-qui-stimulent-leconomie.html",
@@ -27,11 +29,11 @@ export const NOTICE_EE_URL: Record<Lang, string> = {
 
 const STRINGS = {
   // TEMPORARY, see NOTICE_EE_URL above. One line on a desktop screen: keep
-  // the text plus the link under about 115 characters in English and 125 in
-  // French.
+  // the text plus both links (notice_ee.track below and notice_ee.link) under
+  // about 115 characters in English and 125 in French.
   "notice_ee.text": {
-    en: "From Nov. 3, Express Entry job offers no longer need an LMIA. We are working to keep tracking them.",
-    fr: "Dès le 3 nov., les offres d'emploi d'Entrée express n'ont plus besoin d'une EIMT. Nous travaillons à les suivre.",
+    en: "From Nov. 3, Express Entry job offers no longer need an LMIA.",
+    fr: "Dès le 3 nov., les offres d'emploi d'Entrée express n'ont plus besoin d'une EIMT.",
   },
   "notice_ee.link": { en: "IRCC notice", fr: "Avis d'IRCC" },
 
@@ -2788,6 +2790,349 @@ const STRINGS = {
   "program.stream.high_wage": { en: "High-wage stream", fr: "Volet des postes à haut salaire" },
   "program.stream.low_wage": { en: "Low-wage stream", fr: "Volet des postes à bas salaire" },
   "program.stream.permanent_resident": { en: "Permanent resident stream", fr: "Volet de résidence permanente" },
+
+  // -- postings open to international candidates (/international, pages/international.tsx) --
+  // Signals, never findings: every row separates what the employer selected
+  // from what the site inferred, and says a posting is not a job offer.
+  "nav.international": { en: "International", fr: "International" },
+  "intl.crumb": { en: "Open to international candidates", fr: "Ouvert aux candidats internationaux" },
+  "intl.h1": { en: "Open to International Candidates", fr: "Ouvert aux candidats internationaux" },
+  "intl.lead": {
+    en: 'Job Bank postings whose employer chose "Canadians and international candidates" as the people who may apply. From November 3, 2026, a job offer used for Express Entry needs no LMIA, so such offers leave the LMIA record the rest of this site reads. Some of them can still be seen here.',
+    fr: "Annonces du Guichet-Emplois dont l'employeur a choisi « Canadiens et candidats internationaux » comme personnes admissibles. Depuis le 3 novembre 2026, une offre d'emploi utilisée pour Entrée express n'exige plus d'EIMT : ces offres sortent donc du dossier des EIMT que lit le reste du site. Certaines restent visibles ici.",
+  },
+  "intl.is_not": {
+    en: "These are signals, not records of job offers. A posting does not show that a job offer was made, that anyone was hired or that a permanent-residence application followed. Employers choose this audience for many reasons, and offers to people already on staff are seldom advertised at all.",
+    fr: "Ce sont des signaux, pas des dossiers d'offres d'emploi. Une annonce ne montre pas qu'une offre d'emploi a été faite, que quelqu'un a été embauché ni qu'une demande de résidence permanente a suivi. Les employeurs choisissent ce public pour bien des raisons, et les offres faites à des employés en poste sont rarement affichées.",
+  },
+  "intl.method": { en: "How these postings are read and graded: {link}.", fr: "Comment ces annonces sont lues et classées : {link}." },
+  "intl.method_link": { en: "Methodology, November 3 change", fr: "Méthodologie, changement du 3 novembre" },
+  "intl.tile_live": { en: "Open to international candidates now", fr: "Ouvertes aux candidats internationaux en ce moment" },
+  "intl.tile_live_note": { en: "{n} of them with an LMIA requested", fr: "dont {n} avec une EIMT demandée" },
+  "intl.tile_no_lmia": { en: "No LMIA requested", fr: "Aucune EIMT demandée" },
+  "intl.tile_no_lmia_note": { en: "{n} not graded yet (posting page not read)", fr: "{n} pas encore classées (page de l'annonce non lue)" },
+  "intl.tile_a": { en: "Grade A signals", fr: "Signaux de catégorie A" },
+  "intl.tile_a_note": {
+    en: "High-wage occupation, full-time and permanent, or Express Entry wording",
+    fr: "Profession à salaire élevé, temps plein et permanent, ou mention d'Entrée express",
+  },
+  "intl.change_h": { en: "The November 3, 2026 Change", fr: "Le changement du 3 novembre 2026" },
+  "intl.change_text": {
+    en: "From November 3, 2026, an LMIA is no longer needed for a job offer to earn Express Entry points or to meet the job-offer requirement of the Federal Skilled Worker and Federal Skilled Trades programs. Points follow the offer's occupation on IRCC's {list}, not the wage offered.",
+    fr: "Depuis le 3 novembre 2026, une EIMT n'est plus nécessaire pour qu'une offre d'emploi donne des points dans Entrée express ou réponde à l'exigence d'offre d'emploi des programmes des travailleurs qualifiés (fédéral) et des métiers spécialisés (fédéral). Les points suivent la profession de l'offre dans la {list} d'IRCC, et non le salaire offert.",
+  },
+  "intl.list_link": { en: "list of high-wage occupations", fr: "liste des professions à salaire élevé" },
+  "intl.chart_h": { en: "New Postings by Day", fr: "Nouvelles annonces par jour" },
+  "intl.chart_note": {
+    en: "By Job Bank's posting date, from {baseline}, the day this tracking began. Postings first seen in the weekly sweep are dated by their own posting date.",
+    fr: "Selon la date d'affichage du Guichet-Emplois, depuis le {baseline}, jour où ce suivi a commencé. Les annonces trouvées par le relevé hebdomadaire sont datées selon leur propre date d'affichage.",
+  },
+  "intl.marker_legend": {
+    en: "{n} November 3, 2026: a job offer for Express Entry no longer needs an LMIA.",
+    fr: "{n} 3 novembre 2026 : une offre d'emploi pour Entrée express n'exige plus d'EIMT.",
+  },
+  "intl.panel_all": { en: "Open to international candidates", fr: "Ouvertes aux candidats internationaux" },
+  "intl.panel_no_lmia": { en: "No LMIA requested", fr: "Aucune EIMT demandée" },
+  "intl.panel_facet": { en: "Listed under the filter each night (Job Bank's own count)", fr: "Annonces sous le filtre chaque nuit (compte du Guichet-Emplois)" },
+  "intl.chart_aria": { en: "Daily counts; every figure is in the table below.", fr: "Chiffres quotidiens; tous figurent dans le tableau ci-dessous." },
+  "intl.point_title": { en: "{day}: {n}", fr: "{day} : {n}" },
+  "intl.table_daily": { en: "Figures by day", fr: "Chiffres par jour" },
+  "intl.col_all": { en: "Open to international candidates", fr: "Ouvertes aux candidats internationaux" },
+  "intl.col_lmia": { en: "LMIA requested", fr: "EIMT demandée" },
+  "intl.col_unread": { en: "Not graded yet", fr: "Pas encore classées" },
+  "intl.col_facet": { en: "Job Bank's count", fr: "Compte du Guichet-Emplois" },
+  "intl.grade_A": { en: "Grade A", fr: "Catégorie A" },
+  "intl.grade_B": { en: "Grade B", fr: "Catégorie B" },
+  "intl.grade_C": { en: "Grade C", fr: "Catégorie C" },
+  "intl.grade_unread": { en: "Not graded yet", fr: "Pas encore classée" },
+  "intl.grade_A_rule": {
+    en: "High-wage occupation, full-time and permanent; or wording that names Express Entry",
+    fr: "Profession à salaire élevé, temps plein et permanent; ou texte qui nomme Entrée express",
+  },
+  "intl.grade_B_rule": {
+    en: "TEER 0 to 3 occupation not on the list, full-time and permanent",
+    fr: "Profession de FEER 0 à 3 absente de la liste, temps plein et permanent",
+  },
+  "intl.grade_C_rule": {
+    en: "Any other posting open to international candidates without an LMIA request",
+    fr: "Toute autre annonce ouverte aux candidats internationaux sans demande d'EIMT",
+  },
+  "intl.grade_unread_rule": { en: "Posting page not read yet", fr: "Page de l'annonce pas encore lue" },
+  "intl.by_grade_h": { en: "Live Postings Without an LMIA Request, by Grade", fr: "Annonces en ligne sans demande d'EIMT, par catégorie" },
+  "intl.by_prov_h": { en: "By Province", fr: "Par province" },
+  "intl.by_noc_h": { en: "By Occupation", fr: "Par profession" },
+  "intl.by_noc_note": { en: "The {n} occupations with the most live postings, by the NOC code the employer chose.", fr: "Les {n} professions qui comptent le plus d'annonces en ligne, selon le code CNP choisi par l'employeur." },
+  "intl.col_grade": { en: "Grade", fr: "Catégorie" },
+  "intl.col_rule": { en: "Rule", fr: "Règle" },
+  "intl.col_postings": { en: "Postings", fr: "Annonces" },
+  "intl.col_total": { en: "Total", fr: "Total" },
+  "intl.col_list": { en: "IRCC list", fr: "Liste d'IRCC" },
+  "intl.points": { en: "{n} points", fr: "{n} points" },
+  "intl.not_listed": { en: "not listed", fr: "absente" },
+  "intl.recent_h": { en: "Recent Graded Postings", fr: "Annonces classées récentes" },
+  "intl.recent_note": {
+    en: "The newest {n} graded postings by posting date. Each row separates what the employer selected on Job Bank from what this site inferred.",
+    fr: "Les {n} annonces classées les plus récentes, selon la date d'affichage. Chaque ligne distingue ce que l'employeur a choisi au Guichet-Emplois de ce que le site en a déduit.",
+  },
+  "intl.col_posting": { en: "Posting", fr: "Annonce" },
+  "intl.col_why": { en: "Why this grade", fr: "Raison de la catégorie" },
+  "intl.selected_label": { en: "Employer selected:", fr: "Choix de l'employeur :" },
+  "intl.inferred_label": { en: "Site inferred:", fr: "Déduit par le site :" },
+  "intl.sel_intl": {
+    en: "The employer marked this posting open to international candidates and requested no LMIA.",
+    fr: "L'employeur a ouvert cette annonce aux candidats internationaux et n'a demandé aucune EIMT.",
+  },
+  "intl.sel_ft_perm": { en: "The work is full-time and permanent.", fr: "L'emploi est permanent et à temps plein." },
+  "intl.sel_perm_only": { en: "The work is permanent, not full-time.", fr: "L'emploi est permanent, mais pas à temps plein." },
+  "intl.sel_ft_only": { en: "The work is full-time, not permanent.", fr: "L'emploi est à temps plein, mais pas permanent." },
+  "intl.sel_neither": { en: "The work is neither full-time nor permanent.", fr: "L'emploi n'est ni permanent ni à temps plein." },
+  "intl.sel_noc": { en: "The employer chose NOC {code}.", fr: "L'employeur a choisi la CNP {code}." },
+  "intl.inf_high_wage": {
+    en: "Its occupation is on IRCC's high-wage list ({points} points).",
+    fr: "Sa profession figure dans la liste des professions à salaire élevé d'IRCC ({points} points).",
+  },
+  "intl.inf_teer_unlisted": {
+    en: "Its occupation is TEER {teer} and not on IRCC's high-wage list.",
+    fr: "Sa profession est de FEER {teer} et ne figure pas dans la liste des professions à salaire élevé d'IRCC.",
+  },
+  "intl.inf_teer_low": {
+    en: "Its occupation is TEER {teer}, outside the TEER 0 to 3 levels Express Entry asks for.",
+    fr: "Sa profession est de FEER {teer}, hors des niveaux FEER 0 à 3 qu'exige Entrée express.",
+  },
+  "intl.inf_no_noc": { en: "The posting gives no NOC 2021 code.", fr: "L'annonce ne donne aucun code CNP 2021." },
+  "intl.inf_ee": { en: "Its text names Express Entry: {phrases}.", fr: "Son texte nomme Entrée express : {phrases}." },
+  "intl.inf_pr": { en: "Its text offers help with permanent residence: {phrases}.", fr: "Son texte offre de l'aide pour la résidence permanente : {phrases}." },
+  "intl.inf_exempt": { en: "Its text says no LMIA is needed: {phrases}.", fr: "Son texte indique qu'aucune EIMT n'est nécessaire : {phrases}." },
+  "intl.not_offer": { en: "A posting does not show that a job offer was made.", fr: "Une annonce ne montre pas qu'une offre d'emploi a été faite." },
+  "intl.lmia_context": { en: "Context: this employer has {link} on this site (never used in a grade).", fr: "Contexte : cet employeur a des {link} sur ce site (jamais pris en compte dans la catégorie)." },
+  "intl.lmia_context_link": { en: "LMIA records", fr: "dossiers d'EIMT" },
+  "intl.gone": { en: "no longer listed", fr: "n'est plus affichée" },
+  "intl.none_yet": { en: "No graded postings yet.", fr: "Aucune annonce classée pour l'instant." },
+  "intl.list_version": {
+    en: "Grades use IRCC's high-wage list as read on {read} (page dated {modified}): {count} occupations. {link}",
+    fr: "Les catégories utilisent la liste des professions à salaire élevé d'IRCC relevée le {read} (page datée du {modified}) : {count} professions. {link}",
+  },
+  "intl.list_stale": {
+    en: "IRCC's page could not be read at the last check; the grades keep this version until it can.",
+    fr: "La page d'IRCC n'a pas pu être lue lors de la dernière vérification; les catégories gardent cette version d'ici là.",
+  },
+  "intl.list_source": { en: "IRCC's list", fr: "Liste d'IRCC" },
+  "intl.reg_h": { en: "Designated-Employer Lists", fr: "Listes d'employeurs désignés" },
+  "intl.reg_text": {
+    en: "Under the Atlantic Immigration Program and the Rural and Francophone Community Immigration Pilots, a designated or recommended employer can support a permanent-residence application without an LMIA. Provinces and pilot communities publish their lists; the site reads them each night and shows a matched employer's listing on its profile.",
+    fr: "Dans le cadre du Programme d'immigration au Canada atlantique et des projets pilotes d'immigration dans les communautés rurales et francophones, un employeur désigné ou recommandé peut appuyer une demande de résidence permanente sans EIMT. Les provinces et les collectivités publient leurs listes; le site les lit chaque nuit et montre l'inscription d'un employeur jumelé dans son profil.",
+  },
+  "intl.reg_totals": {
+    en: "{rows} employers listed on the lists read; {matched} of them matched to an employer profile on this site.",
+    fr: "{rows} employeurs inscrits sur les listes lues; {matched} d'entre eux jumelés à un profil d'employeur du site.",
+  },
+  "intl.reg_col_program": { en: "Program", fr: "Programme" },
+  "intl.reg_col_where": { en: "Province or community", fr: "Province ou collectivité" },
+  "intl.reg_col_rows": { en: "Employers listed", fr: "Employeurs inscrits" },
+  "intl.reg_col_matched": { en: "Matched to a profile", fr: "Jumelés à un profil" },
+  "intl.reg_col_state": { en: "Status", fr: "État" },
+  "intl.reg_state_ok": { en: "Read {date}", fr: "Lue le {date}" },
+  "intl.reg_state_unreadable": { en: "PDF, not yet readable", fr: "PDF, pas encore lisible" },
+  "intl.reg_state_failing": { en: "Not read lately; last good read {date}", fr: "Non lue récemment; dernière lecture réussie le {date}" },
+  "intl.reg_state_never": { en: "Could not be read yet", fr: "N'a pas encore pu être lue" },
+  "intl.reg_state_not_read": { en: "Not read yet", fr: "Pas encore lue" },
+  "intl.reg_list": { en: "list", fr: "liste" },
+  "intl.not_published": {
+    en: "The first pass over these postings has not run yet. This page fills after the next nightly refresh.",
+    fr: "Le premier relevé de ces annonces n'a pas encore eu lieu. Cette page se remplira après la prochaine mise à jour de nuit.",
+  },
+  "intl.last_run": { en: "Last read {date}; weekly sweep {sweep}.", fr: "Dernier relevé le {date}; relevé hebdomadaire le {sweep}." },
+  "intl.seo_title": {
+    en: "Job Bank Postings Open to International Candidates, No LMIA",
+    fr: "Annonces du Guichet-Emplois ouvertes aux candidats internationaux, sans EIMT",
+  },
+  "intl.seo_desc": {
+    en: "Daily counts of Job Bank postings open to international candidates without an LMIA, graded against IRCC's high-wage list, from the Nov. 3, 2026 change.",
+    fr: "Annonces du Guichet-Emplois ouvertes aux candidats internationaux sans EIMT, chaque jour, classées selon la liste d'IRCC, depuis le 3 novembre 2026.",
+  },
+  "prog.AIP": { en: "Atlantic Immigration Program", fr: "Programme d'immigration au Canada atlantique" },
+  "prog.RCIP": { en: "Rural Community Immigration Pilot", fr: "Projet pilote d'immigration dans les communautés rurales" },
+  "prog.FCIP": { en: "Francophone Community Immigration Pilot", fr: "Projet pilote d'immigration dans les communautés francophones" },
+  "notice_ee.track": { en: "See how we track them.", fr: "Voir notre suivi." },
+
+  // -- employer profile: postings open to international candidates, designated-employer listings --
+  "employer.intl_h": { en: "Postings Open to International Candidates", fr: "Annonces ouvertes aux candidats internationaux" },
+  "employer.intl_note": {
+    en: "Job Bank postings by this employer open to international candidates, newest first, with the site's grade for each. A grade is a signal: a posting does not show that a job offer was made. The LMIA records on this page are context and never change a grade.",
+    fr: "Annonces du Guichet-Emplois de cet employeur ouvertes aux candidats internationaux, les plus récentes d'abord, avec la catégorie que le site attribue à chacune. Une catégorie est un signal : une annonce ne montre pas qu'une offre d'emploi a été faite. Les dossiers d'EIMT de cette page servent de contexte et ne changent jamais une catégorie.",
+  },
+  "employer.intl_lmia": { en: "LMIA requested (no grade)", fr: "EIMT demandée (sans catégorie)" },
+  "employer.intl_link": { en: "All postings open to international candidates", fr: "Toutes les annonces ouvertes aux candidats internationaux" },
+  "employer.designated_h": { en: "Designated Employer", fr: "Employeur désigné" },
+  "employer.designated_note": {
+    en: "Published lists of employers designated or recommended for programs whose job offers need no LMIA, matched to this employer by name and place. A match is not an identity: the listed employer can be another business with the same name. \"Listed since\" is the first night this site read the employer on the list, which can be later than the designation.",
+    fr: "Listes publiées d'employeurs désignés ou recommandés pour des programmes dont les offres d'emploi n'exigent pas d'EIMT, jumelées à cet employeur par le nom et le lieu. Une correspondance n'est pas une identité : l'employeur inscrit peut être une autre entreprise du même nom. « Inscrit depuis » désigne la première nuit où le site a lu l'employeur sur la liste, ce qui peut être postérieur à la désignation.",
+  },
+  "employer.designated_row": {
+    en: "Designated employer, {program} ({where}), listed since {date}",
+    fr: "Employeur désigné, {program} ({where}), inscrit depuis le {date}",
+  },
+  "employer.designated_as": { en: "Listed as", fr: "Inscrit sous le nom" },
+  "employer.designated_location": { en: "Place given", fr: "Lieu indiqué" },
+  "employer.designated_on": { en: "Designation date given", fr: "Date de désignation indiquée" },
+  "employer.designated_current": { en: "Still listed as read {date}", fr: "Toujours inscrit à la lecture du {date}" },
+  "employer.designated_gone": { en: "Not on the list as last read; last listed {date}", fr: "Absent de la dernière lecture de la liste; dernière inscription le {date}" },
+  "employer.designated_link": { en: "View the list", fr: "Voir la liste" },
+
+  // -- methodology: the November 3 change (anchor express-entry) --
+  "methodology.toc_ee": { en: "November 3 Change", fr: "Changement du 3 novembre" },
+  "methodology.ee_h": { en: "The November 3, 2026 Change to Express Entry", fr: "Le changement du 3 novembre 2026 dans Entrée express" },
+  "methodology.ee_intro": {
+    en: "On October 16, 2026, IRCC {announcement} that from November 3, a job offer no longer needs an LMIA to earn Express Entry points or to meet the job-offer requirement of the Federal Skilled Worker and Federal Skilled Trades programs. An offer earns 100, 70 or 50 points by the tier of its occupation on IRCC's {list}; the wage offered plays no part. The other {rules} still apply. Such offers leave the LMIA record that the rest of this site reads.",
+    fr: "Le 16 octobre 2026, IRCC a {announcement} qu'à compter du 3 novembre, une offre d'emploi n'a plus besoin d'une EIMT pour donner des points dans Entrée express ou répondre à l'exigence d'offre d'emploi des programmes des travailleurs qualifiés (fédéral) et des métiers spécialisés (fédéral). Une offre donne 100, 70 ou 50 points selon le palier de sa profession dans la {list} d'IRCC; le salaire offert n'y joue aucun rôle. Les autres {rules} s'appliquent toujours. Ces offres sortent du dossier des EIMT que lit le reste du site.",
+  },
+  "methodology.ee_announced": { en: "announced", fr: "annoncé" },
+  "methodology.ee_rules": { en: "job-offer rules", fr: "règles sur l'offre d'emploi" },
+  "methodology.ee_records_h": { en: "What the Site Records", fr: "Ce que le site enregistre" },
+  "methodology.ee_records": {
+    en: 'Job Bank asks an employer who may apply to a posting. Each night the site reads Job Bank\'s feed of the last 48 hours of postings open to "Canadians and international candidates" (search filter fglo=1), the counts that filter\'s first search page states, and the page of each new posting: who may apply, whether an LMIA was requested, the NOC code, whether the work is full-time and permanent, and any wording in the posting\'s own text that names Express Entry, offers help with permanent residence or says no LMIA is needed, kept as written. Once a week it reads every page of the filter, so a posting that leaves it is recorded as gone. Postings of private households are left out, as everywhere on the site. No employer profile is created for these postings; a posting is linked to a profile only when its employer already has records here.',
+    fr: "Le Guichet-Emplois demande à l'employeur qui peut postuler à une annonce. Chaque nuit, le site lit le fil des 48 dernières heures des annonces ouvertes aux « Canadiens et candidats internationaux » (filtre de recherche fglo=1), les chiffres qu'indique la première page de recherche de ce filtre et la page de chaque nouvelle annonce : qui peut postuler, si une EIMT a été demandée, le code CNP, si l'emploi est permanent et à temps plein, ainsi que tout passage du texte de l'annonce qui nomme Entrée express, offre de l'aide pour la résidence permanente ou indique qu'aucune EIMT n'est nécessaire, conservé tel qu'écrit. Une fois par semaine, il lit toutes les pages du filtre, de sorte qu'une annonce qui en sort est notée comme retirée. Les annonces de ménages privés sont écartées, comme partout sur le site. Aucun profil d'employeur n'est créé pour ces annonces; une annonce n'est reliée à un profil que si son employeur y a déjà des dossiers.",
+  },
+  "methodology.ee_grades_h": { en: "Grades", fr: "Catégories" },
+  "methodology.ee_list": {
+    en: "The site reads IRCC's list each night and adopts a new version the night it appears, once it passes its checks (120 to 400 codes in the three tiers, none in two); grades follow it from that night. The version in use was read on {read} (page dated {modified}): {count} occupations.",
+    fr: "Le site relève la liste d'IRCC chaque nuit et adopte une nouvelle version la nuit où elle paraît, une fois ses vérifications passées (120 à 400 codes dans les trois paliers, aucun dans deux); les catégories la suivent dès cette nuit. La version utilisée a été relevée le {read} (page datée du {modified}) : {count} professions.",
+  },
+  "methodology.ee_grades_intro": {
+    en: "Each posting open to international candidates gets at most one grade, recomputed every night:",
+    fr: "Chaque annonce ouverte aux candidats internationaux reçoit au plus une catégorie, recalculée chaque nuit :",
+  },
+  "methodology.ee_grade_a": {
+    en: "A: open to international candidates, no LMIA requested, an occupation on IRCC's high-wage list, full-time and permanent; or wording that names Express Entry on a posting open to international candidates without an LMIA request.",
+    fr: "A : ouverte aux candidats internationaux, aucune EIMT demandée, une profession de la liste des professions à salaire élevé d'IRCC, permanente et à temps plein; ou un texte qui nomme Entrée express dans une annonce ouverte aux candidats internationaux sans demande d'EIMT.",
+  },
+  "methodology.ee_grade_b": {
+    en: "B: open to international candidates, no LMIA requested, an occupation of TEER 0 to 3 that is not on the list, full-time and permanent. Such an offer earns no points but could still meet the job-offer requirement of the Federal Skilled Worker or Federal Skilled Trades program.",
+    fr: "B : ouverte aux candidats internationaux, aucune EIMT demandée, une profession de FEER 0 à 3 absente de la liste, permanente et à temps plein. Une telle offre ne donne pas de points, mais pourrait répondre à l'exigence d'offre d'emploi du programme des travailleurs qualifiés (fédéral) ou des métiers spécialisés (fédéral).",
+  },
+  "methodology.ee_grade_c": {
+    en: "C: any other posting open to international candidates without an LMIA request.",
+    fr: "C : toute autre annonce ouverte aux candidats internationaux sans demande d'EIMT.",
+  },
+  "methodology.ee_grade_none": {
+    en: "No grade: a posting with an LMIA requested keeps the LMIA treatment of the rest of the site; a posting whose page has not been read yet, or whose page no longer says international candidates may apply, waits.",
+    fr: "Sans catégorie : une annonce avec une EIMT demandée garde le traitement des EIMT du reste du site; une annonce dont la page n'a pas encore été lue, ou dont la page n'indique plus que les candidats internationaux peuvent postuler, attend.",
+  },
+  "methodology.ee_grade_notes": {
+    en: "The list tier follows the NOC code the employer chose, as IRCC's rule does; the wage offered is not used. An employer's LMIA history is shown beside its postings as context and is never part of a grade. Wording about permanent residence or about an LMIA not being needed is shown with the posting and does not change its grade.",
+    fr: "Le palier de la liste suit le code CNP choisi par l'employeur, comme la règle d'IRCC; le salaire offert n'est pas utilisé. Les antécédents d'EIMT d'un employeur sont montrés à côté de ses annonces comme contexte et n'entrent jamais dans une catégorie. Un texte sur la résidence permanente ou sur l'absence d'EIMT est montré avec l'annonce et ne change pas sa catégorie.",
+  },
+  "methodology.ee_registers_h": { en: "Designated-Employer Lists", fr: "Listes d'employeurs désignés" },
+  "methodology.ee_registers": {
+    en: "Under the Atlantic Immigration Program (New Brunswick, Nova Scotia, Prince Edward Island, Newfoundland and Labrador) and the Rural Community and Francophone Community Immigration Pilots, a designated or recommended employer can support a permanent-residence application without an LMIA. The provinces and pilot communities publish their lists under their own website terms. The site reads each list nightly, keeps the last good read when a list cannot be fetched, matches listed names to employer profiles by name and place within the list's province, and shows a match on the profile as a public record. Lists published as PDF files are read with a PDF reader; one it cannot read is recorded as not yet readable. Each list, its terms and its state are on the {data}.",
+    fr: "Dans le cadre du Programme d'immigration au Canada atlantique (Nouveau-Brunswick, Nouvelle-Écosse, Île-du-Prince-Édouard, Terre-Neuve-et-Labrador) et des projets pilotes d'immigration dans les communautés rurales et francophones, un employeur désigné ou recommandé peut appuyer une demande de résidence permanente sans EIMT. Les provinces et les collectivités publient leurs listes selon les conditions de leurs propres sites. Le site lit chaque liste chaque nuit, garde la dernière lecture réussie quand une liste ne peut pas être obtenue, jumelle les noms inscrits aux profils d'employeurs par le nom et le lieu dans la province de la liste, et montre une correspondance dans le profil comme dossier public. Les listes publiées en PDF sont lues avec un lecteur de PDF; une liste qu'il ne peut pas lire est notée comme pas encore lisible. Chaque liste, ses conditions et son état figurent sur la {data}.",
+  },
+  "methodology.ee_limits_h": { en: "Limits", fr: "Limites" },
+  "methodology.ee_limit_advertise": {
+    en: "No rule requires an employer to advertise a job offer used for Express Entry, so many never appear on Job Bank.",
+    fr: "Aucune règle n'oblige un employeur à afficher une offre d'emploi utilisée pour Entrée express : bien des offres n'apparaissent jamais au Guichet-Emplois.",
+  },
+  "methodology.ee_limit_staff": {
+    en: "Offers made to people already working for the employer are seldom posted at all.",
+    fr: "Les offres faites à des personnes qui travaillent déjà pour l'employeur sont rarement affichées.",
+  },
+  "methodology.ee_limit_floor": {
+    en: "Every count is a floor: a posting counts only once the site has seen it, and only on Job Bank.",
+    fr: "Chaque chiffre est un minimum : une annonce n'est comptée qu'une fois vue par le site, et seulement au Guichet-Emplois.",
+  },
+  "methodology.ee_limit_facet": {
+    en: 'The "Canadians and international candidates" filter existed before November 3 and also serves LMIA-exempt work permits, planned LMIAs and recruiters; employers choose their own NOC code, sometimes wrongly; and a posting that names Express Entry can be a recruitment scam.',
+    fr: "Le filtre « Canadiens et candidats internationaux » existait avant le 3 novembre et sert aussi aux permis de travail dispensés d'EIMT, aux EIMT prévues et aux recruteurs; les employeurs choisissent eux-mêmes leur code CNP, parfois à tort; et une annonce qui nomme Entrée express peut être une fraude au recrutement.",
+  },
+  "methodology.ee_limit_boards": {
+    en: "Indeed, LinkedIn, Glassdoor and similar job boards are not read: their terms forbid automated reading.",
+    fr: "Indeed, LinkedIn, Glassdoor et les sites d'emploi semblables ne sont pas lus : leurs conditions interdisent la lecture automatisée.",
+  },
+  "methodology.ee_limit_signal": {
+    en: "A posting is a signal. It does not show that a job offer was made, that a candidate accepted one or that IRCC approved anything.",
+    fr: "Une annonce est un signal. Elle ne montre pas qu'une offre d'emploi a été faite, qu'un candidat l'a acceptée ni qu'IRCC a approuvé quoi que ce soit.",
+  },
+  "methodology.ee_page": { en: "The counts, breakdowns and recent postings are on the page {page}.", fr: "Les chiffres, les répartitions et les annonces récentes figurent sur la page {page}." },
+  "methodology.sources.jobbank_intl.source": {
+    en: 'Job Bank postings open to "Canadians and international candidates" (search filter fglo=1): the 48-hour Atom feed, the filter\'s first search page, the posting pages',
+    fr: "Annonces du Guichet-Emplois ouvertes aux « Canadiens et candidats internationaux » (filtre de recherche fglo=1) : le fil Atom de 48 heures, la première page de recherche du filtre, les pages des annonces",
+  },
+  "methodology.sources.jobbank_intl.fields": {
+    en: "Posting id, title, employer, place, salary and date; from the posting page, who may apply, the LMIA marker, the NOC code, the terms of employment and matched phrases",
+    fr: "Numéro, titre, employeur, lieu, salaire et date de l'annonce; de la page de l'annonce, les personnes admissibles, la mention d'EIMT, le code CNP, les conditions d'emploi et les passages relevés",
+  },
+  "methodology.sources.jobbank_intl.cadence": {
+    en: "Nightly (feed, counts, new posting pages); every page of the filter weekly",
+    fr: "Chaque nuit (fil, chiffres, pages des nouvelles annonces); toutes les pages du filtre chaque semaine",
+  },
+  "methodology.sources.jobbank_intl.lag": {
+    en: "None; a posting removed between two weekly sweeps is marked gone at the next one",
+    fr: "Aucun; une annonce retirée entre deux relevés hebdomadaires est notée comme retirée au relevé suivant",
+  },
+  "methodology.sources.high_wage.source": {
+    en: "IRCC, High-wage occupations and how we assess them (canada.ca)",
+    fr: "IRCC, Professions à salaire élevé et leur évaluation (canada.ca)",
+  },
+  "methodology.sources.high_wage.fields": {
+    en: "NOC 2021 unit groups and their tier: 100, 70 or 50 points",
+    fr: "Groupes de base de la CNP 2021 et leur palier : 100, 70 ou 50 points",
+  },
+  "methodology.sources.high_wage.cadence": {
+    en: "Read each night; a new version that passes the checks is adopted the night it appears",
+    fr: "Relevée chaque nuit; une nouvelle version qui passe les vérifications est adoptée la nuit où elle paraît",
+  },
+  "methodology.sources.high_wage.lag": {
+    en: "None; when the page cannot be read, the grades keep the last good version",
+    fr: "Aucun; quand la page ne peut pas être lue, les catégories gardent la dernière bonne version",
+  },
+  "methodology.sources.registers.source": {
+    en: "Designated-employer lists: Atlantic Immigration Program (NB, NS, PE, NL) and the communities of the Rural and Francophone Community Immigration Pilots",
+    fr: "Listes d'employeurs désignés : Programme d'immigration au Canada atlantique (N.-B., N.-É., Î.-P.-É., T.-N.-L.) et collectivités des projets pilotes d'immigration dans les communautés rurales et francophones",
+  },
+  "methodology.sources.registers.fields": {
+    en: "Employer name as listed, the place where the list gives one, the designation date where given",
+    fr: "Nom de l'employeur tel qu'inscrit, le lieu si la liste en donne un, la date de désignation si elle est indiquée",
+  },
+  "methodology.sources.registers.cadence": {
+    en: "Nightly, from HTML, JSON and PDF; a list that cannot be read keeps its last good rows",
+    fr: "Chaque nuit, en HTML, JSON et PDF; une liste qui ne peut pas être lue garde ses dernières lignes valides",
+  },
+
+  // -- data page: the new sources and their terms --
+  "data.lic.jobbank_intl": {
+    en: "Postings open to international candidates (Job Bank), on the International page and on profiles",
+    fr: "Annonces ouvertes aux candidats internationaux (Guichet-Emplois), sur la page International et dans les profils",
+  },
+  "data.lic.high_wage": {
+    en: "IRCC's list of high-wage occupations: the version in use and the tier shown with each posting",
+    fr: "Liste des professions à salaire élevé d'IRCC : la version utilisée et le palier montré avec chaque annonce",
+  },
+  "data.lic.registers": {
+    en: "Designated-employer lists (provincial and community websites): the listing shown on a profile and the count per list",
+    fr: "Listes d'employeurs désignés (sites provinciaux et des collectivités) : l'inscription montrée dans un profil et le nombre par liste",
+  },
+  "data.lic.registers_terms": {
+    en: "Each list stays under its publisher's terms, and none is under an open licence. The site shows a matched employer's listing with a link to the list and the count per list; it does not republish the lists. Publisher and terms per list are in the table below.",
+    fr: "Chaque liste reste soumise aux conditions de son éditeur, et aucune n'est sous licence ouverte. Le site montre l'inscription d'un employeur jumelé avec un lien vers la liste et le nombre par liste; il ne republie pas les listes. L'éditeur et les conditions de chaque liste figurent dans le tableau ci-dessous.",
+  },
+  "data.ee_sources_text": {
+    en: "Postings open to international candidates come from Job Bank's search filter {facet}; the grades use IRCC's {list}, read each night, with the date of the version in use on the International page. Both are under the {terms}.",
+    fr: "Les annonces ouvertes aux candidats internationaux viennent du filtre de recherche {facet} du Guichet-Emplois; les catégories utilisent la {list} d'IRCC, relevée chaque nuit, avec la date de la version utilisée sur la page International. Les deux relèvent des {terms}.",
+  },
+  "data.src.facet": { en: '"Canadians and international candidates"', fr: "« Canadiens et candidats internationaux »" },
+  "data.lic.high_wage_terms": {
+    en: "Under the {terms}: non-commercial reproduction with attribution; commercial redistribution needs prior written permission.",
+    fr: "Selon les {terms} : reproduction non commerciale avec mention de la source; la redistribution commerciale exige une permission écrite préalable.",
+  },
+  "data.registers_h": { en: "Designated-Employer Lists", fr: "Listes d'employeurs désignés" },
+  "data.reg_col_list": { en: "List", fr: "Liste" },
+  "data.reg_col_format": { en: "Format", fr: "Format" },
+  "data.reg_col_terms": { en: "Terms", fr: "Conditions" },
+  "data.terms.nb_disclaimer": { en: "gnb.ca disclaimer", fr: "Avis de non-responsabilité de gnb.ca" },
+  "data.terms.ns_crown": { en: "Crown copyright, Province of Nova Scotia (no licence stated)", fr: "Droit d'auteur de la Couronne, Nouvelle-Écosse (aucune licence indiquée)" },
+  "data.terms.pe_policy": { en: "Prince Edward Island website disclaimer and copyright policy", fr: "Avis et politique sur le droit d'auteur du site de l'Île-du-Prince-Édouard" },
+  "data.terms.nl_disclaimer": { en: "gov.nl.ca disclaimer", fr: "Avis de non-responsabilité de gov.nl.ca" },
+  "data.terms.community_site": { en: "The community website's copyright (all rights reserved)", fr: "Droit d'auteur du site de la collectivité (tous droits réservés)" },
 } as const satisfies Record<string, Entry>;
 
 export type Key = keyof typeof STRINGS;
@@ -2832,6 +3177,10 @@ export const SAME_IN_BOTH: ReadonlySet<Key> = new Set<Key>([
   "support.bar_total",
   "support.cents_one",
   "support.cents_many",
+  "nav.international",
+  "intl.points",
+  "intl.col_total",
+  "data.reg_col_format",
 ]);
 
 export function allKeys(): Key[] {

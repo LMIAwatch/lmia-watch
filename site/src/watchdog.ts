@@ -5,8 +5,9 @@ import { loadStats } from "./data";
 // site needs a hand: data that stopped refreshing, a backup that stopped
 // arriving, a refresh whose stages failed, a daily post that X or Bluesky
 // refused, a Zenodo deposit, search database sync or audience roll-up that
-// failed, or a deploy the run rolled back because the site answered with
-// server errors after it.
+// failed, a deploy the run rolled back because the site answered with
+// server errors after it, or a notice the run recorded (a reference list that
+// changed, a designated-employer list not readable or not read).
 // It reads only what the nightly run leaves behind (the stats file, the
 // backup's timestamp, status.json in R2), so a run that never happened is
 // caught as well as one that failed. Sending goes through Cloudflare's email
@@ -27,6 +28,8 @@ export type RunStatus = {
   views_rollup?: string;
   deploy_rolled_back?: boolean;
   stages?: { source: string; ok: boolean; detail?: string }[];
+  // Items needing a person that are not failures (status.json "notices").
+  notices?: { source: string; detail: string }[];
 };
 
 export type Inputs = {
@@ -71,6 +74,15 @@ export function readStatus(raw: unknown): { status: RunStatus | null; problem: s
     });
   } else if (r.stages !== undefined) {
     unreadable.push("stages");
+  }
+  // A notice that cannot be read is dropped rather than alerted on: it is
+  // advice, and the stages above already alert on anything that failed.
+  if (Array.isArray(r.notices)) {
+    status.notices = r.notices.flatMap((n) => {
+      if (!n || typeof n !== "object") return [];
+      const e = n as Record<string, unknown>;
+      return typeof e.detail === "string" && e.detail ? [{ source: typeof e.source === "string" ? e.source : "notice", detail: e.detail }] : [];
+    });
   }
   const problem = unreadable.length
     ? `The run status (status.json) in R2 has unreadable fields (${unreadable.join(", ")}).`
@@ -121,6 +133,9 @@ export function collectAlerts(i: Inputs): string[] {
     }
     if (i.status.views_rollup === "failed") {
       out.push("The audience roll-up failed. The next run catches up; check the CLOUDFLARE_ANALYTICS_TOKEN secret and the run log.");
+    }
+    for (const n of i.status.notices ?? []) {
+      out.push(`The last run noted (${n.source}): ${n.detail.slice(0, 400)}`);
     }
     if (i.status.deploy_rolled_back === true) {
       out.push("The site answered with server errors after the last deploy, so the run rolled the Worker back to the version before it. The site shows the previous data until a later run deploys again; check the run log.");

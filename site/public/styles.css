@@ -254,6 +254,25 @@ td.mono { white-space: nowrap; }
 .state-triggered { background: var(--white); color: var(--text); border: 2px solid var(--text); padding: 0 7px 1px; font-weight: 700; }
 .state-not_triggered { background: none; color: var(--muted); padding-left: 0; padding-right: 0; }
 .state-not_applicable, .state-not_evaluated { background: var(--white); color: var(--muted); border: 1px dashed var(--outline); }
+/* Grades of postings open to international candidates (pages/international.tsx):
+   signals, so neutral outlines that differ in weight and lightness, never the
+   amber of Pending or the red of a finding. */
+.grade-A { background: var(--white); color: var(--text); border: 2px solid var(--text); padding: 0 7px 1px; font-weight: 700; }
+.grade-B { background: var(--white); color: var(--text); border-color: var(--outline); }
+.grade-C { background: var(--white); color: var(--muted); border-color: var(--rule); }
+.grade-unread { background: none; color: var(--muted); border: 1px dashed var(--outline); }
+.reasons p { margin: 0 0 4px; }
+.reasons p:last-child { margin-bottom: 0; }
+.intl-recent td { vertical-align: top; }
+@media (min-width: 1000px) { .intl-recent td:last-child { min-width: 26em; } }
+/* The methodology's section on the November 3, 2026 change (#express-entry):
+   a block set apart by an accent rule and a light step of the Approved blue,
+   mixed from the tokens so the dark scheme follows; the grey panel without
+   color-mix. */
+.ee-block { background: var(--panel); background: color-mix(in srgb, var(--chart-bar) 10%, var(--white)); border-left: 6px solid var(--accent); padding: 4px 24px 20px; margin: 20px 0 8px; scroll-margin-top: 16px; }
+.ee-block h2 { margin-top: 16px; }
+.ee-block h3 { margin-top: 20px; }
+.ee-block > :last-child { margin-bottom: 0; }
 .chip { display: inline-block; max-width: 17em; padding: 0 6px; border: 1px solid var(--outline); border-radius: 0; background: var(--white); color: var(--chip-text); font-size: 13px; line-height: 1.45; white-space: normal; margin: 1px 4px 2px 0; }
 
 /* search */

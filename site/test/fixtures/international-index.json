@@ -1,0 +1,89 @@
+{
+  "as_of": "2026-10-12",
+  "baseline": "2026-10-09",
+  "change_date": "2026-11-03",
+  "last_run": "2026-10-12T00:41:00Z",
+  "sweep_at": "2026-10-09T00:52:00Z",
+  "high_wage": {
+    "read_on": "2026-10-25",
+    "page_modified": "2026-10-16",
+    "count": 186,
+    "tiers": [{ "points": 100, "count": 31 }, { "points": 70, "count": 89 }, { "points": 50, "count": 66 }],
+    "source_url": "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/check-score/high-wage.html",
+    "source_url_fr": "https://www.canada.ca/fr/immigration-refugies-citoyennete/services/immigrer-canada/entree-express/verifier-note/salaire-eleve.html",
+    "stale": false,
+    "checked_at": "2026-10-12T00:44:00Z"
+  },
+  "totals": { "live": 8032, "live_lmia": 1086, "live_no_lmia": 6946, "unread": 5210, "seen": 8301 },
+  "by_grade": { "A": 412, "B": 671, "C": 653, "unread": 5210 },
+  "by_province": [
+    { "k": "ON", "A": 190, "B": 260, "C": 251, "unread": 2101 },
+    { "k": "BC", "A": 101, "B": 150, "C": 140, "unread": 1210 },
+    { "k": "UN", "A": 0, "B": 0, "C": 1, "unread": 3 }
+  ],
+  "by_noc": [
+    { "k": "21231", "points": 70, "teer": 1, "title": { "en": "Software engineers and designers", "fr": "Ingénieurs/ingénieures et concepteurs/conceptrices en logiciel" }, "A": 61, "B": 0, "C": 4, "unread": 40 },
+    { "k": "60030", "points": null, "teer": 0, "title": { "en": "Restaurant and food service managers", "fr": "Gestionnaires de la restauration et des services alimentaires" }, "A": 0, "B": 88, "C": 9, "unread": 120 }
+  ],
+  "daily": [
+    { "day": "2026-10-09", "all": 51, "lmia": 7, "A": 6, "B": 9, "C": 10, "unread": 19 },
+    { "day": "2026-10-10", "all": 44, "lmia": 5, "A": 5, "B": 8, "C": 12, "unread": 14 },
+    { "day": "2026-10-11", "all": 39, "lmia": 6, "A": 4, "B": 7, "C": 9, "unread": 13 },
+    { "day": "2026-10-12", "all": 41, "lmia": 4, "A": 7, "B": 6, "C": 11, "unread": 13 }
+  ],
+  "facet": [
+    { "day": "2026-10-09", "total": 8012, "lmia_requested": 1080, "last_48h": 79 },
+    { "day": "2026-10-10", "total": 8020, "lmia_requested": 1082 },
+    { "day": "2026-10-11", "total": 8027, "lmia_requested": 1084 },
+    { "day": "2026-10-12", "total": 8032, "lmia_requested": 1086, "last_48h": 82 }
+  ],
+  "recent": [
+    {
+      "id": 50571474, "title": "cybersecurity specialist", "employer": "Silaris Solutions Inc", "employer_id": null, "lmia_history": false,
+      "noc": "21220", "city": "Milton", "prov": "ON", "wage_min": 40.0, "wage_max": 55.0, "unit": "HOUR", "date": "2026-10-12",
+      "first_seen": "2026-10-12", "live": true, "grade": "A", "reasons": ["intl", "no_lmia", "full_time", "permanent", "high_wage:70"],
+      "phrases": {}, "url": "https://www.jobbank.gc.ca/jobsearch/jobposting/50571474"
+    },
+    {
+      "id": 50570001, "title": "cook", "employer": "Haveli Restaurant Inc", "employer_id": "emp-a000000008", "lmia_history": true,
+      "noc": "63200", "city": "St. John's", "prov": "NL", "wage_min": 17.5, "wage_max": null, "unit": "HOUR", "date": "2026-10-11",
+      "first_seen": "2026-10-11", "live": true, "grade": "A",
+      "reasons": ["intl", "no_lmia", "not_full_time", "permanent", "teer_listed_no:3", "ee_wording", "pr_wording"],
+      "phrases": { "ee": ["Express Entry"], "pr": ["PR sponsorship"] }, "url": "https://www.jobbank.gc.ca/jobsearch/jobposting/50570001"
+    },
+    {
+      "id": 50578251, "title": "restaurant manager", "employer": "Railway Chai House", "employer_id": null, "lmia_history": false,
+      "noc": "60030", "city": "Brampton", "prov": "ON", "wage_min": 37.0, "wage_max": 37.0, "unit": "HOUR", "date": "2026-10-10",
+      "first_seen": "2026-10-10", "live": true, "grade": "B", "reasons": ["intl", "no_lmia", "full_time", "permanent", "teer_listed_no:0"],
+      "phrases": {}, "url": "https://www.jobbank.gc.ca/jobsearch/jobposting/50578251"
+    },
+    {
+      "id": 50572922, "title": "food service counter attendant", "employer": "MCDONALDS", "employer_id": null, "lmia_history": false,
+      "noc": "65201", "city": "Toronto", "prov": "ON", "wage_min": 17.6, "wage_max": null, "unit": "HOUR", "date": "2026-10-09",
+      "first_seen": "2026-10-09", "live": false, "grade": "C", "reasons": ["intl", "no_lmia", "full_time", "permanent", "teer_low:5", "exempt_wording"],
+      "phrases": { "exempt": ["LMIA exempt"] }, "url": "https://www.jobbank.gc.ca/jobsearch/jobposting/50572922"
+    }
+  ],
+  "registers": [
+    {
+      "key": "aip_nl", "program": "AIP", "jurisdiction": "NL", "community": null,
+      "page_url": "https://www.gov.nl.ca/immigration/immigrating-to-newfoundland-and-labrador/atlantic-immigration-program/designated-employers/",
+      "source_url": "https://www.gov.nl.ca/immigration/immigrating-to-newfoundland-and-labrador/atlantic-immigration-program/designated-employers/",
+      "format": "html", "terms": "nl_disclaimer", "terms_url": "https://www.gov.nl.ca/disclaimer/", "state": "ok", "rows": 586,
+      "list_date": null, "last_ok": "2026-10-12", "matched": 41
+    },
+    {
+      "key": "aip_nb", "program": "AIP", "jurisdiction": "NB", "community": null,
+      "page_url": "https://www.gnb.ca/content/dam/GNB3/t/fhc-fmc/immigration/docs/designated-employers-employeurs-designes.pdf",
+      "source_url": "https://www.gnb.ca/content/dam/GNB3/t/fhc-fmc/immigration/docs/designated-employers-employeurs-designes.pdf",
+      "format": "pdf", "terms": "nb_disclaimer", "terms_url": "https://www.gnb.ca/en/admin/disclaimer.html", "state": "unreadable",
+      "rows": 0, "list_date": null, "last_ok": null, "matched": 0
+    },
+    {
+      "key": "fcip_kelowna", "program": "FCIP", "jurisdiction": "BC", "community": "Kelowna",
+      "page_url": "https://www.sdecb.com/en/pilot-program/", "source_url": "https://www.sdecb.com/en/pilot-program/",
+      "format": "html", "terms": "community_site", "terms_url": null, "state": "failing", "rows": 52, "list_date": null,
+      "last_ok": "2026-10-10", "matched": 2
+    }
+  ]
+}

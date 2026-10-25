@@ -173,7 +173,8 @@ describe("the sources are credited", () => {
     expect(html).toContain("Proactive Disclosure of Grants and Contributions (federal departments, open.canada.ca)");
     expect(html).toContain("Alberta Employer Records (Alberta Jobs, Economy, Trade and Immigration, open.alberta.ca)");
     expect(html).toContain("US FMCSA Company Census (data.transportation.gov)");
-    expect(html.split("Shown on profiles only; not used by the indicators").length - 1).toBe(3);
+    // Grants, Alberta, FMCSA, and the designated-employer lists.
+    expect(html.split("Shown on profiles only; not used by the indicators").length - 1).toBe(4);
     expect(html).toContain("A name alone never matches");
     const fr = nbsp(await (await get("/methodology?lang=fr")).text());
     expect(fr).toContain("Un nom seul ne suffit jamais");

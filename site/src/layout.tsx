@@ -167,6 +167,7 @@ export const Layout: FC<
     ["/places", "nav.places"],
     ["/releases", "nav.releases"],
     ["/trends", "nav.trends"],
+    ["/international", "nav.international"],
     ["/methodology", "nav.methodology"],
     ["/data", "nav.data"],
     ["/support", "nav.support"],
@@ -178,7 +179,7 @@ export const Layout: FC<
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>{title}</title>
-        <link rel="stylesheet" href="/styles.css?v=19" />
+        <link rel="stylesheet" href="/styles.css?v=20" />
         <script src="/theme.js"></script>
         <script src="/links.js" defer></script>
         <link rel="preload" href="/fonts/public-sans-latin-var.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
@@ -229,6 +230,7 @@ export const Layout: FC<
         <div class="notice-ee">
           <p class="container">
             {t(lang, "notice_ee.text")}{" "}
+            <a href="/methodology#express-entry">{t(lang, "notice_ee.track")}</a>{" "}
             <a href={NOTICE_EE_URL[lang]} rel="noopener">
               {t(lang, "notice_ee.link")}
             </a>

@@ -55,6 +55,12 @@ export interface Stats {
     carrier_employers?: number;
     // Pending postings with a NOC 2021 code, the total behind pending_by_noc.
     pending_with_noc?: number;
+    // Postings open to international candidates (live, without an LMIA
+    // request, graded A) and employers matched to a designated-employer list.
+    intl_live?: number;
+    intl_no_lmia?: number;
+    intl_grade_a?: number;
+    designated_employers?: number;
   };
   by_stream: { k: string; n: number }[];
   by_province: { k: string; n: number }[];
@@ -68,6 +74,11 @@ export interface Stats {
   runs: { run_at: string; source: string; detail: string | null; rows_new: number | null; ok: number }[];
   // The Zenodo record of the OGL files; absent or null until one is published.
   citation?: Citation | null;
+  // The designated-employer lists with their terms (the Data page's sources);
+  // checked by that page, its only reader.
+  registers?: unknown;
+  // IRCC's high-wage list in use (its version date); checked by the methodology page, its only reader.
+  high_wage?: unknown;
 }
 
 export interface Citation {
@@ -117,6 +128,25 @@ export interface Profile {
   grants_total: number;
   alberta: AlbertaRow[];
   us_carrier: CarrierRow[];
+  // Job Bank postings open to international candidates, with the site's grade
+  // (signals, not records of job offers), and listings on designated-employer
+  // lists matched by name and place. The export writes each only when there
+  // is something; loadProfile fills them in empty.
+  intl: IntlPostingRow[];
+  designated: DesignatedRow[];
+}
+
+// One posting open to international candidates; grade null with an LMIA requested or before its page is read.
+export interface IntlPostingRow {
+  id: number; title: string | null; noc: string | null; city: string | null; prov: string | null; date: string;
+  live: boolean; lmia: string; grade: "A" | "B" | "C" | null; reasons: string[]; url: string;
+}
+
+// One listing on a designated-employer list (Atlantic Immigration Program, community pilots).
+export interface DesignatedRow {
+  list: string; program: string; jurisdiction: string; community: string | null; name: string; location: string | null;
+  designated_on: string | null; first_seen: string; last_seen: string; current: boolean; url: string; grade: string;
+  basis: string;
 }
 
 // One federal grant or contribution agreement, at its latest amendment.
@@ -282,7 +312,10 @@ export async function loadJson<T>(env: Env, path: string): Promise<T | null> {
   return value as T;
 }
 
-const OPTIONAL_COUNTS = ["grant_employers", "grant_agreements", "alberta_employers", "carrier_employers", "pending_with_noc"] as const;
+const OPTIONAL_COUNTS = [
+  "grant_employers", "grant_agreements", "alberta_employers", "carrier_employers", "pending_with_noc",
+  "intl_live", "intl_no_lmia", "intl_grade_a", "designated_employers",
+] as const;
 
 // The pages read these fields without further checks, so a file without them
 // is treated like a missing one.
@@ -438,6 +471,20 @@ const PUBLIC_ROWS: Record<(typeof PUBLIC_LISTS)[number], (v: unknown) => boolean
     isStrOrNull(v.safety_rating_date) && isStrOrNull(v.record_date),
 };
 
+// Postings open to international candidates and designated-employer listings,
+// checked like the public records. Every link is held to the host it must
+// come from, since the page renders it as an href.
+const JOBBANK_POSTING = /^https:\/\/www\.jobbank\.gc\.ca\/jobsearch\/jobposting\/\d+$/;
+const HTTPS_URL = /^https:\/\/[A-Za-z0-9.-]+\.[a-z]{2,}(\/[^\s"<>]*)?$/;
+const isIntlPosting = (v: unknown): boolean => isObj(v) && isNum(v.id) && isStrOrNull(v.title) && isStrOrNull(v.noc) &&
+  isStrOrNull(v.city) && isStrOrNull(v.prov) && isStr(v.date) && typeof v.live === "boolean" && isStr(v.lmia) &&
+  (v.grade === null || v.grade === "A" || v.grade === "B" || v.grade === "C") && isListOf(v.reasons, isStr) &&
+  isStr(v.url) && JOBBANK_POSTING.test(v.url);
+const isDesignated = (v: unknown): boolean => isObj(v) && isMatch(v) && isStr(v.list) && isStr(v.program) &&
+  isStr(v.jurisdiction) && isStrOrNull(v.community) && isStr(v.name) && isStrOrNull(v.location) &&
+  isStrOrNull(v.designated_on) && isStr(v.first_seen) && isStr(v.last_seen) && typeof v.current === "boolean" &&
+  isStr(v.url) && HTTPS_URL.test(v.url);
+
 // Rows of one list with no LMIA count (from ESDC files that carry positions
 // only, 2014 through 2021 Q3). Each such row is at least one LMIA, so the
 // employer page and its description show the sum plus these rows as a floor.
@@ -455,6 +502,9 @@ export async function loadProfile(env: Env, id: string): Promise<Profile | null>
   // must be readable whole, like the lists above.
   if (!PUBLIC_LISTS.every((k) => optional(profile[k], (v) => isListOf(v, PUBLIC_ROWS[k])))) return null;
   if (!optional(profile.grants_total, isNum)) return null;
+  if (!optional(profile.intl, (v) => isListOf(v, isIntlPosting)) || !optional(profile.designated, (v) => isListOf(v, isDesignated))) {
+    return null;
+  }
   // The shard is shared and frozen, so the lists filled in go on a copy.
   const grants: unknown[] = profile.grants ?? [];
   return {
@@ -462,6 +512,8 @@ export async function loadProfile(env: Env, id: string): Promise<Profile | null>
     grants,
     alberta: profile.alberta ?? [],
     us_carrier: profile.us_carrier ?? [],
+    intl: profile.intl ?? [],
+    designated: profile.designated ?? [],
     // The count of agreements is never below the agreements listed.
     grants_total: Math.max(profile.grants_total ?? 0, grants.length),
   } as unknown as Profile;

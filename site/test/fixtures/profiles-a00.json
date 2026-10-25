@@ -333,7 +333,60 @@
     "grants": [],
     "grants_total": 0,
     "alberta": [],
-    "us_carrier": []
+    "us_carrier": [],
+    "intl": [
+      {
+        "id": 50578290,
+        "title": "restaurant manager",
+        "noc": "60030",
+        "city": "St. John's",
+        "prov": "NL",
+        "date": "2026-10-11",
+        "live": true,
+        "lmia": "none",
+        "grade": "B",
+        "reasons": [
+          "intl",
+          "no_lmia",
+          "full_time",
+          "permanent",
+          "teer_listed_no:0"
+        ],
+        "url": "https://www.jobbank.gc.ca/jobsearch/jobposting/50578290"
+      },
+      {
+        "id": 50465001,
+        "title": "cook",
+        "noc": "63200",
+        "city": "St. John's",
+        "prov": "NL",
+        "date": "2026-10-02",
+        "live": false,
+        "lmia": "requested",
+        "grade": null,
+        "reasons": [
+          "lmia_requested"
+        ],
+        "url": "https://www.jobbank.gc.ca/jobsearch/jobposting/50465001"
+      }
+    ],
+    "designated": [
+      {
+        "list": "aip_nl",
+        "program": "AIP",
+        "jurisdiction": "NL",
+        "community": null,
+        "name": "Haveli Restaurant Inc.",
+        "location": "St. John's",
+        "designated_on": "2023-03-14",
+        "first_seen": "2026-10-12",
+        "last_seen": "2026-10-12",
+        "current": true,
+        "url": "https://www.gov.nl.ca/immigration/immigrating-to-newfoundland-and-labrador/atlantic-immigration-program/designated-employers/",
+        "grade": "exact",
+        "basis": "name_city"
+      }
+    ]
   },
   "emp-a000000009": {
     "employer": {

@@ -1,7 +1,7 @@
 import type { Context } from "hono";
 import {
-  type AlbertaRow, type Area, type CarrierRow, esdcSource, type GrantRow, loadAlias, loadJson, loadProfile, lmiaGap, loadStats,
-  type Profile,
+  type AlbertaRow, type Area, type CarrierRow, type DesignatedRow, esdcSource, type GrantRow, type IntlPostingRow, loadAlias, loadJson,
+  loadProfile, lmiaGap, loadStats, type Profile,
 } from "../data";
 import type { AppEnv } from "../env";
 import {
@@ -13,6 +13,7 @@ import { WATCH_MAX } from "./watchlist";
 import { MiniMap } from "../minimap";
 import { profileSeo } from "../seo";
 import { cityPath, occupationLinks, provincePath, type OccupationLinks } from "../crosslinks";
+import { GradeBadge, Reasons, programName, registerPlace } from "./international";
 
 const REPORT_URL = "https://www.canada.ca/en/employment-social-development/services/foreign-workers/report-abuse.html";
 
@@ -202,6 +203,77 @@ const CarrierCard = ({ rows, lang }: { rows: CarrierRow[]; lang: Lang }) => (
   </div>
 );
 
+// Listings on published designated-employer lists (Atlantic Immigration
+// Program, community pilots), matched by name and place like the other
+// public records; "listed since" is the first night the site read the row.
+const DesignatedCard = ({ rows, lang }: { rows: DesignatedRow[]; lang: Lang }) => (
+  <div class="card">
+    <h2>{t(lang, "employer.designated_h")}</h2>
+    <p class="muted small">{t(lang, "employer.designated_note")}</p>
+    {rows.slice(0, PUBLIC_SHOWN).map((r) => (
+      <dl>
+        <dt>{t(lang, "col.status")}</dt>
+        <dd>{t(lang, "employer.designated_row", { program: programName(lang, r.program), where: registerPlace(lang, r), date: r.first_seen })}</dd>
+        <dt>{t(lang, "employer.designated_as")}</dt><dd>{r.name}</dd>
+        {r.location ? <><dt>{t(lang, "employer.designated_location")}</dt><dd>{r.location}</dd></> : null}
+        {r.designated_on ? <><dt>{t(lang, "employer.designated_on")}</dt><dd class="mono">{r.designated_on}</dd></> : null}
+        <dt>{t(lang, "employer.match")}</dt><dd>{matchText(lang, r.grade, r.basis)}</dd>
+        <dd>
+          {r.current
+            ? t(lang, "employer.designated_current", { date: r.last_seen })
+            : t(lang, "employer.designated_gone", { date: r.last_seen })}{" "}
+          <a href={r.url} class="small" rel="nofollow noopener">{t(lang, "employer.designated_link")}</a>
+        </dd>
+      </dl>
+    ))}
+  </div>
+);
+
+// Postings open to international candidates: signals, each with what the
+// employer selected and what the site inferred, and never a job offer.
+const IntlSection = ({ rows, lang }: { rows: IntlPostingRow[]; lang: Lang }) => (
+  <section id="international">
+    <div class="section-head">
+      <h2>{t(lang, "employer.intl_h")}</h2>
+      <a href="/international" class="small">{t(lang, "employer.intl_link")}</a>
+    </div>
+    <p class="muted small">{t(lang, "employer.intl_note")}</p>
+    <div class="table-wrap bordered">
+      <table class="restack intl-recent">
+        <thead>
+          <tr>
+            <th>{t(lang, "col.date")}</th>
+            <th>{t(lang, "intl.col_posting")}</th>
+            <th>{t(lang, "intl.col_grade")}</th>
+            <th>{t(lang, "intl.col_why")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((p) => (
+            <tr>
+              <td class="mono nw" data-label={t(lang, "col.date")}>{p.date}</td>
+              <td data-label={t(lang, "intl.col_posting")}>
+                <div>
+                  <a href={p.url} rel="nofollow noopener">{p.title ?? t(lang, "search.source_jobbank", { ref: p.id })}</a>
+                  <div class="small">{[p.city, p.prov].filter(Boolean).join(", ")}</div>
+                  {!p.live ? <div class="small muted">{t(lang, "intl.gone")}</div> : null}
+                </div>
+              </td>
+              <td data-label={t(lang, "intl.col_grade")}>
+                {p.grade ? <GradeBadge grade={p.grade} lang={lang} />
+                  : p.lmia === "requested" || p.lmia === "approved" ? t(lang, "employer.intl_lmia") : <GradeBadge grade="unread" lang={lang} />}
+              </td>
+              <td data-label={t(lang, "intl.col_why")} class="small">
+                {p.grade ? <Reasons lang={lang} reasons={p.reasons} noc={p.noc} /> : <p class="muted">{t(lang, "intl.not_offer")}</p>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </section>
+);
+
 // Text that exists only in English in the source data (IRCC's list as the
 // pipeline stores it, an indicator basis the dictionary does not know) is
 // marked lang="en" on a French page so screen readers pronounce it right.
@@ -310,7 +382,7 @@ export async function employerPage(c: Context<AppEnv>): Promise<Response> {
       404,
     );
   }
-  const { employer, postings, esdc, registry, indicators, findings, names, grants, alberta, us_carrier } = profile;
+  const { employer, postings, esdc, registry, indicators, findings, names, grants, alberta, us_carrier, intl, designated } = profile;
   const best = registry[0];
   // The area file holds the postal area's centroid for the location card's map; a
   // missing file (no record in the latest scope) means no map, not an error.
@@ -521,8 +593,9 @@ export async function employerPage(c: Context<AppEnv>): Promise<Response> {
         </div>
       </section>
 
-      {alberta.length || us_carrier.length ? (
+      {alberta.length || us_carrier.length || designated.length ? (
         <section class="cards two" id="public-records">
+          {designated.length ? <DesignatedCard rows={designated} lang={lang} /> : null}
           {alberta.length ? <AlbertaCard rows={alberta} lang={lang} /> : null}
           {us_carrier.length ? <CarrierCard rows={us_carrier} lang={lang} /> : null}
         </section>
@@ -590,6 +663,8 @@ export async function employerPage(c: Context<AppEnv>): Promise<Response> {
       ) : null}
 
       {grants.length ? <GrantsSection grants={grants} total={profile.grants_total} lang={lang} /> : null}
+
+      {intl.length ? <IntlSection rows={intl} lang={lang} /> : null}
 
       <section>
         <h2>{t(lang, "employer.timeline")}</h2>

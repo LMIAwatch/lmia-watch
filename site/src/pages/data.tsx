@@ -6,6 +6,8 @@ import { t, tj, type Key, type Lang } from "../i18n";
 import { Layout, fmtInt, noDataPage, page, periodLabel } from "../layout";
 import { CANADA_TERMS_URL, type DownloadLicence, OGL_URL, datasetJsonLd, pageSeo } from "../seo";
 import { TERMS } from "./program";
+import { isRegister, programName, registerPlace } from "./international";
+import { EE_LINKS } from "./methodology";
 import { isListOf, isNum, isNumOrNull, isObj, isStr, isStrOrNull } from "../valid";
 
 // The changelog, newest first whatever order the entries are written in.
@@ -75,7 +77,24 @@ export const LICENCE_ROWS: readonly { material: Key; terms: Key }[] = [
   { material: "data.lic.grants", terms: "data.lic.esdc_terms" },
   { material: "data.lic.alberta", terms: "data.lic.alberta_terms" },
   { material: "data.lic.fmcsa", terms: "data.lic.fmcsa_terms" },
+  // The November 3 change: postings open to international candidates, IRCC's list, the designated-employer lists.
+  { material: "data.lic.jobbank_intl", terms: "data.lic.jobbank_terms" },
+  { material: "data.lic.high_wage", terms: "data.lic.high_wage_terms" },
+  { material: "data.lic.registers", terms: "data.lic.registers_terms" },
 ];
+
+// Job Bank's search under the international-candidates filter, in each language.
+const FACET_URL: Record<Lang, string> = {
+  en: "https://www.jobbank.gc.ca/jobsearch/jobsearch?fglo=1",
+  fr: "https://www.guichetemplois.gc.ca/jobsearch/rechercheemplois?fglo=1",
+};
+const TERMS_NAME: Record<string, Key> = {
+  nb_disclaimer: "data.terms.nb_disclaimer",
+  ns_crown: "data.terms.ns_crown",
+  pe_policy: "data.terms.pe_policy",
+  nl_disclaimer: "data.terms.nl_disclaimer",
+  community_site: "data.terms.community_site",
+};
 
 const LICENCE_LINKS: Record<"terms" | "cc" | "oglab", Record<Lang, string>> = {
   terms: CANADA_TERMS_URL,
@@ -147,6 +166,8 @@ export async function dataPage(c: Context<AppEnv>): Promise<Response> {
   const stats = await loadStats(c.env);
   if (!stats || !isListOf(stats.resources, isResource) || !isListOf(stats.runs, isRun)) return noDataPage(c, "nav.data");
   const na = t(lang, "common.na");
+  // The designated-employer lists, checked here, their only reader: a list that fails leaves the table out.
+  const registers = isListOf(stats.registers, isRegister) ? stats.registers : [];
   // English shows the period code as stored (2026Q1); French shows the label.
   const latestPeriod = lang === "fr" ? periodLabel(stats.esdc_latest_period, lang) : stats.esdc_latest_period;
 
@@ -314,6 +335,45 @@ export async function dataPage(c: Context<AppEnv>): Promise<Response> {
               fmcsa: <a href={SOURCE_LINKS.fmcsa[lang]}>{t(lang, "data.src.fmcsa")}</a>,
             })}
           </p>
+          <p id="express-entry-sources">
+            {tj(lang, "data.ee_sources_text", {
+              facet: <a href={FACET_URL[lang]} rel="nofollow noopener">{t(lang, "data.src.facet")}</a>,
+              list: <a href={EE_LINKS.list[lang]} rel="noopener">{t(lang, "intl.list_link")}</a>,
+              terms: <a href={CANADA_TERMS_URL[lang]}>{t(lang, "data.lic.canada_terms")}</a>,
+            })}
+          </p>
+          {registers.length ? (
+            <>
+              <h3 id="registers">{t(lang, "data.registers_h")}</h3>
+              <div class="table-wrap bordered">
+                <table class="restack">
+                  <thead>
+                    <tr>
+                      <th>{t(lang, "data.reg_col_list")}</th>
+                      <th>{t(lang, "data.reg_col_format")}</th>
+                      <th>{t(lang, "data.reg_col_terms")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {registers.map((r) => {
+                      const terms = TERMS_NAME[r.terms] ? t(lang, TERMS_NAME[r.terms]) : r.terms;
+                      return (
+                        <tr>
+                          <td data-label={t(lang, "data.reg_col_list")}>
+                            <span>{programName(lang, r.program)}, <a href={r.page_url} rel="nofollow noopener">{registerPlace(lang, r)}</a></span>
+                          </td>
+                          <td data-label={t(lang, "data.reg_col_format")} class="mono">{r.format.toUpperCase()}</td>
+                          <td data-label={t(lang, "data.reg_col_terms")}>
+                            {r.terms_url ? <a href={r.terms_url} rel="nofollow noopener">{terms}</a> : terms}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : null}
           <p class="muted small">{t(lang, "data.code_licence")}</p>
           <p>{t(lang, "data.crawl_text")}</p>
 

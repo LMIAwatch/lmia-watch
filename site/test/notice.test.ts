@@ -40,6 +40,8 @@ describe("Express Entry notice bar", () => {
         expect(html.indexOf('class="notice-ee"')).toBeLessThan(html.indexOf("<main"));
         const inner = bar(html);
         expect(inner).toContain(t(lang, "notice_ee.text"));
+        // The second sentence points at the methodology's section on the change; the IRCC link stays.
+        expect(inner).toContain(`<a href="/methodology#express-entry">${t(lang, "notice_ee.track")}</a>`);
         expect(inner).toContain(`<a href="${NOTICE_EE_URL[lang]}" rel="noopener">${t(lang, "notice_ee.link")}</a>`);
         expect(inner).not.toContain(EM_DASH);
       });
@@ -56,9 +58,10 @@ describe("Express Entry notice bar", () => {
     expect(bar(await (await get("/")).text())).toContain("LMIA");
   });
 
-  // One line on a desktop screen.
+  // One line on a desktop screen: the text and both links.
   it("stays short enough for one line", () => {
-    const len = (lang: "en" | "fr") => t(lang, "notice_ee.text").length + 1 + t(lang, "notice_ee.link").length;
+    const len = (lang: "en" | "fr") =>
+      t(lang, "notice_ee.text").length + 1 + t(lang, "notice_ee.track").length + 1 + t(lang, "notice_ee.link").length;
     expect(len("en")).toBeLessThanOrEqual(115);
     expect(len("fr")).toBeLessThanOrEqual(125);
   });

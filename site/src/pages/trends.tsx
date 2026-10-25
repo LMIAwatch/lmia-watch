@@ -760,7 +760,8 @@ function breakdownBody(lang: Lang, d: Breakdown, kind: "streams" | "provinces") 
 
 // -- Job Bank pending, nightly -------------------------------------------------------------
 
-function dayAxis(lang: Lang, dates: string[]): { domain: [number, number]; labels: AxisLabel[]; grid: number[] } {
+// Shared with the international-candidates page (pages/international.tsx).
+export function dayAxis(lang: Lang, dates: string[]): { domain: [number, number]; labels: AxisLabel[]; grid: number[] } {
   const xs = dates.map(dayPos);
   const domain: [number, number] = [xs[0] - 0.5, xs[xs.length - 1] + 0.5];
   const locale = numberLocale(lang);
