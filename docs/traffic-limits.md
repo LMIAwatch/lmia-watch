@@ -1,11 +1,15 @@
 # Traffic limits
 
-Nothing a visitor does can produce a Cloudflare bill on the Free plan: Workers
-stop at 100,000 requests a day, D1 stops at its daily caps, R2 reads are capped
-by the Worker cap, and R2 charges nothing for egress. What a flood can do is
-use up the day's Worker requests and take the pages down until midnight UTC.
+The Worker runs on the Workers Paid plan (the hosted search needs it), so
+there is no daily request cap and a flood cannot take the pages down. What a
+flood can do is cost money: requests beyond the ten million a month the plan
+includes are billed at 30 cents per million, and CPU time beyond the included
+allowance by the millisecond. The zone itself stays on the Free website plan,
+which is what the dashboard limits below refer to. The three layers keep that
+cost bounded: a single address can send at most 345,600 requests a day past
+the edge rule, and the caps inside the Worker hold it well under that.
 Static files under `/data/` and `/fonts/` are served before the Worker runs,
-so they neither count nor go down. The Atom feeds under `/data/feeds/` are
+so they do not count. The Atom feeds under `/data/feeds/` are
 the exception: the Worker runs first for them so their polls are counted
 (`docs/search-engines.md`, section 6), and they have a cap of their own
 inside the Worker (below), wide enough for a feed service that polls many
