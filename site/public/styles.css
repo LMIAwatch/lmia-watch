@@ -136,6 +136,12 @@ html.js .theme-toggle { display: inline-block; }
 .main-nav a.active { border-bottom-color: #ffffff; }
 .main-nav a:hover { text-decoration: underline; }
 .main-nav a:focus-visible { outline-color: #ffffff; outline-offset: 0; }
+/* TEMPORARY: the Express Entry notice bar under the nav (layout.tsx, NOTICE_EE_URL
+   in i18n.ts); remove with it. A light step of the Approved blue over the page
+   ground, mixed from the tokens so the dark scheme follows; amber stays Pending's.
+   Browsers without color-mix get the grey panel. */
+.notice-ee { background: var(--panel); background: color-mix(in srgb, var(--chart-bar) 14%, var(--white)); border-bottom: 1px solid var(--rule); border-bottom-color: color-mix(in srgb, var(--chart-bar) 45%, var(--white)); }
+.notice-ee p { margin: 0 auto; padding-top: 8px; padding-bottom: 8px; font-size: 15px; line-height: 1.4; color: var(--text); }
 .site-footer { border-top: 1px solid var(--rule); margin-top: 48px; color: var(--muted); font-size: 14px; }
 .footer-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; padding-top: 20px; padding-bottom: 24px; }
 .footer-copyright { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }

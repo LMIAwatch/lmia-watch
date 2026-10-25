@@ -14,7 +14,27 @@ export type Lang = "en" | "fr";
 
 type Entry = { en: string; fr: string };
 
+// TEMPORARY: the Express Entry notice bar under the nav (Layout, class
+// notice-ee, strings notice_ee.*). IRCC's announcement of 2026-10-16: from
+// 2026-11-03 a job offer used for Express Entry points or for the Federal
+// Skilled Worker and Federal Skilled Trades job-offer requirements needs no
+// LMIA. Remove the bar, these two URLs, the two strings, the CSS block and
+// test/notice.test.ts once the methodology page covers the change.
+export const NOTICE_EE_URL: Record<Lang, string> = {
+  en: "https://www.canada.ca/en/immigration-refugees-citizenship/news/2026/10/canada-refocusing-express-entry-on-top-talent-that-drives-economic-growth.html",
+  fr: "https://www.canada.ca/fr/immigration-refugies-citoyennete/nouvelles/2026/10/le-canada-reoriente-le-systeme-entree-express-vers-les-travailleurs-qualifies-qui-stimulent-leconomie.html",
+};
+
 const STRINGS = {
+  // TEMPORARY, see NOTICE_EE_URL above. One line on a desktop screen: keep
+  // the text plus the link under about 115 characters in English and 125 in
+  // French.
+  "notice_ee.text": {
+    en: "From Nov. 3, Express Entry job offers no longer need an LMIA. We are working to keep tracking them.",
+    fr: "Dès le 3 nov., les offres d'emploi d'Entrée express n'ont plus besoin d'une EIMT. Nous travaillons à les suivre.",
+  },
+  "notice_ee.link": { en: "IRCC notice", fr: "Avis d'IRCC" },
+
   // -- site, navigation, footer ----------------------------------------------
   "site.name": { en: "LMIA Watch", fr: "LMIA Watch" },
   "site.tagline": {
