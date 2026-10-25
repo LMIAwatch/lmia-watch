@@ -2340,6 +2340,23 @@ const STRINGS = {
     en: "Nothing recomputed; fewer files under search/",
     fr: "Aucun recalcul; moins de fichiers sous search/",
   },
+  "data.change_surfaces": {
+    en: 'Employer profiles state LMIA counts as a floor ("at least n") where a quarter\'s list is known to be incomplete. The home page shows the public-money records (federal grants, Alberta employer records, FMCSA carrier records) and groups pending and approved records in topic rows. The search page fits its table in one width with shorter labels. A Cite page gives citation formats for the site and its Zenodo deposit. Grant links open the current record on open.canada.ca.',
+    fr: "Les profils d'employeurs présentent les nombres d'EIMT comme un plancher (« au moins n ») lorsqu'une liste trimestrielle est connue pour être incomplète. La page d'accueil montre les dossiers de fonds publics (subventions fédérales, dossiers d'employeurs de l'Alberta, dossiers de transporteurs de la FMCSA) et regroupe les dossiers en attente et approuvés par thème. La page de recherche fait tenir son tableau dans une seule largeur avec des libellés plus courts. Une page Citer donne les formats de citation du site et de son dépôt Zenodo. Les liens vers les subventions ouvrent le dossier courant sur ouvert.canada.ca.",
+  },
+  "data.change_card_links": {
+    en: "The daily card on X and Bluesky adds a map of Canada shaded by the night's postings, with the Maritimes enlarged, beside the province bars. Employer profiles link to their province, city and occupation pages.",
+    fr: "L'image quotidienne publiée sur X et Bluesky ajoute une carte du Canada teintée selon les offres de la nuit, avec les Maritimes agrandies, à côté des barres par province. Les profils d'employeurs renvoient à leurs pages de province, de ville et de profession.",
+  },
+  "data.change_intl": {
+    en: 'New Open to international candidates page. The nightly run reads Job Bank\'s "Canadians and international candidates" filter, records each posting\'s audience, LMIA flag, occupation and hours, and grades the ones without an LMIA request (A: occupation on IRCC\'s high-wage list, full-time and permanent, or Express Entry wording; B: other TEER 0 to 3 occupations; C: the rest), ahead of the November 3 change that removes the LMIA from Express Entry job offers. IRCC\'s list is read nightly and adopted when it changes. The designated-employer lists of the Atlantic Immigration Program and the rural and francophone community pilots are read nightly and matched to profiles as public records. The Methodology page opens with these rules.',
+    fr: "Nouvelle page Ouvert aux candidats internationaux. Le traitement nocturne lit le filtre « Canadiens et candidats internationaux » du Guichet-Emplois, enregistre pour chaque offre le public visé, la mention EIMT, la profession et les heures, et classe celles sans demande d'EIMT (A : profession sur la liste des professions à salaire élevé d'IRCC, à temps plein et permanente, ou mention d'Entrée express. B : autres professions FEER 0 à 3. C : le reste), avant le changement du 3 novembre qui retire l'EIMT des offres d'emploi d'Entrée express. La liste d'IRCC est lue chaque nuit et adoptée lorsqu'elle change. Les listes d'employeurs désignés du Programme d'immigration au Canada atlantique et des projets pilotes des communautés rurales et francophones sont lues chaque nuit et appariées aux profils comme dossiers publics. La page Méthodologie s'ouvre sur ces règles.",
+  },
+  "data.recomputed_none": { en: "Nothing recomputed; wording and layout", fr: "Aucun recalcul; formulation et mise en page" },
+  "data.recomputed_intl": {
+    en: "Employer profiles: international-candidates postings and designated status; the new page",
+    fr: "Profils d'employeurs : offres ouvertes aux candidats internationaux et statut d'employeur désigné. La nouvelle page",
+  },
 
   // --- trends ---
   "nav.trends": { en: "Trends", fr: "Tendances" },
