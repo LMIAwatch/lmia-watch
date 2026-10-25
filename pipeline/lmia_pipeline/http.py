@@ -260,6 +260,11 @@ class PoliteClient:
     def get_json(self, url: str, **kwargs: Any) -> Any:
         return json.loads(self.get(url, **kwargs).decode("utf-8"))
 
+    def reset_failures(self) -> None:
+        """Start the circuit breaker's count again: for a stage whose requests go
+        to many unrelated hosts, where one host's failures say nothing of the next."""
+        self._consecutive_failures = 0
+
     def forget(self, url: str) -> None:
         """Drop a cached response, so a body that turned out unusable is fetched again."""
         for path in self._cache_paths(url):

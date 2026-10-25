@@ -16,7 +16,10 @@
 # no one involved, and a clean day costs two gate jobs of a minute each.
 #
 # Steps: restore the SQLite file from R2, run every pipeline stage (the
-# pipeline itself skips Job Bank if it already ran within the last 20 hours),
+# pipeline itself skips Job Bank if it already ran within the last 20 hours,
+# and the same for the pass over postings open to international candidates;
+# the stages include IRCC's high-wage list, adopted when it changes, and the
+# designated-employer lists; their changes of state are notices in the run status),
 # check the database and the export, send the changed rows to the search
 # database (D1 lmia-watch-search), record the Worker version serving traffic,
 # deploy the Worker with that data as its assets, check the live site and roll
@@ -60,6 +63,11 @@
 #   checks or the issue update never stops the run: the gate then runs the
 #   refresh, a missing version means no rollback tonight, and each outcome is
 #   in status.json.
+# - A notice (IRCC's high-wage list adopted after a change, or unreadable from
+#   tonight or readable again; a designated-employer list that stops being read
+#   or is read again) is an item needing attention in status.json's notices,
+#   raised on the change of state only, and it leaves the run ok, so no retry
+#   follows: a retry would read the same page again.
 #
 # Secrets on the project account: CLOUDFLARE_API_TOKEN (Workers + R2 + D1),
 # CLOUDFLARE_ACCOUNT_ID. Optional: X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN,
@@ -262,13 +270,18 @@ jobs:
 
       # 150 posting pages a night, at Job Bank's pace with an 8-second gap between
       # requests: well inside the Job Bank stage's four-hour cap, and fewer
-      # requests from one address in one night. A non-zero exit marks the run
-      # failed, and the steps below still check and save what the run produced.
+      # requests from one address in one night. The pass over postings open to
+      # international candidates reads up to 400 more (about 55 minutes, inside
+      # its 90-minute cap; newest first, so a posting that appears tonight is
+      # graded tonight and the backlog of the first sweep drains behind it),
+      # plus a weekly sweep of every page of that filter (about 45 minutes).
+      # A non-zero exit marks the run failed, and the steps below still check
+      # and save what the run produced.
       - name: Run every stage
         id: pipeline
         run: |
           date -u +"%Y-%m-%dT%H:%M:%SZ" > data/out/run_started.txt
-          python -m lmia_pipeline run --db data/lmia.sqlite --detail-budget 150
+          python -m lmia_pipeline run --db data/lmia.sqlite --detail-budget 150 --intl-detail-budget 400
 
       - name: Check the database and the export
         id: verify
@@ -665,7 +678,9 @@ jobs:
 
       # What the daily check in the Worker and the next retry's gate read: when
       # the run finished, which stages and steps succeeded (every step's
-      # outcome under steps), what the checks found, the outcomes of the X
+      # outcome under steps), the notices (items needing attention that are not
+      # failures), where the international-candidates pass and the
+      # designated-employer lists stand, what the checks found, the outcomes of the X
       # post, the Bluesky post, the Zenodo deposit, the search database sync,
       # the audience roll-up and the IndexNow submission, where the database
       # came from (restore), the smoke test and any rollback, and the expiry
@@ -731,6 +746,14 @@ jobs:
           if [ -f data/out/indexnow/last_outcome.txt ]; then
             echo "" >> LAST_RUN.md
             echo "IndexNow: $(cat data/out/indexnow/last_outcome.txt)" >> LAST_RUN.md
+          fi
+          if [ -f data/out/intl/last_outcome.txt ]; then
+            echo "" >> LAST_RUN.md
+            echo "Open to international candidates: $(cat data/out/intl/last_outcome.txt)" >> LAST_RUN.md
+          fi
+          if [ -f data/out/registers/last_outcome.txt ]; then
+            echo "" >> LAST_RUN.md
+            echo "Designated-employer lists: $(cat data/out/registers/last_outcome.txt)" >> LAST_RUN.md
           fi
           git config user.name "LMIA Watch"
           git config user.email "ops@lmiawatch.invalid"

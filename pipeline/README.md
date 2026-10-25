@@ -18,6 +18,9 @@ refreshing the raw downloads under `data/raw/`).
 python -m lmia_pipeline run --db ../data/lmia.sqlite            # every stage
 python -m lmia_pipeline run --esdc                               # one stage
 python -m lmia_pipeline run --jobbank --limit 1 --detail-budget 2  # dev-sized Job Bank run
+python -m lmia_pipeline run --intl --limit 1 --intl-detail-budget 3  # dev-sized pass over postings open to international candidates
+python -m lmia_pipeline run --highwage --registers                  # IRCC's high-wage list check, designated-employer lists
+python scripts/build_high_wage_list.py                              # rebuild the fallback copy data/high_wage_nocs.json (optional)
 python -m lmia_pipeline run --export                             # csv, mirror and static JSON
 python -m lmia_pipeline search-sync --db ../data/lmia.sqlite     # search database: changed rows as SQL batches
 python -m lmia_pipeline search-check --manifest ../data/out/search/manifest.json --count 487547
@@ -44,9 +47,17 @@ as SQL batches plus `manifest.json` (`--full` drops and recreates the tables
 first and sends every row); the workflow applies them with Wrangler, reads
 the row count back for `search-check`, and only then runs `search-synced`,
 which records the ledger. Operator guide: `../docs/hosted-search.md`.
-Stage order: esdc, ircc, jobbank, registry (BC, federal, Quebec), wages, lfs,
-vacancies, program (processing times, CMA list, wage thresholds), geography,
-indicators and status, export.
+Stage order: esdc, ircc, jobbank, highwage (IRCC's list, adopted when it
+changes), intl (postings open to international candidates), registry (BC,
+federal, Quebec), grants, alberta, fmcsa, registers (designated-employer lists),
+wages, lfs, vacancies, program (processing times, CMA list, wage thresholds),
+geography, indicators and status, export.
+A stage records an item needing attention that is not a failure (IRCC's list
+adopted after a change or unreadable from tonight, a designated-employer list
+that stops being read or is read again) as a notice on its `sources_log` row
+(`log_run(..., notice=...)`), on the change of state only: the run status lists
+it under `notices` and the attention step reports it, but the run stays ok, so
+no retry trigger runs the refresh again for it.
 Before any stage, `run` compares `meta.normalize_version` with
 `normalize.NORMALIZE_VERSION` and, when the database is older, re-derives every
 employer id once (`migrate.py`).
@@ -64,6 +75,10 @@ marking, because a capped run has not seen the whole feed.
 | `sources/esdc.py` | discovers every quarterly file through CKAN, downloads and parses it (CSV to 2020 Q3, XLSX after), records provenance and the parser version in `esdc_resources`; in the 2016 to 2019 Q2 files gives each continuation row (blank employer, an occupation and a count) to the employer row above it and carries the stream and province down their blocks |
 | `household.py` | keeps private households (a person's name with a home child care or home support occupation) out of the ESDC rows, at load and in a nightly cleanup of rows already loaded |
 | `sources/jobbank.py` | pages both LMIA facets, upserts postings, logs each observation, fetches new posting pages within a budget, drops private-household postings before storage |
+| `sources/jobbank_intl.py` | postings open to "Canadians and international candidates" (search filter `fglo=1`): each night the filter's first search page (its counts into `jobbank_facet_counts`), the 48-hour Atom feed (followed by the 48-hour search pages when the feed comes back full), and the pages of postings not read yet within `--intl-detail-budget` (400 by default, newest first, inside a 90-minute cap: who may apply, LMIA marker, NOC, terms, matched phrases); weekly a sweep of every page, which marks postings that left the filter gone and sets the baseline date on its first complete run; at most once in 20 hours; no employer row is ever created (`../docs/international-candidates.md`) |
+| `intl.py` | the grades of those postings (A, B, C, with reason keys), recomputed every night, and `international/index.json`, the profile rows and the stats counts |
+| `sources/high_wage.py` | IRCC's list of high-wage occupations: read nightly and, when it changed and passes the checks (120 to 400 codes, the three tiers, none in two), adopted into `high_wage_editions` and used for grading from that night (one notice); the committed `data/high_wage_nocs.json` is the fallback before any edition and the parser is shared with `scripts/build_high_wage_list.py` |
+| `sources/registers.py` | the published designated-employer lists (Atlantic Immigration Program by province, the Rural and Francophone Community Immigration Pilots by community): a registry of 24 lists with address, format and terms; HTML, JSON and PDF lists (pypdf, layout text, a rule per list) read nightly with their last good rows kept when a read fails or looks broken (under 5 rows, or a drop of more than 60 percent); notices on a change of state only; matched to employers by name and place within the list's province (`../docs/designated-employers.md`) |
 | `normalize.py` | name identity (`split_trade_name`, `norm_name`), addresses, dates, codes |
 | `migrate.py` | re-derives employer ids, merges duplicates and rewrites every referencing table after a normalization change |
 | `sources/ircc.py` | parses the non-compliant employers JSON and the reason legend from the page, links findings by legal name first, and copies a finding's street and names onto its employer |
@@ -105,12 +120,15 @@ data/out/static/        the JSON the site serves as static assets (see export_st
                           clusters/*.json, areas/<FSA>.json, profiles/<abc>.json,
                           aliases/<abc>.json (retired employer id to live id),
                           occupations/*.json, places/**/*.json (places.py),
-                          program/index.json (conditions.py)
+                          program/index.json (conditions.py),
+                          international/index.json (intl.py, with the designated-employer lists)
 data/out/search/        written by `search-sync`: batch-0001.sql and on (at most 5 MB or
                         5,000 statements each, up to 100 rows per upsert statement),
                         manifest.json, last_outcome.txt
 data/out/indexnow/      written by `nightly indexnow`: urls.txt (the pages selected),
                         last_outcome.txt
+data/out/intl/, data/out/registers/
+                        last_outcome.txt: the stage's one-line summary for LAST_RUN.md
 ```
 The static export is deterministic (sorted keys and rows), so an unchanged file
 keeps its bytes and the deploy skips it. Each file stays under the 25 MiB
@@ -165,6 +183,7 @@ rule and what a record does not mean.
 | `sources/grants.py` | Proactive Disclosure of Grants and Contributions, https://open.canada.ca/data/en/dataset/432527ab-7aac-45b5-81d6-7597107a7013 (`docs/grants.md`) | Open Government Licence, Canada | once a quarter, streamed to `data/raw/grants/` and deleted after reading | business number of the matched federal corporation, else name and postal area (exact) or province (probable) |
 | `sources/alberta_records.py` | Alberta Employer Records, https://open.alberta.ca/opendata/employer-records (`docs/alberta-employer-records.md`) | Open Government Licence, Alberta | listing every 30 days; workbook when it changes or is 91 days old | name and city (exact) or name alone within Alberta (probable) |
 | `sources/fmcsa.py` | FMCSA Company Census, data.transportation.gov dataset az4n-8mr2 (`docs/fmcsa.md`) | public domain (US government work) | monthly, `phy_country='CA'` only, selected columns only | name and postal code (exact) or province (probable) |
+| `sources/registers.py` | designated-employer lists of the Atlantic Immigration Program and the community pilots, HTML, JSON and PDF (`docs/designated-employers.md`) | each publisher's website terms; none is an open licence | nightly, one request a list | name and the row's place or the pilot community (exact) or province (probable) |
 
 Rules shared in `sources/matching.py`: a record whose legal name reads as a
 person (`household.reads_as_person` with "law" read as a surname) is never
@@ -175,7 +194,9 @@ database stays small; an employer first seen after a load is matched at the
 next one. The match tables (`grant_matches`, `alberta_matches`,
 `fmcsa_matches`) are rebuilt every night and after an id migration, and the
 export writes `grants` (newest 20), `grants_total`, `alberta` and `us_carrier`
-into each profile. The federal corporations extract now keeps each
+into each profile, and `designated` (the matched listings, `designated_matches`)
+and `intl` (postings open to international candidates whose employer identity
+names the profile, newest 20) only when there are any. The federal corporations extract now keeps each
 corporation's business number (`federal_corporations.business_number`); a
 file loaded by the older parser is read again once.
 

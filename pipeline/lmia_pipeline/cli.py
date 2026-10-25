@@ -16,11 +16,11 @@ from . import bluesky, config, export, export_static, indicators, migrate, searc
 from .db import connect, hours_since, log_run
 from .http import PoliteClient
 from .sources import esdc, geography, ircc, jobbank, lfs, program, registry_bc, registry_federal, registry_quebec
-from .sources import alberta_records, fmcsa, grants, vacancies, wages
+from .sources import alberta_records, fmcsa, grants, high_wage, jobbank_intl, registers, vacancies, wages
 
 log = logging.getLogger("lmia_pipeline")
-STAGES = ["esdc", "ircc", "jobbank", "registry", "grants", "alberta", "fmcsa", "wages", "lfs", "vacancies",
-          "program", "geography", "indicators", "export"]
+STAGES = ["esdc", "ircc", "jobbank", "highwage", "intl", "registry", "grants", "alberta", "fmcsa", "registers", "wages",
+          "lfs", "vacancies", "program", "geography", "indicators", "export"]
 
 # Job Bank is crawled once a day and no more. A re-run of a failed night, or a
 # run started by hand, must not send a second pass; the guard is in the
@@ -67,6 +67,8 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--limit", type=int, default=None, help="Job Bank list pages per facet (dev runs)")
     run.add_argument("--force", action="store_true", help="crawl Job Bank even if a pass ran in the last 20 hours (dev only)")
     run.add_argument("--detail-budget", type=int, default=600, help="Job Bank posting pages per run")
+    run.add_argument("--intl-detail-budget", type=int, default=jobbank_intl.DEFAULT_DETAIL_BUDGET,
+                     help="posting pages per run for the postings open to international candidates")
     run.add_argument("--registry-budget", type=int, default=registry_bc.DEFAULT_BUDGET,
                      help="OrgBook lookups per run (also capped at 15 minutes)")
     run.add_argument("--db", default=None, help="SQLite path (default data/lmia.sqlite)")
@@ -234,6 +236,29 @@ def _command(conn: sqlite3.Connection, args: argparse.Namespace) -> int:
             conn, "jobbank", lambda: jobbank.run(conn, client, limit=args.limit, detail_budget=args.detail_budget),
             failed_when=lambda stats: bool(stats.problems),
         )
+    # IRCC's high-wage list: adopted when it changed and passes the checks (the
+    # grades follow it from tonight); a change, or a page that cannot be read,
+    # is a notice, never a failed stage. Before the international-candidates
+    # pass, which grades with it.
+    if "highwage" in stages:
+        ok &= _stage(conn, "high_wage", lambda: high_wage.run(conn, client), "difference")
+    # Postings open to international candidates (sources/jobbank_intl.py):
+    # after the LMIA crawl, whose flags it joins, through the same client so
+    # the crawl delay holds across both. Its own once-a-day guard.
+    if "intl" in stages:
+        allowed, reason = jobbank_intl.allowed(conn, force=args.force)
+        if not allowed:
+            log.info("jobbank_intl skipped: %s", reason)
+            log_run(conn, "jobbank_intl", detail=f"skipped: {reason}")
+            _outcome_file("intl", "last_outcome.txt", f"skipped: {reason}")
+        else:
+            _outcome_file("intl", "last_outcome.txt", "failed")
+            ok &= _stage(
+                conn, "jobbank_intl",
+                lambda: _with_outcome("intl", jobbank_intl.run(
+                    conn, client, detail_budget=args.intl_detail_budget, limit=args.limit)),
+                failed_when=lambda stats: bool(stats.problems),
+            )
     if "registry" in stages:
         ok &= _stage(conn, "registry", lambda: registry_bc.run(conn, client, budget=args.registry_budget), "matches")
         # A 260 MB download can fail; the rest of the night still runs.
@@ -252,6 +277,14 @@ def _command(conn: sqlite3.Connection, args: argparse.Namespace) -> int:
         ok &= _stage(conn, "alberta_records", lambda: alberta_records.run(conn, client), "matches")
     if "fmcsa" in stages:
         ok &= _stage(conn, "fmcsa", lambda: fmcsa.run(conn, client), "matches")
+    # Designated-employer lists (sources/registers.py), with a client of its
+    # own: many small hosts, fewer retries, and their failures kept out of
+    # the shared client's circuit breaker. A list that fails is a notice and
+    # keeps its last rows, so this stage itself fails only on an exception.
+    if "registers" in stages:
+        _outcome_file("registers", "last_outcome.txt", "failed")
+        ok &= _stage(conn, "registers", lambda: _with_outcome(
+            "registers", registers.run(conn, PoliteClient(max_attempts=registers.CLIENT_ATTEMPTS))), "lists")
     # The reference tables for the wage and unemployment indicators. Each is
     # cached: wages and the LFS table are revalidated at most once a month,
     # the boundary files never after the first load. A failure leaves the
@@ -286,6 +319,12 @@ def _command(conn: sqlite3.Connection, args: argparse.Namespace) -> int:
         ok &= _stage(conn, "export_mirror", lambda: export.export_mirror(conn), "mirror files")
         ok &= _stage(conn, "export", lambda: export_static.export_static(conn), "static files")
     return 0 if ok else 1
+
+
+def _with_outcome(folder: str, stats: Any) -> Any:
+    """Write a stage's one-line summary for the workflow's LAST_RUN.md, then pass the stats on."""
+    _outcome_file(folder, "last_outcome.txt", stats.summary())
+    return stats
 
 
 def _rollup_views(args: argparse.Namespace) -> int:

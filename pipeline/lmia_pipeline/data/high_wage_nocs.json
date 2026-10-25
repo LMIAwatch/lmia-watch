@@ -1,0 +1,954 @@
+{
+ "source_url": "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/check-score/high-wage.html",
+ "source_url_fr": "https://www.canada.ca/fr/immigration-refugies-citoyennete/services/immigrer-canada/entree-express/verifier-note/salaire-eleve.html",
+ "page_modified": "2026-10-16",
+ "read_on": "2026-10-25",
+ "count": 186,
+ "tiers": [
+  {
+   "points": 100,
+   "count": 31
+  },
+  {
+   "points": 70,
+   "count": 89
+  },
+  {
+   "points": 50,
+   "count": 66
+  }
+ ],
+ "sha256": "f375ba7ad815bef89f71284be5cfc905710a7aef24664f037f5fdb58e319ff7d",
+ "occupations": [
+  {
+   "noc": "00011",
+   "title": "Senior government managers and officials",
+   "points": 100
+  },
+  {
+   "noc": "00012",
+   "title": "Senior managers - financial, communications and other business services",
+   "points": 100
+  },
+  {
+   "noc": "00013",
+   "title": "Senior managers - health, education, social and community services and membership organizations",
+   "points": 100
+  },
+  {
+   "noc": "10010",
+   "title": "Financial managers",
+   "points": 100
+  },
+  {
+   "noc": "10011",
+   "title": "Human resources managers",
+   "points": 100
+  },
+  {
+   "noc": "10012",
+   "title": "Purchasing managers",
+   "points": 100
+  },
+  {
+   "noc": "10020",
+   "title": "Insurance, real estate and financial brokerage managers",
+   "points": 100
+  },
+  {
+   "noc": "10021",
+   "title": "Banking, credit and other investment managers",
+   "points": 100
+  },
+  {
+   "noc": "20010",
+   "title": "Engineering managers",
+   "points": 100
+  },
+  {
+   "noc": "20011",
+   "title": "Architecture and science managers",
+   "points": 100
+  },
+  {
+   "noc": "20012",
+   "title": "Computer and information systems managers",
+   "points": 100
+  },
+  {
+   "noc": "21330",
+   "title": "Mining engineers",
+   "points": 100
+  },
+  {
+   "noc": "21332",
+   "title": "Petroleum engineers",
+   "points": 100
+  },
+  {
+   "noc": "31100",
+   "title": "Specialists in clinical and laboratory medicine",
+   "points": 100
+  },
+  {
+   "noc": "31101",
+   "title": "Specialists in surgery",
+   "points": 100
+  },
+  {
+   "noc": "31102",
+   "title": "General practitioners and family physicians",
+   "points": 100
+  },
+  {
+   "noc": "31103",
+   "title": "Veterinarians",
+   "points": 100
+  },
+  {
+   "noc": "31302",
+   "title": "Nurse practitioners",
+   "points": 100
+  },
+  {
+   "noc": "31303",
+   "title": "Physician assistants, midwives and allied health professionals",
+   "points": 100
+  },
+  {
+   "noc": "40010",
+   "title": "Government managers - health and social policy development and program administration",
+   "points": 100
+  },
+  {
+   "noc": "40011",
+   "title": "Government managers - economic analysis, policy development and program administration",
+   "points": 100
+  },
+  {
+   "noc": "40012",
+   "title": "Government managers - education policy development and program administration",
+   "points": 100
+  },
+  {
+   "noc": "40019",
+   "title": "Other managers in public administration",
+   "points": 100
+  },
+  {
+   "noc": "40040",
+   "title": "Commissioned police officers and related occupations in public protection services",
+   "points": 100
+  },
+  {
+   "noc": "40041",
+   "title": "Fire chiefs and senior firefighting officers",
+   "points": 100
+  },
+  {
+   "noc": "41100",
+   "title": "Judges",
+   "points": 100
+  },
+  {
+   "noc": "41101",
+   "title": "Lawyers and Quebec notaries",
+   "points": 100
+  },
+  {
+   "noc": "41200",
+   "title": "University professors and lecturers",
+   "points": 100
+  },
+  {
+   "noc": "60010",
+   "title": "Corporate sales managers",
+   "points": 100
+  },
+  {
+   "noc": "80010",
+   "title": "Managers in natural resources production and fishing",
+   "points": 100
+  },
+  {
+   "noc": "90011",
+   "title": "Utilities managers",
+   "points": 100
+  },
+  {
+   "noc": "00014",
+   "title": "Senior managers - trade, broadcasting and other services",
+   "points": 70
+  },
+  {
+   "noc": "00015",
+   "title": "Senior managers - construction, transportation, production and utilities",
+   "points": 70
+  },
+  {
+   "noc": "10019",
+   "title": "Other administrative services managers",
+   "points": 70
+  },
+  {
+   "noc": "10022",
+   "title": "Advertising, marketing and public relations managers",
+   "points": 70
+  },
+  {
+   "noc": "10029",
+   "title": "Other business services managers",
+   "points": 70
+  },
+  {
+   "noc": "10030",
+   "title": "Telecommunication carriers managers",
+   "points": 70
+  },
+  {
+   "noc": "11103",
+   "title": "Securities agents, investment dealers and brokers",
+   "points": 70
+  },
+  {
+   "noc": "11201",
+   "title": "Professional occupations in business management consulting",
+   "points": 70
+  },
+  {
+   "noc": "21100",
+   "title": "Physicists and astronomers",
+   "points": 70
+  },
+  {
+   "noc": "21102",
+   "title": "Geoscientists and oceanographers",
+   "points": 70
+  },
+  {
+   "noc": "21103",
+   "title": "Meteorologists and climatologists",
+   "points": 70
+  },
+  {
+   "noc": "21109",
+   "title": "Other professional occupations in physical sciences",
+   "points": 70
+  },
+  {
+   "noc": "21111",
+   "title": "Forestry professionals",
+   "points": 70
+  },
+  {
+   "noc": "21120",
+   "title": "Public and environmental health and safety professionals",
+   "points": 70
+  },
+  {
+   "noc": "21202",
+   "title": "Urban and land use planners",
+   "points": 70
+  },
+  {
+   "noc": "21210",
+   "title": "Mathematicians, statisticians and actuaries",
+   "points": 70
+  },
+  {
+   "noc": "21211",
+   "title": "Data scientists",
+   "points": 70
+  },
+  {
+   "noc": "21220",
+   "title": "Cybersecurity specialists",
+   "points": 70
+  },
+  {
+   "noc": "21221",
+   "title": "Business systems specialists",
+   "points": 70
+  },
+  {
+   "noc": "21222",
+   "title": "Information systems specialists",
+   "points": 70
+  },
+  {
+   "noc": "21223",
+   "title": "Database analysts and data administrators",
+   "points": 70
+  },
+  {
+   "noc": "21230",
+   "title": "Computer systems developers and programmers",
+   "points": 70
+  },
+  {
+   "noc": "21231",
+   "title": "Software engineers and designers",
+   "points": 70
+  },
+  {
+   "noc": "21232",
+   "title": "Software developers and programmers",
+   "points": 70
+  },
+  {
+   "noc": "21300",
+   "title": "Civil engineers",
+   "points": 70
+  },
+  {
+   "noc": "21301",
+   "title": "Mechanical engineers",
+   "points": 70
+  },
+  {
+   "noc": "21310",
+   "title": "Electrical and electronics engineers",
+   "points": 70
+  },
+  {
+   "noc": "21311",
+   "title": "Computer engineers (except software engineers and designers)",
+   "points": 70
+  },
+  {
+   "noc": "21320",
+   "title": "Chemical engineers",
+   "points": 70
+  },
+  {
+   "noc": "21321",
+   "title": "Industrial and manufacturing engineers",
+   "points": 70
+  },
+  {
+   "noc": "21322",
+   "title": "Metallurgical and materials engineers",
+   "points": 70
+  },
+  {
+   "noc": "21331",
+   "title": "Geological engineers",
+   "points": 70
+  },
+  {
+   "noc": "21390",
+   "title": "Aerospace engineers",
+   "points": 70
+  },
+  {
+   "noc": "21399",
+   "title": "Other professional engineers",
+   "points": 70
+  },
+  {
+   "noc": "22231",
+   "title": "Engineering inspectors and regulatory officers",
+   "points": 70
+  },
+  {
+   "noc": "22312",
+   "title": "Industrial instrument technicians and mechanics",
+   "points": 70
+  },
+  {
+   "noc": "30010",
+   "title": "Managers in health care",
+   "points": 70
+  },
+  {
+   "noc": "31110",
+   "title": "Dentists",
+   "points": 70
+  },
+  {
+   "noc": "31112",
+   "title": "Audiologists and speech-language pathologists",
+   "points": 70
+  },
+  {
+   "noc": "31120",
+   "title": "Pharmacists",
+   "points": 70
+  },
+  {
+   "noc": "31200",
+   "title": "Psychologists",
+   "points": 70
+  },
+  {
+   "noc": "31202",
+   "title": "Physiotherapists",
+   "points": 70
+  },
+  {
+   "noc": "31203",
+   "title": "Occupational therapists",
+   "points": 70
+  },
+  {
+   "noc": "31300",
+   "title": "Nursing coordinators and supervisors",
+   "points": 70
+  },
+  {
+   "noc": "31301",
+   "title": "Registered nurses and registered psychiatric nurses",
+   "points": 70
+  },
+  {
+   "noc": "32111",
+   "title": "Dental hygienists and dental therapists",
+   "points": 70
+  },
+  {
+   "noc": "40020",
+   "title": "Administrators - post-secondary education and vocational training",
+   "points": 70
+  },
+  {
+   "noc": "40021",
+   "title": "School principals and administrators of elementary and secondary education",
+   "points": 70
+  },
+  {
+   "noc": "40030",
+   "title": "Managers in social, community and correctional services",
+   "points": 70
+  },
+  {
+   "noc": "40042",
+   "title": "Commissioned officers of the Canadian Armed Forces",
+   "points": 70
+  },
+  {
+   "noc": "41210",
+   "title": "College and other vocational instructors",
+   "points": 70
+  },
+  {
+   "noc": "41220",
+   "title": "Secondary school teachers",
+   "points": 70
+  },
+  {
+   "noc": "41221",
+   "title": "Elementary school and kindergarten teachers",
+   "points": 70
+  },
+  {
+   "noc": "41310",
+   "title": "Police investigators and other investigative occupations",
+   "points": 70
+  },
+  {
+   "noc": "41311",
+   "title": "Probation and parole officers",
+   "points": 70
+  },
+  {
+   "noc": "41320",
+   "title": "Educational counsellors",
+   "points": 70
+  },
+  {
+   "noc": "41401",
+   "title": "Economists and economic policy researchers and analysts",
+   "points": 70
+  },
+  {
+   "noc": "41402",
+   "title": "Business development officers and market researchers and analysts",
+   "points": 70
+  },
+  {
+   "noc": "41404",
+   "title": "Health policy researchers, consultants and program officers",
+   "points": 70
+  },
+  {
+   "noc": "41407",
+   "title": "Program officers unique to government",
+   "points": 70
+  },
+  {
+   "noc": "42100",
+   "title": "Police officers (except commissioned)",
+   "points": 70
+  },
+  {
+   "noc": "42101",
+   "title": "Firefighters",
+   "points": 70
+  },
+  {
+   "noc": "50010",
+   "title": "Library, archive, museum and art gallery managers",
+   "points": 70
+  },
+  {
+   "noc": "50011",
+   "title": "Managers - publishing, motion pictures, broadcasting and performing arts",
+   "points": 70
+  },
+  {
+   "noc": "51100",
+   "title": "Librarians",
+   "points": 70
+  },
+  {
+   "noc": "70010",
+   "title": "Construction managers",
+   "points": 70
+  },
+  {
+   "noc": "70012",
+   "title": "Facility operation and maintenance managers",
+   "points": 70
+  },
+  {
+   "noc": "70020",
+   "title": "Managers in transportation",
+   "points": 70
+  },
+  {
+   "noc": "70021",
+   "title": "Postal and courier services managers",
+   "points": 70
+  },
+  {
+   "noc": "72011",
+   "title": "Contractors and supervisors, electrical trades and telecommunications occupations",
+   "points": 70
+  },
+  {
+   "noc": "72012",
+   "title": "Contractors and supervisors, pipefitting trades",
+   "points": 70
+  },
+  {
+   "noc": "72023",
+   "title": "Supervisors, railway transport operations",
+   "points": 70
+  },
+  {
+   "noc": "72103",
+   "title": "Boilermakers",
+   "points": 70
+  },
+  {
+   "noc": "72202",
+   "title": "Power system electricians",
+   "points": 70
+  },
+  {
+   "noc": "72203",
+   "title": "Electrical power line and cable workers",
+   "points": 70
+  },
+  {
+   "noc": "72301",
+   "title": "Steamfitters, pipefitters and sprinkler system installers",
+   "points": 70
+  },
+  {
+   "noc": "72406",
+   "title": "Elevator constructors and mechanics",
+   "points": 70
+  },
+  {
+   "noc": "72600",
+   "title": "Air pilots, flight engineers and flying instructors",
+   "points": 70
+  },
+  {
+   "noc": "72601",
+   "title": "Air traffic controllers and related occupations",
+   "points": 70
+  },
+  {
+   "noc": "72604",
+   "title": "Railway traffic controllers and marine traffic regulators",
+   "points": 70
+  },
+  {
+   "noc": "73310",
+   "title": "Railway and yard locomotive engineers",
+   "points": 70
+  },
+  {
+   "noc": "82020",
+   "title": "Supervisors, mining and quarrying",
+   "points": 70
+  },
+  {
+   "noc": "82021",
+   "title": "Contractors and supervisors, oil and gas drilling and services",
+   "points": 70
+  },
+  {
+   "noc": "83101",
+   "title": "Oil and gas well drillers, servicers, testers and related workers",
+   "points": 70
+  },
+  {
+   "noc": "90010",
+   "title": "Manufacturing managers",
+   "points": 70
+  },
+  {
+   "noc": "92011",
+   "title": "Supervisors, petroleum, gas and chemical processing and utilities",
+   "points": 70
+  },
+  {
+   "noc": "92100",
+   "title": "Power engineers and power systems operators",
+   "points": 70
+  },
+  {
+   "noc": "93100",
+   "title": "Central control and process operators, mineral and metal processing",
+   "points": 70
+  },
+  {
+   "noc": "93101",
+   "title": "Central control and process operators, petroleum, gas and chemical processing",
+   "points": 70
+  },
+  {
+   "noc": "00010",
+   "title": "Legislators",
+   "points": 50
+  },
+  {
+   "noc": "11100",
+   "title": "Financial auditors and accountants",
+   "points": 50
+  },
+  {
+   "noc": "11101",
+   "title": "Financial and investment analysts",
+   "points": 50
+  },
+  {
+   "noc": "11102",
+   "title": "Financial advisors",
+   "points": 50
+  },
+  {
+   "noc": "11109",
+   "title": "Other financial officers",
+   "points": 50
+  },
+  {
+   "noc": "11200",
+   "title": "Human resources professionals",
+   "points": 50
+  },
+  {
+   "noc": "12201",
+   "title": "Insurance adjusters and claims examiners",
+   "points": 50
+  },
+  {
+   "noc": "12203",
+   "title": "Assessors, business valuators and appraisers",
+   "points": 50
+  },
+  {
+   "noc": "21101",
+   "title": "Chemists",
+   "points": 50
+  },
+  {
+   "noc": "21110",
+   "title": "Biologists and related scientists",
+   "points": 50
+  },
+  {
+   "noc": "21112",
+   "title": "Agricultural representatives, consultants and specialists",
+   "points": 50
+  },
+  {
+   "noc": "21200",
+   "title": "Architects",
+   "points": 50
+  },
+  {
+   "noc": "21201",
+   "title": "Landscape architects",
+   "points": 50
+  },
+  {
+   "noc": "21203",
+   "title": "Land surveyors",
+   "points": 50
+  },
+  {
+   "noc": "21234",
+   "title": "Web developers and programmers",
+   "points": 50
+  },
+  {
+   "noc": "22214",
+   "title": "Technical occupations in geomatics and meteorology",
+   "points": 50
+  },
+  {
+   "noc": "22232",
+   "title": "Occupational health and safety specialists",
+   "points": 50
+  },
+  {
+   "noc": "22233",
+   "title": "Construction inspectors",
+   "points": 50
+  },
+  {
+   "noc": "22310",
+   "title": "Electrical and electronics engineering technologists and technicians",
+   "points": 50
+  },
+  {
+   "noc": "22313",
+   "title": "Aircraft instrument, electrical and avionics mechanics, technicians and inspectors",
+   "points": 50
+  },
+  {
+   "noc": "31121",
+   "title": "Dietitians and nutritionists",
+   "points": 50
+  },
+  {
+   "noc": "32102",
+   "title": "Paramedical occupations",
+   "points": 50
+  },
+  {
+   "noc": "32103",
+   "title": "Respiratory therapists, clinical perfusionists and cardiopulmonary technologists",
+   "points": 50
+  },
+  {
+   "noc": "32120",
+   "title": "Medical laboratory technologists",
+   "points": 50
+  },
+  {
+   "noc": "32121",
+   "title": "Medical radiation technologists",
+   "points": 50
+  },
+  {
+   "noc": "32122",
+   "title": "Medical sonographers",
+   "points": 50
+  },
+  {
+   "noc": "41300",
+   "title": "Social workers",
+   "points": 50
+  },
+  {
+   "noc": "41400",
+   "title": "Natural and applied science policy researchers, consultants and program officers",
+   "points": 50
+  },
+  {
+   "noc": "41403",
+   "title": "Social policy researchers, consultants and program officers",
+   "points": 50
+  },
+  {
+   "noc": "41405",
+   "title": "Education policy researchers, consultants and program officers",
+   "points": 50
+  },
+  {
+   "noc": "41409",
+   "title": "Other professional occupations in social science",
+   "points": 50
+  },
+  {
+   "noc": "43201",
+   "title": "Correctional service officers",
+   "points": 50
+  },
+  {
+   "noc": "43203",
+   "title": "Border services, customs, and immigration officers",
+   "points": 50
+  },
+  {
+   "noc": "50012",
+   "title": "Recreation, sports and fitness program and service directors",
+   "points": 50
+  },
+  {
+   "noc": "51101",
+   "title": "Conservators and curators",
+   "points": 50
+  },
+  {
+   "noc": "51102",
+   "title": "Archivists",
+   "points": 50
+  },
+  {
+   "noc": "51111",
+   "title": "Authors and writers (except technical)",
+   "points": 50
+  },
+  {
+   "noc": "51112",
+   "title": "Technical writers",
+   "points": 50
+  },
+  {
+   "noc": "51120",
+   "title": "Producers, directors, choreographers and related occupations",
+   "points": 50
+  },
+  {
+   "noc": "52112",
+   "title": "Broadcast technicians",
+   "points": 50
+  },
+  {
+   "noc": "60020",
+   "title": "Retail and wholesale trade managers",
+   "points": 50
+  },
+  {
+   "noc": "60031",
+   "title": "Accommodation service managers",
+   "points": 50
+  },
+  {
+   "noc": "60040",
+   "title": "Managers in customer and personal services",
+   "points": 50
+  },
+  {
+   "noc": "72010",
+   "title": "Contractors and supervisors, machining, metal forming, shaping and erecting trades and related occupations",
+   "points": 50
+  },
+  {
+   "noc": "72013",
+   "title": "Contractors and supervisors, carpentry trades",
+   "points": 50
+  },
+  {
+   "noc": "72014",
+   "title": "Contractors and supervisors, other construction trades, installers, repairers and servicers",
+   "points": 50
+  },
+  {
+   "noc": "72020",
+   "title": "Contractors and supervisors, mechanic trades",
+   "points": 50
+  },
+  {
+   "noc": "72021",
+   "title": "Contractors and supervisors, heavy equipment operator crews",
+   "points": 50
+  },
+  {
+   "noc": "72102",
+   "title": "Sheet metal workers",
+   "points": 50
+  },
+  {
+   "noc": "72105",
+   "title": "Ironworkers",
+   "points": 50
+  },
+  {
+   "noc": "72201",
+   "title": "Industrial electricians",
+   "points": 50
+  },
+  {
+   "noc": "72302",
+   "title": "Gas fitters",
+   "points": 50
+  },
+  {
+   "noc": "72320",
+   "title": "Bricklayers",
+   "points": 50
+  },
+  {
+   "noc": "72321",
+   "title": "Insulators",
+   "points": 50
+  },
+  {
+   "noc": "72401",
+   "title": "Heavy-duty equipment mechanics",
+   "points": 50
+  },
+  {
+   "noc": "72403",
+   "title": "Railway carmen/women",
+   "points": 50
+  },
+  {
+   "noc": "72404",
+   "title": "Aircraft mechanics and aircraft inspectors",
+   "points": 50
+  },
+  {
+   "noc": "72500",
+   "title": "Crane operators",
+   "points": 50
+  },
+  {
+   "noc": "72602",
+   "title": "Deck officers, water transport",
+   "points": 50
+  },
+  {
+   "noc": "72603",
+   "title": "Engineer officers, water transport",
+   "points": 50
+  },
+  {
+   "noc": "73311",
+   "title": "Railway conductors and brakemen/women",
+   "points": 50
+  },
+  {
+   "noc": "82010",
+   "title": "Supervisors, logging and forestry",
+   "points": 50
+  },
+  {
+   "noc": "83100",
+   "title": "Underground production and development miners",
+   "points": 50
+  },
+  {
+   "noc": "83120",
+   "title": "Fishing masters and officers",
+   "points": 50
+  },
+  {
+   "noc": "92010",
+   "title": "Supervisors, mineral and metal processing",
+   "points": 50
+  },
+  {
+   "noc": "93102",
+   "title": "Pulping, papermaking and coating control operators",
+   "points": 50
+  }
+ ]
+}

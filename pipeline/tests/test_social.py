@@ -543,3 +543,50 @@ def test_a_long_gap_since_the_previous_complete_pass_says_since(conn):
     d = social.collect(conn)
     assert d.postings == 1 and d.since_date == "2026-10-12"  # Eastern day of the pass at 00:10 UTC
 
+
+
+def test_the_international_candidates_line_goes_after_the_employers_and_before_the_provinces():
+    d = Digest(
+        "2026-10-17", postings=9, positions=90, positions_known=9,
+        provinces=["AB", "BC", "MB", "NB", "NL", "NS", "ON", "PE", "QC", "SK"],
+        employers=[EmployerLine(f"Employer {c} Holdings Limited", "Somewhere", "ON", n)
+                   for c, n in (("A", 40), ("B", 30))],
+        intl_no_lmia=41,
+    )
+    link = "https://lmiawatch.ca/search?date=7d"
+    intl_line = "41 new postings open to international candidates, no LMIA"
+    full = compose(d, link=link, limit=10_000)
+    assert full.split("\n")[2] == intl_line
+    seen: list[str] = []
+    for limit in range(x_length(full), 0, -1):
+        text = compose(d, link=link, limit=limit)
+        if not seen or seen[-1] != text:
+            seen.append(text)
+    lines = [t.split("\n") for t in seen]
+    head, prov = lines[0][0], lines[0][1]
+    emp = lines[0][4:6]
+    assert lines == [
+        [head, prov, intl_line, "Most positions:", *emp, link],
+        [head, prov, intl_line, "Most positions:", emp[0], link],
+        [head, prov, intl_line, link],
+        [head, prov, link],
+        [head, link],
+    ]
+
+
+def test_one_posting_reads_in_the_singular_and_none_leaves_the_line_out():
+    d = Digest("2026-10-17", postings=2, positions=2, positions_known=2, intl_no_lmia=1)
+    assert "\n1 new posting open to international candidates, no LMIA\n" in compose(d, link="https://x.example/s")
+    for value in (0, None):
+        d.intl_no_lmia = value
+        assert "international" not in compose(d, link="https://x.example/s")
+
+
+def test_collect_reads_the_international_count(conn):
+    seed(conn)
+    set_meta(conn, "intl_last_run", LATEST)
+    conn.execute(
+        "INSERT INTO jobbank_intl_postings (posting_id, employer_raw, first_seen, last_seen, found_by, lmia, audience, url, updated_at) "
+        "VALUES (1, 'X Ltd', ?, ?, 'feed', 'none', 'international', 'u', ?)", (LATEST, LATEST, LATEST))
+    conn.commit()
+    assert social.collect(conn).intl_no_lmia == 1

@@ -32,6 +32,8 @@ Output tree (under data/out/static):
   aliases/<abc>.json                 retired employer id -> the live id that took its records,
                                      sharded on the retired id's characters 5 to 7 like the profiles
   trends/*.json                      the series behind /trends (trends.py)
+  international/index.json           postings open to international candidates, their grades and the
+                                     designated-employer lists, behind /international (intl.py)
   program/index.json                 the program conditions behind /program (conditions.py)
   sitemaps/sitemap-<n>.xml           the fixed pages and every profile URL, at most 50,000 per file
   sitemaps/index.xml                 the sitemap index; the site serves it at /sitemap.xml and the
@@ -54,8 +56,9 @@ from collections.abc import Collection, Sequence
 from pathlib import Path
 from xml.sax.saxutils import escape
 
-from . import conditions, config, places, releases, trends
-from .db import log_run
+from . import conditions, config, intl, places, releases, trends
+from .db import get_meta, log_run
+from .sources import high_wage, registers
 from .feeds import write_feeds
 from .normalize import period_end_date, period_sort_key
 from .zenodo import citation_from_meta
@@ -390,6 +393,8 @@ def write_stats(conn: sqlite3.Connection, out: Path, latest: str, ind: dict[str,
         "findings": int(meta.get("count_findings", 0)),
         "employers": conn.execute("SELECT COUNT(*) FROM employers").fetchone()[0],
         **public_record_counts(conn),
+        # Postings open to international candidates and designated employers (intl.py); absent before the first pass.
+        **intl.stats_counts(conn),
     }
     by_noc, counts["pending_with_noc"] = pending_by_noc(conn)
     by_stream = [{"k": r["k"] or "Unknown", "n": r["n"]} for r in conn.execute(
@@ -439,6 +444,10 @@ def write_stats(conn: sqlite3.Connection, out: Path, latest: str, ind: dict[str,
         "runs": runs,
         # The Zenodo record behind "How to cite"; null until one is published.
         "citation": citation_from_meta(meta),
+        # The designated-employer lists and their terms, for the Data page's sources (sources/registers.py).
+        "registers": registers.export_rows(conn),
+        # IRCC's high-wage list in use (its version date), for the methodology page.
+        "high_wage": high_wage.list_version(conn),
     }
     _dump(out / "stats.json", stats)
     return stats
@@ -572,6 +581,8 @@ def write_profiles(conn: sqlite3.Connection, out: Path) -> int:
         grants, grant_totals = profile_grants(conn, ids)
         alberta = profile_alberta(conn, ids)
         carriers = profile_carriers(conn, ids)
+        intl_rows = intl.profile_rows(conn, ids)
+        designated = registers.profile_rows(conn, ids)
         shard = {}
         for e in group:
             eid = e["id"]
@@ -588,6 +599,12 @@ def write_profiles(conn: sqlite3.Connection, out: Path) -> int:
                 "alberta": alberta.get(eid, []),
                 "us_carrier": carriers.get(eid, []),
             }
+            # Written only when there is something, so the shard of an employer
+            # without either keeps its bytes (the site reads absent as none).
+            if intl_rows.get(eid):
+                shard[eid]["intl"] = intl_rows[eid]
+            if designated.get(eid):
+                shard[eid]["designated"] = designated[eid]
         _dump(out / "profiles" / f"{key}.json", shard)
         written += 1
     return written
@@ -668,6 +685,9 @@ def sitemap_entries(conn: sqlite3.Connection, data_as_of: str | None,
     # The program conditions page, dated by the newest edition read.
     if "program" not in skip:
         entries += conditions.sitemap_entries(conn)
+    # Postings open to international candidates, once a pass has written its file.
+    if "international" not in skip and get_meta(conn, "intl_last_run"):
+        entries.append(("/international", dated))
     entries += [(f"/employers/{r['id']}", _lastmod(r["updated_at"]))
                 for r in conn.execute("SELECT id, updated_at FROM employers ORDER BY id")]
     # Occupation and place pages at or above the record threshold, each dated
@@ -775,6 +795,7 @@ def _write_static(conn: sqlite3.Connection, out: Path) -> dict[str, int]:
         ("program", lambda: conditions.write_all(conn, out)),
         ("places", lambda: places.write_places(conn, out)),
         ("aliases", lambda: write_aliases(conn, out)),
+        ("international", lambda: intl.write_all(conn, out, meta.get("data_as_of"), registers.export_rows(conn))),
     )
     for name, write in sections:
         try:

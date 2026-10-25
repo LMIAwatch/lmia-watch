@@ -183,9 +183,15 @@ def log_run(
     rows_new: int = 0,
     excluded: int = 0,
     ok: bool = True,
+    notice: str | None = None,
 ) -> None:
+    """One row of the run log. ok=False is a failed stage (the run status is not
+    ok, and a retry trigger runs the refresh again). notice is an item needing
+    attention that a retry would not change (a reference list that changed, a
+    list not yet readable): reported as an attention item, the run stays ok."""
     conn.execute(
-        "INSERT INTO sources_log (run_at, source, detail, rows_in, rows_new, excluded, ok) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (now_iso(), source, detail, rows_in, rows_new, excluded, 1 if ok else 0),
+        "INSERT INTO sources_log (run_at, source, detail, rows_in, rows_new, excluded, ok, notice) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (now_iso(), source, detail, rows_in, rows_new, excluded, 1 if ok else 0, (notice or "")[:900] or None),
     )
     conn.commit()

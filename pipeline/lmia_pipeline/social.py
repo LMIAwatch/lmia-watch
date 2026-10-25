@@ -124,6 +124,9 @@ class Digest:
     week_postings: int = 0          # posted on Job Bank in the last 7 days, by its own posting date
     week_positions: int = 0
     week_known: int = 0
+    # New postings open to international candidates with no LMIA requested
+    # (sources/jobbank_intl.digest_count); None leaves the line out.
+    intl_no_lmia: int | None = None
 
 
 PROVINCE_RE = re.compile(r"\b(AB|BC|MB|NB|NL|NS|NT|NU|ON|PE|QC|SK|YT)\b")
@@ -222,10 +225,18 @@ def _employer_line(e: EmployerLine) -> str:
     return f"{label}: {e.positions:,}"
 
 
-def _join(head: str, provinces: str | None, employers: list[str], link: str | None) -> str:
+def _intl_line(d: Digest) -> str | None:
+    if not d.intl_no_lmia:
+        return None
+    return f"{_plural(d.intl_no_lmia, 'new posting')} open to international candidates, no LMIA"
+
+
+def _join(head: str, provinces: str | None, employers: list[str], link: str | None, intl_line: str | None = None) -> str:
     lines = [head]
     if provinces:
         lines.append(provinces)
+    if intl_line:
+        lines.append(intl_line)
     if employers:
         lines.append("Most positions:")
         lines.extend(employers)
@@ -236,16 +247,19 @@ def _join(head: str, provinces: str | None, employers: list[str], link: str | No
 
 def compose(d: Digest, *, link: str | None, limit: int = MAX_CHARS,
             measure: Callable[[str], int] = x_length) -> str:
-    """The post text. When it runs long, employers go from the end of the list first, then the province line.
+    """The post text. When it runs long, employers go from the end of the list first, then the line on
+    postings open to international candidates, then the province line.
 
     measure is the platform's own length rule (X's by default; bluesky.py passes Bluesky's)."""
     head = _headline(d)
     provinces = f"In {', '.join(d.provinces)}" if d.provinces else None
     employers = [_employer_line(e) for e in d.employers]
-    rungs = [(provinces, employers[:n]) for n in range(len(employers), -1, -1)]
-    rungs.append((None, []))
-    for prov_line, emp_lines in rungs:
-        text = _join(head, prov_line, emp_lines, link)
+    intl_line = _intl_line(d)
+    rungs = [(provinces, intl_line, employers[:n]) for n in range(len(employers), -1, -1)]
+    rungs.append((provinces, None, []))
+    rungs.append((None, None, []))
+    for prov_line, intl, emp_lines in rungs:
+        text = _join(head, prov_line, emp_lines, link, intl)
         if measure(text) <= limit:
             return text
     # The headline holds a date and two numbers, so this is unreachable at 280.
@@ -336,7 +350,18 @@ def collect(conn: sqlite3.Connection) -> Digest | None:
         week_postings=len(week),
         week_positions=sum(int(v) for v in week_known),
         week_known=len(week_known),
+        intl_no_lmia=_intl_count(conn),
     )
+
+
+def _intl_count(conn: sqlite3.Connection) -> int | None:
+    """The digest's line on postings open to international candidates; a fault costs the line, never the post."""
+    try:
+        from .sources.jobbank_intl import digest_count
+        return digest_count(conn)
+    except Exception as exc:
+        log.warning("digest: the international-candidates count could not be read (%s)", type(exc).__name__)
+        return None
 
 
 def card_for(d: Digest) -> CardData:

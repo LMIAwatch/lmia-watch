@@ -67,6 +67,11 @@ class ListItem:
     date_posted: str | None
     salary_text: str | None
     postal_code: str | None = None
+    # The listing's LMIA marker: 'requested' when the result carries Job Bank's
+    # "LMIA requested" flag, 'approved' when its flag text says approved, None
+    # when it carries none (the approved facet's own results never do, so None
+    # is not proof that no LMIA exists).
+    lmia_flag: str | None = None
 
 
 @dataclass
@@ -213,6 +218,10 @@ def parse_search_page(html: str) -> list[ListItem]:
         salary_text = None
         if salary is not None:
             salary_text = _clean(re.sub(r"^\s*Salary\s*", "", salary.get_text(" "), flags=re.I))
+        flag_el = article.select_one(".jobLMIAflag")
+        lmia_flag = None
+        if flag_el is not None:
+            lmia_flag = "approved" if "approved" in flag_el.get_text(" ").lower() else "requested"
         items.append(
             ListItem(
                 posting_id=int(m.group(1)),
@@ -223,6 +232,7 @@ def parse_search_page(html: str) -> list[ListItem]:
                 date_posted=_date(date_el.get_text(" ")) if date_el else None,
                 salary_text=salary_text,
                 postal_code=postal_code,
+                lmia_flag=lmia_flag,
             )
         )
     return items

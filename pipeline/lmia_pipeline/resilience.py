@@ -713,6 +713,11 @@ def attention_items(status: Any) -> list[str]:
     checks = status.get("checks")
     if isinstance(checks, dict):
         items.extend(f"Expiry check: {i}" for i in checks.get("items") or [] if isinstance(i, str))
+    # Notices: a reference list that changed, a list not yet readable, a list
+    # not read tonight. Each needs a person, but none means the run failed.
+    for n in status.get("notices") or []:
+        if isinstance(n, dict) and isinstance(n.get("detail"), str) and n["detail"]:
+            items.append(f"{n.get('source') or 'notice'}: {n['detail']}")
     return items
 
 

@@ -301,10 +301,11 @@ def gunzip_to(src, dest):
     return dest
 
 
-def test_the_schema_names_eighteen_secondary_indexes_and_no_unique_one():
+def test_the_schema_names_twenty_secondary_indexes_and_no_unique_one():
     names = nightly.schema_indexes()
-    assert len(names) == len(set(names)) == 18
+    assert len(names) == len(set(names)) == 20
     assert "idx_employers_norm" in names and "idx_donations_received" in names
+    assert "idx_intl_employer" in names and "idx_intl_facet_date" in names
 
 
 def test_pack_drops_the_secondary_indexes_and_a_restored_copy_gets_them_back(tmp_path):
@@ -319,7 +320,7 @@ def test_pack_drops_the_secondary_indexes_and_a_restored_copy_gets_them_back(tmp
     try:
         before = counts_of(db)
         secondary, automatic = indexes_of(db)
-        assert len(secondary) == 18 and automatic
+        assert len(secondary) == 20 and automatic
         # A gzip of the file alone would lose the late row.
         (tmp_path / "alone.gz").write_bytes(gz_of(db))
         alone = counts_of(gunzip_to(tmp_path / "alone.gz", tmp_path / "alone.sqlite"))
@@ -330,7 +331,7 @@ def test_pack_drops_the_secondary_indexes_and_a_restored_copy_gets_them_back(tmp
     finally:
         writer.close()
     assert ok, message
-    assert "18 secondary indexes" in message and "lmia.sqlite.gz" in message
+    assert "20 secondary indexes" in message and "lmia.sqlite.gz" in message
     assert sizes["copy"] < sizes["db"] + sizes["wal"] and 0 < sizes["gz"] < sizes["copy"]
     # Only the gzip is left behind; the working copy is gone.
     assert sorted(p.name for p in out.parent.iterdir()) == ["lmia.sqlite.gz"]
@@ -411,4 +412,4 @@ def test_restore_accepts_a_packed_backup(tmp_path):
     assert counts["employers"] == 5 and counts["jobbank_postings"] == 4
     assert indexes_of(db)[0] == set()
     connect(db).close()
-    assert len(indexes_of(db)[0]) == 18
+    assert len(indexes_of(db)[0]) == 20

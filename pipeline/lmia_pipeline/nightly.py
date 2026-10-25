@@ -369,6 +369,9 @@ def run_status(
     checks). A broken deploy marks the run not ok whether or not it was
     rolled back, so a retry trigger the same day deploys again."""
     stages: list[dict[str, Any]] = []
+    notices: list[dict[str, str]] = []
+    international: dict[str, Any] = {}
+    registers: dict[str, Any] = {}
     for name, result in steps.items():
         if result == "failure":
             stages.append({"source": f"workflow {name}", "ok": False, "detail": STEP_DETAIL.get(name, "the step failed")})
@@ -385,8 +388,10 @@ def run_status(
                     "SELECT source, ok, detail FROM sources_log WHERE run_at >= ? ORDER BY id", (started,)
                 ).fetchall()
                 stages.extend({"source": s, "ok": bool(ok), "detail": (d or "")[:200]} for s, ok, d in rows)
+                notices = _notices(conn, started)
             else:
                 stages.append({"source": "pipeline", "ok": False, "detail": "the run never started its stages"})
+            international, registers = _source_summaries(conn)
         except sqlite3.Error as exc:
             stages.append({"source": "database", "ok": False, "detail": f"the run log cannot be read: {exc}"[:200]})
         finally:
@@ -423,8 +428,54 @@ def run_status(
         "rollback": rolled,
         "deploy_rolled_back": rolled == "rolled back",
         "checks": checks if isinstance(checks, dict) else {"due": None, "items": [], "detail": "the checks did not run"},
+        # Items needing attention that are not failures (a reference list that
+        # changed, a list not yet readable): attention items, but the run stays ok.
+        "notices": notices,
+        "international": international,
+        "registers": registers,
         "ok": all(s["ok"] for s in stages) and verdict != "broken",
     }
+
+
+def _notices(conn: sqlite3.Connection, started: str) -> list[dict[str, str]]:
+    """The run's notices from the log (a database from before the column has none)."""
+    try:
+        rows = conn.execute(
+            "SELECT source, notice FROM sources_log WHERE run_at >= ? AND notice IS NOT NULL AND notice != '' ORDER BY id",
+            (started,)).fetchall()
+    except sqlite3.Error:
+        return []
+    # A stage may record several notices on one row, joined by " | ".
+    return [{"source": s, "detail": part.strip()[:600]} for s, n in rows for part in (n or "").split(" | ") if part.strip()]
+
+
+def _source_summaries(conn: sqlite3.Connection) -> tuple[dict[str, Any], dict[str, Any]]:
+    """What the postings open to international candidates and the designated-employer lists stand at."""
+    international: dict[str, Any] = {}
+    registers: dict[str, Any] = {}
+    try:
+        meta = {k: v for k, v in conn.execute(
+            "SELECT key, value FROM meta WHERE key IN ('intl_last_run', 'intl_sweep_at', 'intl_baseline', "
+            "'high_wage_checked_at', 'high_wage_state')")}
+        live = conn.execute("SELECT COUNT(*), COALESCE(SUM(detail_fetched_at IS NULL), 0) FROM jobbank_intl_postings "
+                            "WHERE in_facet = 1").fetchone()
+        international = {"last_run": meta.get("intl_last_run"), "sweep_at": meta.get("intl_sweep_at"),
+                         "baseline": meta.get("intl_baseline"), "live": int(live[0] or 0), "unread": int(live[1] or 0),
+                         "high_wage_checked_at": meta.get("high_wage_checked_at"),
+                         "high_wage_state": meta.get("high_wage_state") or "not read"}
+        by_state: dict[str, list[str]] = {}
+        for key, state in conn.execute("SELECT key, state FROM designated_lists ORDER BY key"):
+            by_state.setdefault(state, []).append(key)
+        # Every night, the lists not read and which they are; an attention item
+        # only on the night a list changes state (the registers stage's notices).
+        registers = {"lists": sum(len(v) for v in by_state.values()),
+                     "states": {k: len(v) for k, v in by_state.items()},
+                     "not_read": {k: v for k, v in by_state.items() if k != "ok"},
+                     "matched_employers": int(conn.execute(
+                         "SELECT COUNT(DISTINCT employer_id) FROM designated_matches").fetchone()[0])}
+    except sqlite3.Error:
+        pass
+    return international, registers
 
 
 # -- pack -------------------------------------------------------------------

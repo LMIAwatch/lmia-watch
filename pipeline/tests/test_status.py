@@ -88,3 +88,28 @@ def test_rollups_and_meta(conn):
     assert get_meta(conn, "count_approved_positions") == "760"
     assert get_meta(conn, "count_refused_records") == "1"
     assert get_meta(conn, "rules_version") == "0.3"
+
+
+def test_the_run_status_summarizes_the_international_candidates_and_the_lists(tmp_path):
+    from lmia_pipeline import nightly
+    from lmia_pipeline.db import connect, log_run, set_meta
+    db = tmp_path / "lmia.sqlite"
+    conn = connect(db)
+    set_meta(conn, "intl_last_run", "2026-10-26T00:10:00Z")
+    set_meta(conn, "intl_baseline", "2026-10-26")
+    set_meta(conn, "high_wage_state", "failing")
+    conn.execute("INSERT INTO jobbank_intl_postings (posting_id, employer_raw, first_seen, last_seen, found_by, url, updated_at) "
+                 "VALUES (1, 'X Ltd', 'a', 'a', 'feed', 'u', 'a')")
+    conn.execute("INSERT INTO designated_lists (key, program, jurisdiction, source_url, format, state) "
+                 "VALUES ('aip_nb', 'AIP', 'NB', 'https://x', 'pdf', 'unreadable')")
+    log_run(conn, "registers", detail="1 lists", notice="Designated-employer lists not yet readable")
+    conn.commit()
+    conn.close()
+    status = nightly.run_status(db, "2000-01-01T00:00:00Z", {"problems": []}, None, {"deploy": "success"})
+    assert status["international"]["live"] == 1 and status["international"]["unread"] == 1
+    assert status["international"]["baseline"] == "2026-10-26"
+    assert status["international"]["high_wage_state"] == "failing"
+    assert status["registers"] == {"lists": 1, "states": {"unreadable": 1}, "not_read": {"unreadable": ["aip_nb"]},
+                                   "matched_employers": 0}
+    assert status["notices"] == [{"source": "registers", "detail": "Designated-employer lists not yet readable"}]
+    assert status["ok"] is True

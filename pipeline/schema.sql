@@ -197,12 +197,16 @@ CREATE TABLE IF NOT EXISTS fsa_centroids (
 CREATE TABLE IF NOT EXISTS sources_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   run_at TEXT NOT NULL,
-  source TEXT NOT NULL,                          -- jobbank | esdc | ircc | registry | wages | lfs | program_times | program_cma | program_thresholds | geography | indicators | export
+  source TEXT NOT NULL,                          -- jobbank | jobbank_intl | high_wage | registers | esdc | ircc | registry | wages | lfs | program_times |
+                                                 -- program_cma | program_thresholds | geography | indicators | export
   detail TEXT,
   rows_in INTEGER,
   rows_new INTEGER,
   excluded INTEGER,                              -- private-household postings dropped (count only, never names)
-  ok INTEGER NOT NULL
+  ok INTEGER NOT NULL,
+  notice TEXT                                    -- an item needing attention that is not a failure (a reference list that
+                                                 -- changed, a list not yet readable); NULL when none. Reported in status.json
+                                                 -- as notices, which raise an attention item without marking the run failed
 );
 
 -- ---------------------------------------------------------------------------
@@ -480,6 +484,129 @@ CREATE TABLE IF NOT EXISTS fmcsa_matches (
   basis TEXT NOT NULL,                           -- name_postal_code | name_province | dba_postal_code
   matched_at TEXT NOT NULL,
   PRIMARY KEY (employer_id, dot_number)
+);
+
+-- ---------------------------------------------------------------------------
+-- Job Bank postings open to international candidates (sources/jobbank_intl.py,
+-- grades in intl.py). The employer chose "Canadians and international
+-- candidates" as the posting's intended applicants (search facet fglo=1). From
+-- 2026-11-03 a job offer used for Express Entry needs no LMIA, so these
+-- postings are where such offers can still be seen. Signals, not findings: a
+-- posting does not show that a job offer was made. No employer row is created
+-- for these postings; employer_id is filled only when the employer identity
+-- (normalize.employer_id of the name and province) names an employer that
+-- already exists. Postings of private households are dropped before anything
+-- is written, as on the LMIA crawl.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS jobbank_intl_postings (
+  posting_id INTEGER PRIMARY KEY,                -- Job Bank posting id
+  employer_raw TEXT NOT NULL,                    -- the employer name the listing or feed gives
+  employer_id TEXT,                              -- an existing employers.id with the same identity; NULL when none
+  title TEXT,
+  noc_code TEXT,                                 -- NOC 2021 code the employer chose (posting page); NULL until read
+  city TEXT,
+  province TEXT,                                 -- two-letter code
+  postal_code TEXT,
+  wage_min REAL,
+  wage_max REAL,
+  wage_unit TEXT,
+  date_posted TEXT,                              -- ISO date (posting page, else the feed or listing)
+  valid_through TEXT,                            -- ISO date the posting page gives
+  first_seen TEXT NOT NULL,                      -- ISO datetime of the first pass that saw it
+  last_seen TEXT NOT NULL,                       -- ISO datetime of the latest pass that saw it
+  found_by TEXT NOT NULL,                        -- feed (the nightly Atom feed) | sweep (the weekly facet sweep) | recent (the
+                                                 -- last-48-hours search pages read when the feed was full)
+  in_facet INTEGER NOT NULL DEFAULT 1,           -- 0 once a complete weekly sweep no longer lists it
+  gone_at TEXT,                                  -- ISO datetime of the sweep that first missed it; NULL while listed
+  audience TEXT NOT NULL DEFAULT 'unknown',      -- the posting page's "Who can apply": international | authorized | canadians | unknown
+  audience_text TEXT,                            -- that block's list items as read, joined by ' | '
+  lmia TEXT NOT NULL DEFAULT 'unknown',          -- requested | approved | none | unknown: requested or approved once any source
+                                                 -- (listing flag, posting page, the LMIA crawl's jobbank_postings) showed it
+  employment_terms TEXT,                         -- the posting page's terms of employment as read ('Permanent employment Full time')
+  full_time INTEGER,                             -- 1 or 0 from employment_terms; NULL until read
+  permanent INTEGER,                             -- 1 or 0 from employment_terms; NULL until read
+  ee_phrases TEXT,                               -- JSON list of Express Entry phrases matched in the posting's own text
+  pr_phrases TEXT,                               -- JSON list of permanent-residence support phrases matched
+  exempt_phrases TEXT,                           -- JSON list of "LMIA exempt" or "LMIA not required" phrases matched
+  grade TEXT,                                    -- A | B | C (intl.grade_posting); NULL with an LMIA request, before the page is read,
+                                                 -- or when the page no longer says international
+  grade_reasons TEXT,                            -- JSON list of reason keys behind the grade (intl.REASONS)
+  detail_fetched_at TEXT,                        -- NULL until the posting page was fetched (or found missing)
+  url TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_intl_employer ON jobbank_intl_postings(employer_id);
+CREATE INDEX IF NOT EXISTS idx_intl_facet_date ON jobbank_intl_postings(in_facet, date_posted);
+
+-- IRCC's list of high-wage occupations as adopted (sources/high_wage.py): a new
+-- edition each time the page changes and passes the sanity checks, never
+-- overwritten. The newest is the version grades use; before the first, the
+-- committed file data/high_wage_nocs.json.
+CREATE TABLE IF NOT EXISTS high_wage_editions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  sha256 TEXT NOT NULL,                          -- high_wage.fingerprint of the code:points pairs
+  read_on TEXT NOT NULL,                         -- ISO date the edition was first read (the version date shown)
+  page_modified TEXT,                            -- the page's dcterms.modified date
+  source_url TEXT NOT NULL,
+  count INTEGER NOT NULL,
+  occupations TEXT NOT NULL,                     -- JSON list of {noc, title, points}
+  adopted_at TEXT NOT NULL                       -- ISO datetime of the run that adopted it
+);
+
+-- One row per day and count the facet's first search page states: the
+-- whole facet (total), with an LMIA requested or approved, posted in the
+-- last 48 hours or 30 days, and the authorized-workers facet beside it. A
+-- daily series that needs no posting page, so it is complete from its first day.
+CREATE TABLE IF NOT EXISTS jobbank_facet_counts (
+  day TEXT NOT NULL,                             -- UTC date of the read
+  key TEXT NOT NULL,                             -- total | lmia_requested | lmia_approved | last_48h | last_30d | authorized
+  value INTEGER NOT NULL,
+  PRIMARY KEY (day, key)
+);
+
+-- Published lists of designated employers (sources/registers.py): the
+-- Atlantic Immigration Program by province and the Rural Community and
+-- Francophone Community Immigration Pilots by community. One row per list
+-- with its state; the rows themselves below. A list that cannot be read one
+-- night keeps its last good rows.
+CREATE TABLE IF NOT EXISTS designated_lists (
+  key TEXT PRIMARY KEY,                          -- registers.REGISTERS key, e.g. aip_nl, rcip_sudbury
+  program TEXT NOT NULL,                         -- AIP | RCIP | FCIP
+  jurisdiction TEXT NOT NULL,                    -- province code
+  community TEXT,                                -- pilot community; NULL for AIP
+  source_url TEXT NOT NULL,                      -- the page or file last read (a PDF link found on its page)
+  format TEXT NOT NULL,                          -- html | json | pdf
+  state TEXT NOT NULL,                           -- ok | unreadable (a PDF) | failing (not fetched) | layout (fetched, not parsed)
+  rows INTEGER NOT NULL DEFAULT 0,               -- rows on the last good read
+  list_date TEXT,                                -- the list's own date when it states one (ISO date)
+  last_ok_at TEXT,                               -- ISO datetime of the last good read
+  last_attempt_at TEXT,
+  fail_streak INTEGER NOT NULL DEFAULT 0,        -- nights in a row the read failed
+  detail TEXT,                                   -- why the last read failed, or what it found
+  sha256 TEXT                                    -- of the last body read (a PDF's change shows here)
+);
+
+CREATE TABLE IF NOT EXISTS designated_employers (
+  list_key TEXT NOT NULL,                        -- designated_lists.key
+  employer_name TEXT NOT NULL,                   -- the name as listed (a status note such as "not hiring" removed)
+  norm_name TEXT NOT NULL,                       -- normalize.norm_name of the legal part of the name
+  trade_name TEXT,                               -- the part after "o/a" or "dba", when the list gives one
+  trade_norm TEXT,
+  location TEXT,                                 -- the location the list gives (city, address or community), as written
+  designated_on TEXT,                            -- the designation date the list gives for the row (ISO date)
+  first_seen TEXT NOT NULL,                      -- ISO datetime of the first read that listed it
+  last_seen TEXT NOT NULL,                       -- ISO datetime of the latest read that listed it
+  PRIMARY KEY (list_key, employer_name)
+);
+
+CREATE TABLE IF NOT EXISTS designated_matches (
+  employer_id TEXT NOT NULL,
+  list_key TEXT NOT NULL,
+  employer_name TEXT NOT NULL,                   -- designated_employers.employer_name that matched
+  grade TEXT NOT NULL,                           -- exact | probable (sources/matching.py)
+  basis TEXT NOT NULL,                           -- name_city | name_province | trade_name_city
+  matched_at TEXT NOT NULL,
+  PRIMARY KEY (employer_id, list_key, employer_name)
 );
 
 -- ---------------------------------------------------------------------------

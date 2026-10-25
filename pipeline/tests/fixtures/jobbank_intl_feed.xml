@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
+	<title><![CDATA[Available jobs - Job Bank]]></title>
+	<id>https://www.jobbank.gc.ca/jobsearch/jobSearchRSSfeed</id>
+	<link rel="self" type="application/atom+xml" href="https://www.jobbank.gc.ca/jobsearch/jobSearchRSSfeed?fage=2&amp;fglo=1&amp;sort=D&amp;rows=100"/>
+	<updated>2026-10-25T14:56:18Z</updated>
+	<author><name>Job Bank</name></author>
+	<logo>/images/sig_eng.gif</logo>
+	<entry>
+		<title type="html"><![CDATA[restaurant manager]]></title>
+		<link rel="alternate" type="text/html" href="https://www.jobbank.gc.ca/jobsearch/jobposting/50578251"/>
+		<id>https://www.jobbank.gc.ca/jobsearch/jobSearchRSSfeed?id=3704199</id>
+		<updated>2026-10-25T10:19:00Z</updated>
+		<summary type="html"><![CDATA[<strong>Job number:</strong> 3704199<br /><strong>Location:</strong> Brampton (ON)  <br /><strong>Employer:</strong> Railway Chai House<br /><strong>Salary:</strong> $37.00 hourly]]></summary>
+	</entry>
+	<entry>
+		<title type="html"><![CDATA[logistics coordinator]]></title>
+		<link rel="alternate" type="text/html" href="https://www.jobbank.gc.ca/jobsearch/jobposting/50577128"/>
+		<id>https://www.jobbank.gc.ca/jobsearch/jobSearchRSSfeed?id=3704181</id>
+		<updated>2026-10-25T08:18:00Z</updated>
+		<summary type="html"><![CDATA[<strong>Job number:</strong> 3704181<br /><strong>Location:</strong> Calgary (AB)  <br /><strong>Employer:</strong> P & O International Trading Inc.<br /><strong>Salary:</strong> $35.00 hourly]]></summary>
+	</entry>
+	<entry>
+		<title type="html"><![CDATA[guide, outdoor]]></title>
+		<link rel="alternate" type="text/html" href="https://www.jobbank.gc.ca/jobsearch/jobposting/50576712"/>
+		<id>https://www.jobbank.gc.ca/jobsearch/jobSearchRSSfeed?id=3704168</id>
+		<updated>2026-10-25T06:44:00Z</updated>
+		<summary type="html"><![CDATA[<strong>Job number:</strong> 3704168<br /><strong>Location:</strong> Whitehorse (YT)  <br /><strong>Employer:</strong> Jane Example<br /><strong>Salary:</strong> $20.89 to $25.00 hourly (to be negotiated)]]></summary>
+	</entry>
+	<entry>
+		<title type="html"><![CDATA[truck driver]]></title>
+		<link rel="alternate" type="text/html" href="https://www.jobbank.gc.ca/jobsearch/jobposting/50576509"/>
+		<id>https://www.jobbank.gc.ca/jobsearch/jobSearchRSSfeed?id=3704152</id>
+		<updated>2026-10-25T05:27:00Z</updated>
+		<summary type="html"><![CDATA[<strong>Job number:</strong> 3704152<br /><strong>Location:</strong> Brampton (ON)  <br /><strong>Employer:</strong> ONKAR TRANSPORT<br /><strong>Salary:</strong> $37.00 hourly]]></summary>
+	</entry>
+	<entry>
+		<title type="html"><![CDATA[live-in caregiver - seniors]]></title>
+		<link rel="alternate" type="text/html" href="https://www.jobbank.gc.ca/jobsearch/jobposting/50575872"/>
+		<id>https://www.jobbank.gc.ca/jobsearch/jobSearchRSSfeed?id=3704140</id>
+		<updated>2026-10-24T22:37:00Z</updated>
+		<summary type="html"><![CDATA[<strong>Job number:</strong> 3704140<br /><strong>Location:</strong> Brampton (ON)  <br /><strong>Employer:</strong> John Sample<br /><strong>Salary:</strong> $20.00 hourly]]></summary>
+	</entry>
+	<entry>
+		<title type="html"><![CDATA[tattoo artist]]></title>
+		<link rel="alternate" type="text/html" href="https://www.jobbank.gc.ca/jobsearch/jobposting/50575863"/>
+		<id>https://www.jobbank.gc.ca/jobsearch/jobSearchRSSfeed?id=3704137</id>
+		<updated>2026-10-24T22:08:00Z</updated>
+		<summary type="html"><![CDATA[<strong>Job number:</strong> 3704137<br /><strong>Location:</strong> Winnipeg (MB)  <br /><strong>Employer:</strong> Mary Placeholder<br /><strong>Salary:</strong> $24.00 hourly]]></summary>
+	</entry>
+	<entry>
+		<title type="html"><![CDATA[physiotherapist]]></title>
+		<link rel="alternate" type="text/html" href="https://www.jobbank.gc.ca/jobsearch/jobposting/50575024"/>
+		<id>https://www.jobbank.gc.ca/jobsearch/jobSearchRSSfeed?id=3704131</id>
+		<updated>2026-10-24T19:48:00Z</updated>
+		<summary type="html"><![CDATA[<strong>Job number:</strong> 3704131<br /><strong>Location:</strong> Gatineau (QC)  <br /><strong>Employer:</strong> physio prime<br /><strong>Salary:</strong> $45.00 hourly]]></summary>
+	</entry>
+	<entry>
+		<title type="html"><![CDATA[housekeeping room attendant]]></title>
+		<link rel="alternate" type="text/html" href="https://www.jobbank.gc.ca/jobsearch/jobposting/50575022"/>
+		<id>https://www.jobbank.gc.ca/jobsearch/jobSearchRSSfeed?id=3704129</id>
+		<updated>2026-10-24T19:30:00Z</updated>
+		<summary type="html"><![CDATA[<strong>Job number:</strong> 3704129<br /><strong>Location:</strong> Baie-Sainte-Catherine (QC)  <br /><strong>Employer:</strong> La maison de travers<br /><strong>Salary:</strong> $18.50 hourly]]></summary>
+	</entry>
+	<entry>
+		<title type="html"><![CDATA[manager, retail sales]]></title>
+		<link rel="alternate" type="text/html" href="https://www.jobbank.gc.ca/jobsearch/jobposting/50574642"/>
+		<id>https://www.jobbank.gc.ca/jobsearch/jobSearchRSSfeed?id=3704107</id>
+		<updated>2026-10-24T17:38:00Z</updated>
+		<summary type="html"><![CDATA[<strong>Job number:</strong> 3704107<br /><strong>Location:</strong> Brampton (ON)  <br /><strong>Employer:</strong> Ashby Kitchen and Food Fair<br /><strong>Salary:</strong> $36.00 hourly]]></summary>
+	</entry>
+	<entry>
+		<title type="html"><![CDATA[cook]]></title>
+		<link rel="alternate" type="text/html" href="https://www.jobbank.gc.ca/jobsearch/jobposting/50574459"/>
+		<id>https://www.jobbank.gc.ca/jobsearch/jobSearchRSSfeed?id=3704097</id>
+		<updated>2026-10-24T16:15:00Z</updated>
+		<summary type="html"><![CDATA[<strong>Job number:</strong> 3704097<br /><strong>Location:</strong> Beloeil (QC)  <br /><strong>Employer:</strong> résidence ensoleillée de Beloeil<br /><strong>Salary:</strong> $18.00 hourly]]></summary>
+	</entry>
+	<entry>
+		<title type="html"><![CDATA[housekeeping manager]]></title>
+		<link rel="alternate" type="text/html" href="https://www.jobbank.gc.ca/jobsearch/jobposting/50574458"/>
+		<id>https://www.jobbank.gc.ca/jobsearch/jobSearchRSSfeed?id=3704096</id>
+		<updated>2026-10-24T16:14:00Z</updated>
+		<summary type="html"><![CDATA[<strong>Job number:</strong> 3704096<br /><strong>Location:</strong> Montréal (QC)  <br /><strong>Employer:</strong> Auberge du Carre St Louis<br /><strong>Salary:</strong> $25.00 to $28.00 hourly (to be negotiated)]]></summary>
+	</entry>
+	<entry>
+		<title type="html"><![CDATA[cook]]></title>
+		<link rel="alternate" type="text/html" href="https://www.jobbank.gc.ca/jobsearch/jobposting/50574216"/>
+		<id>https://www.jobbank.gc.ca/jobsearch/jobSearchRSSfeed?id=3704090</id>
+		<updated>2026-10-24T15:57:00Z</updated>
+		<summary type="html"><![CDATA[<strong>Job number:</strong> 3704090<br /><strong>Location:</strong> Jasper (AB)  <br /><strong>Employer:</strong> Mad Grizzly Bistro Bar<br /><strong>Salary:</strong> $18.00 hourly]]></summary>
+	</entry>
+</feed>
