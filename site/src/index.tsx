@@ -3,6 +3,7 @@ import { getCookie, setCookie } from "hono/cookie";
 import { html } from "hono/html";
 import { secureHeaders } from "hono/secure-headers";
 import { api } from "./api";
+import { conditional } from "./conditional";
 import { loadStats } from "./data";
 import type { AppEnv, Env } from "./env";
 import { kofiWebhook } from "./hooks";
@@ -71,6 +72,8 @@ app.use("*", async (c, next) => {
 // After the language middleware so a 429 page still knows its language later.
 app.use("*", throttle);
 app.use("*", measure);
+// Inside measure, so a page answered 304 is counted with that status.
+app.use("*", conditional);
 
 app.route("/api", api);
 

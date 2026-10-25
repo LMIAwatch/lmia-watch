@@ -5,13 +5,14 @@ import {
 } from "../data";
 import type { AppEnv } from "../env";
 import {
-  basisText, decimal, indicatorLabel, indicatorStateLabel, numberLocale, streamLabel, t, tj, tn, type Key, type Lang,
+  basisText, decimal, indicatorLabel, indicatorStateLabel, numberLocale, provinceName, streamLabel, t, tj, tn, type Key, type Lang,
 } from "../i18n";
 import { Badge, Layout, fmtInt, fmtWage, noDataPage, page, periodLabel } from "../layout";
 import { sourceLabel } from "./search";
 import { WATCH_MAX } from "./watchlist";
 import { MiniMap } from "../minimap";
 import { profileSeo } from "../seo";
+import { cityPath, occupationLinks, provincePath, type OccupationLinks } from "../crosslinks";
 
 const REPORT_URL = "https://www.canada.ca/en/employment-social-development/services/foreign-workers/report-abuse.html";
 
@@ -210,7 +211,16 @@ const enOnly = (lang: Lang) => (lang === "fr" ? "en" : undefined);
 // keeps the page quick: the newest rows render open, the rest collapsed.
 const RECORDS_OPEN = 100;
 
-const EsdcRecordRow = ({ r, lang }: { r: Profile["esdc"][number]; lang: Lang }) => (
+// A NOC code, linked to its occupation page when that page is indexed (NOC
+// 2021 codes only; the four-digit NOC 2011 codes of older lists have none).
+// The title goes in the link's title attribute where the cell shows no title.
+const NocCode = ({ code, links, lang, titled = false }: { code: string; links: OccupationLinks; lang: Lang; titled?: boolean }) => {
+  const title = links.get(code);
+  if (title === undefined) return <>{code}</>;
+  return <a href={`/occupations/${code}`} title={titled && title ? title[lang] : undefined}>{code}</a>;
+};
+
+const EsdcRecordRow = ({ r, lang, occupations }: { r: Profile["esdc"][number]; lang: Lang; occupations: OccupationLinks }) => (
   <tr>
     <td class="mono">{periodLabel(r.period, lang)}</td>
     <td><Badge status={r.list === "positive" ? "approved" : "refused"} lang={lang} /></td>
@@ -221,7 +231,7 @@ const EsdcRecordRow = ({ r, lang }: { r: Profile["esdc"][number]; lang: Lang }) 
         place: `${r.city ? `, ${r.city}` : ""}${r.postal_code ? ` ${r.postal_code}` : ""}`,
       })}
     </td>
-    <td>{r.noc_code ?? ""} {r.noc_title ?? ""}</td>
+    <td>{r.noc_code ? <NocCode code={r.noc_code} links={occupations} lang={lang} /> : ""} {r.noc_title ?? ""}</td>
     <td class="mono">{t(lang, "common.na")}</td>
     <td class="mono num">{fmtInt(r.positions, lang)}</td>
     <td>
@@ -301,12 +311,20 @@ export async function employerPage(c: Context<AppEnv>): Promise<Response> {
     );
   }
   const { employer, postings, esdc, registry, indicators, findings, names, grants, alberta, us_carrier } = profile;
-  const { responses, corrections } = await siteRows(c, id);
   const best = registry[0];
   // The area file holds the postal area's centroid for the location card's map; a
   // missing file (no record in the latest scope) means no map, not an error.
+  // The city and occupation links read their index files alongside; a missing
+  // file means plain text.
   const fsa = employer.postal_code ? employer.postal_code.slice(0, 3).toUpperCase() : "";
-  const area = /^[A-Z][0-9][A-Z]$/.test(fsa) ? await loadJson<Area>(c.env, `areas/${fsa}.json`).catch(() => null) : null;
+  const [{ responses, corrections }, area, cityHref, occupations] = await Promise.all([
+    siteRows(c, id),
+    /^[A-Z][0-9][A-Z]$/.test(fsa) ? loadJson<Area>(c.env, `areas/${fsa}.json`).catch(() => null) : Promise.resolve(null),
+    cityPath(c.env, employer.province, employer.city),
+    occupationLinks(c.env),
+  ]);
+  const provinceHref = provincePath(employer.province);
+  const provinceCrumb = employer.province ? provinceName(lang, employer.province) : t(lang, "employer.all_provinces");
   const pendingPosting = postings.find((p) => p.flag_current === "requested");
   const na = t(lang, "common.na");
   const n = (v: number | null | undefined) => fmtInt(v, lang);
@@ -394,7 +412,7 @@ export async function employerPage(c: Context<AppEnv>): Promise<Response> {
     c,
     <Layout lang={lang} title={employer.display_name} dataAsOf={stats.data_as_of} seo={profileSeo(profile, lang)}>
       <nav aria-label={t(lang, "employer.breadcrumb")} class="breadcrumb">
-        <a href="/">{t(lang, "common.home")}</a> / <a href={`/search?province=${employer.province ?? ""}`}>{employer.province ?? t(lang, "employer.all_provinces")}</a> / {t(lang, "employer.title")}
+        <a href="/">{t(lang, "common.home")}</a> / {provinceHref ? <a href={provinceHref}>{provinceCrumb}</a> : provinceCrumb} / {t(lang, "employer.title")}
       </nav>
       <section class="profile-head">
         <div>
@@ -450,7 +468,12 @@ export async function employerPage(c: Context<AppEnv>): Promise<Response> {
           <h2>{t(lang, "employer.location")}</h2>
           <dl>
             <dt>{t(lang, "employer.street")}</dt><dd>{employer.street ?? t(lang, "employer.street_none")}</dd>
-            <dt>{t(lang, "employer.city")}</dt><dd>{[employer.city, employer.province].filter(Boolean).join(", ") || na}</dd>
+            <dt>{t(lang, "employer.city")}</dt>
+            <dd>
+              {employer.city && cityHref
+                ? <><a href={cityHref}>{employer.city}</a>{employer.province ? `, ${employer.province}` : ""}</>
+                : [employer.city, employer.province].filter(Boolean).join(", ") || na}
+            </dd>
             <dt>{t(lang, "employer.postal_code")}</dt><dd class="mono">{employer.postal_code ?? na}</dd>
             <dt>{t(lang, "col.source")}</dt>
             <dd>
@@ -601,14 +624,14 @@ export async function employerPage(c: Context<AppEnv>): Promise<Response> {
                   <td class="mono">{p.date_posted ?? p.first_seen.slice(0, 10)}</td>
                   <td><Badge status={p.flag_current === "requested" ? "pending" : p.flag_current === "approved" ? "approved" : "lapsed"} lang={lang} /></td>
                   <td>{p.title ?? t(lang, "employer.posting")}{p.valid_through ? t(lang, "employer.open_until", { date: p.valid_through }) : ""}</td>
-                  <td>{p.noc_code ? t(lang, "employer.noc", { code: p.noc_code }) : na}</td>
+                  <td>{p.noc_code ? tj(lang, "employer.noc", { code: <NocCode code={p.noc_code} links={occupations} lang={lang} titled /> }) : na}</td>
                   <td class="mono">{fmtWage(p.wage_min, p.wage_max, p.wage_unit, lang)}</td>
                   <td class="mono num">{p.vacancies === null ? t(lang, "common.see_posting") : n(p.vacancies)}</td>
                   <td><a href={p.url} class="mono" rel="nofollow noopener">{t(lang, "search.source_jobbank", { ref: p.posting_id })}</a></td>
                   <td class="mono">{p.last_seen.slice(0, 10)}</td>
                 </tr>
               ))}
-              {esdc.slice(0, RECORDS_OPEN).map((r) => <EsdcRecordRow r={r} lang={lang} />)}
+              {esdc.slice(0, RECORDS_OPEN).map((r) => <EsdcRecordRow r={r} lang={lang} occupations={occupations} />)}
               {postings.length + esdc.length === 0 ? <tr><td colspan={8} class="muted">{t(lang, "common.no_records")}</td></tr> : null}
             </tbody>
           </table>
@@ -619,7 +642,7 @@ export async function employerPage(c: Context<AppEnv>): Promise<Response> {
             <div class="table-wrap bordered">
               <table>
                 {recordsHead}
-                <tbody>{esdc.slice(RECORDS_OPEN).map((r) => <EsdcRecordRow r={r} lang={lang} />)}</tbody>
+                <tbody>{esdc.slice(RECORDS_OPEN).map((r) => <EsdcRecordRow r={r} lang={lang} occupations={occupations} />)}</tbody>
               </table>
             </div>
           </details>

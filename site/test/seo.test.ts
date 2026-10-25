@@ -4,7 +4,7 @@ import type { Profile } from "../src/data";
 import { app } from "../src/index";
 import { DOWNLOADS } from "../src/pages/data";
 import { scriptJson } from "../src/layout";
-import { DESCRIPTION_MAX, SOCIAL_CARD, SOCIAL_SQUARE, profileDescription } from "../src/seo";
+import { DESCRIPTION_MAX, SOCIAL_CARD, SOCIAL_SQUARE, profileBreadcrumbJsonLd, profileDescription } from "../src/seo";
 import { emptyAssets, testEnv } from "./assets";
 import profileFixtures from "./fixtures/profiles-a00.json";
 import sitemapPart from "./fixtures/sitemap-1.xml?raw";
@@ -228,10 +228,24 @@ describe("page metadata", () => {
     expect(crumbs["@type"]).toBe("BreadcrumbList");
     expect(crumbs.itemListElement.map((i: any) => [i.position, i.name, i.item])).toEqual([
       [1, "Home", "https://lmiawatch.ca/"],
-      [2, "British Columbia", "https://lmiawatch.ca/search?province=BC"],
+      [2, "British Columbia", "https://lmiawatch.ca/places/bc"],
       [3, "Employer", undefined],
     ]);
     expect(JSON.stringify(crumbs)).not.toContain("PinkCloud");
+    // The visible trail links the same page, under the same name.
+    const html = await (await get("/employers/emp-a000000001")).text();
+    expect(html).toContain('<a href="/">Home</a> / <a href="/places/bc">British Columbia</a> / Employer');
+    expect(html).not.toContain("/search?province=");
+    // No province, or a head office outside Canada, has no place page: the page shows the crumb as text
+    // and the list leaves it out, since a crumb before the last needs a URL.
+    const trail = (province: string | null, lang: "en" | "fr" = "en") =>
+      (profileBreadcrumbJsonLd(province, lang) as any).itemListElement.map((i: any) => [i.position, i.name, i.item]);
+    for (const province of [null, "XX"]) {
+      expect(trail(province)).toEqual([[1, "Home", "https://lmiawatch.ca/"], [2, "Employer", undefined]]);
+    }
+    expect(trail("NU", "fr")).toEqual([
+      [1, "Accueil", "https://lmiawatch.ca/"], [2, "Nunavut", "https://lmiawatch.ca/places/nu"], [3, "Employeur", undefined],
+    ]);
   });
 
   it("outbound Job Bank and ESDC record links are nofollow", async () => {
@@ -316,8 +330,8 @@ describe("crawler files", () => {
     const text = await res.text();
     const rules = text.split("\n").filter((l) => l && !l.startsWith("#"));
     // Everyone may crawl the pages, at a polite pace; the hooks, API, downloads and the response form are not pages,
-    // and the search's filter and cursor combinations all name /search as their canonical URL.
-    expect(rules.slice(0, 9)).toEqual([
+    // and the query forms of /search, /corrections and /map all name the plain page as their canonical URL.
+    expect(rules.slice(0, 13)).toEqual([
       "User-agent: *",
       "Allow: /",
       "Disallow: /hooks/",
@@ -326,12 +340,16 @@ describe("crawler files", () => {
       "Disallow: /employers/*/respond",
       "Disallow: /search?",
       "Allow: /search?lang=fr$",
+      "Disallow: /corrections?",
+      "Allow: /corrections?lang=fr$",
+      "Disallow: /map?",
+      "Allow: /map?lang=fr$",
       "Crawl-delay: 5",
     ]);
     // Bing obeys Crawl-delay, so its own group carries the same rules without one.
     const bing = rules.indexOf("User-agent: bingbot");
     expect(bing).toBeGreaterThan(0);
-    expect(rules.slice(bing, bing + 8)).toEqual([
+    expect(rules.slice(bing, bing + 12)).toEqual([
       "User-agent: bingbot",
       "Allow: /",
       "Disallow: /hooks/",
@@ -340,22 +358,34 @@ describe("crawler files", () => {
       "Disallow: /employers/*/respond",
       "Disallow: /search?",
       "Allow: /search?lang=fr$",
+      "Disallow: /corrections?",
+      "Allow: /corrections?lang=fr$",
+      "Disallow: /map?",
+      "Allow: /map?lang=fr$",
     ]);
-    expect(rules.slice(bing, bing + 9)).not.toContain("Crawl-delay: 5");
+    expect(rules.slice(bing, bing + 13)).not.toContain("Crawl-delay: 5");
     const lines = text.split("\n");
     expect(lines).toContain("Disallow: /search?");
     expect(lines).toContain("Allow: /search?lang=fr$");
     // The search page itself is never shut out.
     expect(lines).not.toContain("Disallow: /search");
     const everyone = rules.slice(0, rules.indexOf("Crawl-delay: 5"));
-    for (const path of ["/", "/search", "/search?lang=fr", "/employers/x", "/employers/x?lang=fr", "/places/bc"]) {
-      expect(robotsAllow(everyone, path), path).toBe(true);
-    }
-    for (const path of ["/search?q=a", "/search?lang=fr&q=a", "/search?cursor=abc", "/search?status=pending&province=BC", "/employers/x/respond", "/api/stats"]) {
-      expect(robotsAllow(everyone, path), path).toBe(false);
+    const bingRules = rules.slice(bing, bing + 12);
+    const open = [
+      "/", "/search", "/search?lang=fr", "/employers/x", "/employers/x?lang=fr", "/places/bc",
+      "/corrections", "/corrections?lang=fr", "/map", "/map?lang=fr",
+    ];
+    const shut = [
+      "/search?q=a", "/search?lang=fr&q=a", "/search?cursor=abc", "/search?status=pending&province=BC", "/employers/x/respond",
+      "/api/stats", "/corrections?employer=emp-1234567890", "/corrections?lang=fr&employer=emp-1234567890", "/map?fsa=T5S",
+      "/map?lang=fr&fsa=T5S",
+    ];
+    for (const group of [everyone, bingRules]) {
+      for (const path of open) expect(robotsAllow(group, path), path).toBe(true);
+      for (const path of shut) expect(robotsAllow(group, path), path).toBe(false);
     }
     // Training and bulk-scraping crawlers are kept off the Worker entirely.
-    const aiGroup = rules.slice(9, rules.indexOf("Disallow: /") + 1);
+    const aiGroup = rules.slice(13, rules.indexOf("Disallow: /") + 1);
     for (const bot of ["ClaudeBot", "GPTBot", "Google-Extended", "CCBot", "Bytespider"]) expect(aiGroup).toContain(`User-agent: ${bot}`);
     expect(aiGroup[aiGroup.length - 1]).toBe("Disallow: /");
     expect(rules[rules.length - 1]).toBe("Sitemap: https://lmiawatch.ca/sitemap.xml");

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { cityPath, placeKey } from "../src/crosslinks";
 import { app } from "../src/index";
-import { emptyAssets, fakeAssets, testEnv } from "./assets";
+import { contentEtag, emptyAssets, fakeAssets, testEnv } from "./assets";
+import occIndex from "./fixtures/occupations-index.json";
+import placeBc from "./fixtures/place-bc.json";
 import stats from "./fixtures/stats.json";
 
 const get = (path: string, headers: Record<string, string> = {}) => app.request(path, { headers }, testEnv());
@@ -364,5 +367,136 @@ describe("pages", () => {
     expect(cookie).toContain("Carte");
     const en = await (await get("/methodology")).text();
     expect(en).toContain(">Map<");
+  });
+});
+
+// The place and occupation files the employer page links from, served beside
+// the other fixtures with content ETags as the assets binding sends them.
+// BC's file lists Kelowna (linked), Oliver under the threshold and Brackendale
+// flagged as not indexed; NL's lists St. John's under a spelling of its own.
+const LINK_FILES: Record<string, unknown> = {
+  "places/bc.json": {
+    ...placeBc,
+    threshold: 3,
+    cities: [
+      { slug: "kelowna", name: "Kelowna", records: 40 },
+      { slug: "oliver", name: "Oliver", records: 2 },
+      { slug: "brackendale", name: "Brackendale", records: 9, indexed: false },
+    ],
+  },
+  "places/nl.json": { kind: "province", prov: "NL", slug: "nl", threshold: 3, cities: [{ slug: "st-johns", name: "ST JOHNS", records: 12 }] },
+  "occupations/index.json": {
+    ...occIndex,
+    threshold: 3,
+    rows: [
+      { ...occIndex.rows[1], noc: "85101", records: 40, indexed: true, title: { en: "Harvesting labourers", fr: "Manœuvres à la récolte" } },
+      { ...occIndex.rows[0], noc: "60020", records: 12, indexed: true, title: { en: "Retail sales supervisors", fr: "Superviseurs/superviseures des ventes au détail" } },
+      { ...occIndex.rows[0], noc: "60040", records: 1, indexed: false },
+      // No flag: the record count against the file's threshold decides.
+      { noc: "60030", title: { en: "Restaurant and food service managers", fr: "Gestionnaires de la restauration" }, records: 5, positions: 5, latest_positions: 0, pending: 0 },
+    ],
+  },
+};
+
+function linkAssets(files: Record<string, unknown> = LINK_FILES): Fetcher {
+  return {
+    fetch: async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      const path = new URL(url).pathname.replace(/^\/data\//, "");
+      if (!(path in files)) return fakeAssets.fetch(input);
+      const file = files[path];
+      const body = typeof file === "string" ? file : JSON.stringify(file);
+      return new Response(body, { headers: { "content-type": "application/json", etag: await contentEtag(body) } });
+    },
+  } as unknown as Fetcher;
+}
+
+const profilePage = async (id: string, assets: Fetcher = linkAssets(), headers: Record<string, string> = {}) => {
+  const res = await app.request(`/employers/${id}`, { headers }, testEnv(assets));
+  expect(res.status, id).toBe(200);
+  return res.text();
+};
+// The location card's City row.
+const cityRow = (html: string) => html.match(/<dt>(?:City|Ville)<\/dt>\s*<dd>([\s\S]*?)<\/dd>/)?.[1].trim();
+
+describe("employer page links to place and occupation pages", () => {
+  it("links the province crumb to the province page", async () => {
+    const html = await profilePage("emp-a000000005");
+    expect(html).toContain('<a href="/">Home</a> / <a href="/places/bc">British Columbia</a> / Employer');
+    const fr = await profilePage("emp-a000000008", linkAssets(), { cookie: "lang=fr" });
+    expect(fr).toContain('<a href="/">Accueil</a> / <a href="/places/nl">Terre-Neuve-et-Labrador</a> / Employeur');
+  });
+
+  it("links the city when its province's file lists an indexed page for it", async () => {
+    expect(cityRow(await profilePage("emp-a000000005"))).toBe('<a href="/places/bc/kelowna">Kelowna</a>, BC');
+    // "St. John's" on the record, "ST JOHNS" in the file, "st-johns" as the slug.
+    expect(cityRow(await profilePage("emp-a000000008"))).toBe('<a href="/places/nl/st-johns">St. John&#39;s</a>, NL');
+    // Under the threshold, flagged not indexed, or not listed: plain text.
+    expect(cityRow(await profilePage("emp-a000000009"))).toBe("Oliver, BC");
+    expect(cityRow(await profilePage("emp-a000000001"))).toBe("Brackendale, BC");
+    expect(cityRow(await profilePage("emp-a000000002"))).toBe("Penticton, BC");
+  });
+
+  it("folds city names the way the pipeline folds them into slugs", () => {
+    expect(placeKey("St. John's")).toBe("st johns");
+    expect(placeKey("st-johns")).toBe("st johns");
+    expect(placeKey("Saint-Jean-sur-Richelieu")).toBe("st jean sur richelieu");
+    expect(placeKey("Sainte-Thérèse")).toBe("ste therese");
+    expect(placeKey("  MONTRÉAL ")).toBe("montreal");
+    expect(placeKey("L’Assomption")).toBe("lassomption");
+    expect(placeKey("Cœur--d'Alène")).toBe("coeur dalene");
+    expect(placeKey("--")).toBe("");
+  });
+
+  it("links a NOC code only when its occupation page is indexed", async () => {
+    // ESDC rows: the code links, the title stays beside it as text.
+    const fruits = await profilePage("emp-a000000005");
+    expect(fruits).toContain('<td><a href="/occupations/85101">85101</a> Harvesting labourers</td>');
+    // A four-digit NOC 2011 code has no page.
+    const orchard = await profilePage("emp-a000000009");
+    expect(orchard).toContain('<a href="/occupations/85101">85101</a> Harvesting labourers');
+    expect(orchard).toContain("<td>8611 Harvesting labourers</td>");
+    // Postings show the code alone, so the title goes in the link's title attribute, in the page's language.
+    const edsa = await profilePage("emp-a000000002");
+    expect(edsa).toContain('<td>NOC <a href="/occupations/60020" title="Retail sales supervisors">60020</a></td>');
+    const edsaFr = await profilePage("emp-a000000002", linkAssets(), { cookie: "lang=fr" });
+    expect(edsaFr).toContain('<td>CNP <a href="/occupations/60020" title="Superviseurs/superviseures des ventes au détail">60020</a></td>');
+    // Listed but not indexed: plain text.
+    const pink = await profilePage("emp-a000000001");
+    expect(pink).toContain("<td>NOC 60040</td>");
+    expect(pink).not.toContain('href="/occupations/');
+    // No flag in the row: its record count meets the file's threshold.
+    expect(await profilePage("emp-a000000008")).toContain('<a href="/occupations/60030">60030</a> Restaurant and food service managers');
+  });
+
+  it("renders plain text when the index files are missing or do not parse", async () => {
+    const broken = linkAssets({ "places/bc.json": '{"cities": [', "occupations/index.json": "not json" });
+    for (const assets of [fakeAssets, broken]) {
+      const html = await profilePage("emp-a000000005", assets);
+      expect(cityRow(html)).toBe("Kelowna, BC");
+      expect(html).toContain("<td>85101 Harvesting labourers</td>");
+      expect(html).not.toContain('href="/occupations/');
+      expect(html).not.toContain('href="/places/bc/');
+      // The province page exists whatever the files say.
+      expect(html).toContain('<a href="/places/bc">British Columbia</a>');
+    }
+    // A file of the wrong shape reads as no pages.
+    const odd = linkAssets({ "places/bc.json": { cities: "Kelowna" }, "occupations/index.json": { rows: { noc: "85101" } } });
+    const html = await profilePage("emp-a000000005", odd);
+    expect(cityRow(html)).toBe("Kelowna, BC");
+    expect(html).not.toContain('href="/occupations/');
+  });
+
+  it("follows a changed file at once, never a lookup built from the old one", async () => {
+    const env = testEnv(linkAssets());
+    expect(await cityPath(env, "BC", "KELOWNA")).toBe("/places/bc/kelowna");
+    const changed = { ...LINK_FILES, "places/bc.json": { threshold: 3, cities: [{ slug: "penticton", name: "Penticton", records: 30 }] } };
+    const after = testEnv(linkAssets(changed));
+    expect(await cityPath(after, "BC", "Kelowna")).toBeNull();
+    expect(await cityPath(after, "BC", "Penticton")).toBe("/places/bc/penticton");
+    // No page for a head office outside Canada, an unknown code, or no city.
+    expect(await cityPath(after, "XX", "Penticton")).toBeNull();
+    expect(await cityPath(after, "ZZ", "Penticton")).toBeNull();
+    expect(await cityPath(after, "BC", null)).toBeNull();
   });
 });

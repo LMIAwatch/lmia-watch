@@ -7,11 +7,16 @@ Disallow: /hooks/
 Disallow: /api/
 Disallow: /downloads/
 Disallow: /employers/*/respond
-# A search with filters or a page cursor names /search as its canonical URL,
-# so crawlers need not walk the combinations. The search page itself and its
-# French version (/search?lang=fr) stay open.
+# A search with filters or a page cursor, a correction form opened from a
+# profile (?employer=) and a map opened on a postal area (?fsa=) each name the
+# plain page as their canonical URL, so crawlers need not walk the query
+# forms. The plain pages and their French versions (?lang=fr) stay open.
 Disallow: /search?
 Allow: /search?lang=fr$
+Disallow: /corrections?
+Allow: /corrections?lang=fr$
+Disallow: /map?
+Allow: /map?lang=fr$
 Crawl-delay: 5
 
 # Bing honours Crawl-delay, and five seconds would cap it at about 17,000
@@ -25,6 +30,10 @@ Disallow: /downloads/
 Disallow: /employers/*/respond
 Disallow: /search?
 Allow: /search?lang=fr$
+Disallow: /corrections?
+Allow: /corrections?lang=fr$
+Disallow: /map?
+Allow: /map?lang=fr$
 
 # Crawlers that gather pages for AI training or large-scale scraping are not
 # needed to find the records (the data is downloadable on the Data page) and

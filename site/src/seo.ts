@@ -6,6 +6,7 @@
 // the dictionary in i18n.ts; the result-list titles and descriptions live here.
 
 import type { Context } from "hono";
+import { provincePath } from "./crosslinks";
 import { assetResponse, lmiaGap, type Profile } from "./data";
 import type { AppEnv } from "./env";
 import { fmtInt, frTypography, provinceName, t, type Key, type Lang } from "./i18n";
@@ -312,21 +313,21 @@ export function datasetJsonLd(
 }
 
 // Mirrors the visible trail on the profile (Home / province / Employer), in the
-// dictionary's words. The last crumb is the word "Employer", as on the page.
+// dictionary's words. The province crumb links to the province's place page.
+// Without one (no province, or a head office outside Canada) the page shows
+// that crumb as plain text and the list leaves it out, since every crumb but
+// the last needs a URL. The last crumb is the word "Employer", as on the page.
 export function profileBreadcrumbJsonLd(province: string | null, lang: Lang): object {
+  const provPath = provincePath(province);
+  const crumbs: { name: string; item?: string }[] = [
+    { name: t(lang, "common.home"), item: `${SITE_ORIGIN}/` },
+    ...(province && provPath ? [{ name: provinceName(lang, province), item: absoluteUrl(provPath) }] : []),
+    { name: t(lang, "employer.title") },
+  ];
   return {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
-    itemListElement: [
-      { "@type": "ListItem", position: 1, name: t(lang, "common.home"), item: `${SITE_ORIGIN}/` },
-      {
-        "@type": "ListItem",
-        position: 2,
-        name: province ? provinceName(lang, province) : t(lang, "employer.all_provinces"),
-        item: absoluteUrl(`/search${province ? `?province=${encodeURIComponent(province)}` : ""}`),
-      },
-      { "@type": "ListItem", position: 3, name: t(lang, "employer.title") },
-    ],
+    itemListElement: crumbs.map((c, i) => ({ "@type": "ListItem", position: i + 1, ...c })),
   };
 }
 

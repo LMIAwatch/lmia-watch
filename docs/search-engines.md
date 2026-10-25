@@ -442,7 +442,85 @@ A later option: the newer Analytics SQL binding would let the Worker run the
 same queries with no token at all. It needs Wrangler 4.145 or later; the site
 pins 4.105 for its test pool.
 
+## 7. Crawl budget
+
+About 160,000 employer pages share each engine's crawl allowance. The site
+keeps crawlers off URLs that repeat another page, links every profile to the
+place and occupation pages that cover it, and lets a crawler that already
+has a page skip it when nothing changed.
+
+### robots.txt
+
+`site/public/robots.txt` gives every crawler the `User-agent: *` group (with
+`Crawl-delay: 5`) and Bingbot a group of its own with the same rules and no
+delay. Both groups carry three pairs of rules for pages whose query forms
+name the plain page as their canonical URL:
+
+| Rules | Kept off | Open |
+|---|---|---|
+| `Disallow: /search?`, `Allow: /search?lang=fr$` | filtered searches and page cursors | `/search`, `/search?lang=fr` |
+| `Disallow: /corrections?`, `Allow: /corrections?lang=fr$` | the correction form opened from a profile (`?employer=<id>`) | `/corrections`, `/corrections?lang=fr` |
+| `Disallow: /map?`, `Allow: /map?lang=fr$` | the map opened on a postal area (`?fsa=<FSA>`, each profile's "nearby" link) | `/map`, `/map?lang=fr` |
+
+Google and Bing apply the longest matching rule, so the `Allow` line, anchored
+at the end by `$`, opens the French page and nothing else under the same
+`Disallow`. The `/corrections?` and `/map?` pairs followed a week in which
+Claude-SearchBot fetched `/corrections?employer=` 2,599 times, Googlebot
+1,110 times, and crawlers fetched about 1,600 `/map?fsa=` variants. The
+robots test in `site/test/seo.test.ts` checks both groups against these
+paths.
+
+### Links from employer pages
+
+Each profile links (`site/src/crosslinks.ts`):
+
+- the breadcrumb's province to `/places/<pp>`, for the thirteen provinces and
+  territories. With no province, or a head office outside Canada, the crumb
+  is plain text and the breadcrumb JSON-LD leaves it out. The crumb linked
+  `/search?province=XX` before, which robots.txt blocks.
+- the city in the City row to `/places/<pp>/<slug>`, when the province's
+  file `places/<pp>.json` lists a page for that city (`places/index.json`
+  lists only the 25 largest per province). The city as written on the record
+  is folded as the pipeline folds names into slugs (accents dropped, lower
+  case, apostrophes dropped, other punctuation a space, Saint and Sainte read
+  as St and Ste) and compared with each listed city's slug and name.
+- each NOC code in the records table to `/occupations/<noc>`, when
+  `occupations/index.json` marks the code as indexed. The four-digit NOC 2011
+  codes of the older lists have no page.
+
+A missing or unreadable file leaves the text unlinked. Both files go through
+the Worker's parsed-file cache, so an isolate parses each once per deploy.
+
+### ETag and 304
+
+Every HTML page answered 200 to a GET or HEAD carries a weak ETag,
+`W/"<SHA-1 of the body>"` (`site/src/conditional.ts`). A request whose
+`If-None-Match` names that tag (compared weakly; lists and `*` are read) gets
+a 304 with no body, carrying the ETag, Cache-Control, Vary and any Set-Cookie
+of the full answer, plus the security headers every response gets. The tag
+comes from the rendered body because one URL renders in English or in French
+depending on the `lang` cookie, and a page reads several files and the forms
+database. The Worker still renders the page to compute the tag, so a 304
+saves the transfer and the crawler's time; the CPU cost is the same.
+
+Other statuses, POSTs, the JSON API, downloads, sitemaps, robots.txt and the
+Atom feeds (which pass the assets layer's own ETag through) are left as they
+are. A 304 is counted in Analytics Engine with status 304, so the day files'
+`status` column shows how often pages are revalidated.
+
+Check after the first deploy: `curl -sI https://lmiawatch.ca/methodology`
+shows `etag: W/"..."`, and the same request with
+`-H 'If-None-Match: W/"..."'` (the tag just shown) answers `304`. Cloudflare
+removes weak ETags when the zone runs Email Obfuscation, Automatic HTTPS
+Rewrites or Replace insecure JavaScript libraries, so if the tag is missing
+at the edge while the site's tests pass, turn those off in the zone (the
+pages carry no email address to hide).
+
 ## Sources (read 2026-10-18)
+
+- Cloudflare and ETags (weak ETags kept unless Email Obfuscation, Automatic
+  HTTPS Rewrites or Replace insecure JavaScript libraries is on), read
+  2026-10-25: `developers.cloudflare.com/cache/reference/etag-headers/`
 
 - IndexNow protocol (the endpoint, the request body, 10,000 URLs a request,
   the key file at the root, the answers 200, 202, 400, 403, 422 and 429),
