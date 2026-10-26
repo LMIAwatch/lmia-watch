@@ -55,6 +55,11 @@ NOC_RE = re.compile(r"^\d{5}$")
 RECENT_ROWS = 100
 PROFILE_ROWS = 20
 TOP_NOCS = 15
+# The daily series reaches this many days before the baseline (the first
+# night's sweep), by Job Bank's posting date. Those days undercount: a
+# posting that closed before the first sweep was never seen. The page marks
+# the baseline on the chart and says so.
+BACKFILL_DAYS = 60
 
 
 def teer(noc: str | None) -> int | None:
@@ -199,13 +204,15 @@ def build_index(conn: sqlite3.Connection, data_as_of: str | None) -> dict | None
     if not last_run:
         return None
     end = (data_as_of or last_run[:10])[:10]
-    start = baseline or last_run[:10]
+    anchor = baseline or last_run[:10]
+    start = (date.fromisoformat(anchor) - timedelta(days=BACKFILL_DAYS)).isoformat()
     rows = conn.execute("SELECT * FROM jobbank_intl_postings").fetchall()
     history = _employers_with_lmia_history(conn)
 
-    # Daily series by Job Bank's posting date, from the baseline on: postings
-    # open to international candidates, with or without an LMIA request, and
-    # the no-LMIA ones by grade. A posting not yet read counts under "unread".
+    # Daily series by Job Bank's posting date, from BACKFILL_DAYS before the
+    # baseline (earlier postings are left out): postings open to international
+    # candidates, with or without an LMIA request, and the no-LMIA ones by
+    # grade. A posting not yet read counts under "unread".
     daily: dict[str, Counter] = {d: Counter() for d in _days(start, end)}
     for r in rows:
         day = r["date_posted"] or (r["first_seen"] or "")[:10]
@@ -221,9 +228,9 @@ def build_index(conn: sqlite3.Connection, data_as_of: str | None) -> dict | None
             c["unread"] += 1
     series = [{"day": d, **{k: daily[d].get(k, 0) for k in ("all", "lmia", "A", "B", "C", "unread")}} for d in sorted(daily)]
 
-    # The facet's own counts, one row a day (no posting page needed).
+    # The facet's own counts, one row a day (no posting page needed), from the baseline on.
     facet: dict[str, dict[str, int]] = defaultdict(dict)
-    for r in conn.execute("SELECT day, key, value FROM jobbank_facet_counts WHERE day >= ? ORDER BY day", (start,)):
+    for r in conn.execute("SELECT day, key, value FROM jobbank_facet_counts WHERE day >= ? ORDER BY day", (anchor,)):
         facet[r[0]][r[1]] = r[2]
     facet_series = [{"day": d, **facet[d]} for d in sorted(facet)]
 
@@ -251,6 +258,8 @@ def build_index(conn: sqlite3.Connection, data_as_of: str | None) -> dict | None
     )[:RECENT_ROWS]
     return {
         "as_of": end,
+        # The two days the page draws as lines on the series: the first sweep
+        # (bars before it undercount) and the rule change.
         "baseline": baseline,
         "change_date": CHANGE_DATE,
         "last_run": last_run,

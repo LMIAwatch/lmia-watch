@@ -241,7 +241,8 @@ def _command(conn: sqlite3.Connection, args: argparse.Namespace) -> int:
     # is a notice, never a failed stage. Before the international-candidates
     # pass, which grades with it.
     if "highwage" in stages:
-        ok &= _stage(conn, "high_wage", lambda: high_wage.run(conn, client), "difference")
+        ok &= _stage(conn, "high_wage", lambda: high_wage.run(conn, client),
+                     describe=lambda diff: high_wage.summary(diff, len(high_wage.points_by_noc(conn))))
     # Postings open to international candidates (sources/jobbank_intl.py):
     # after the LMIA crawl, whose flags it joins, through the same client so
     # the crawl delay holds across both. Its own once-a-day guard.
@@ -376,11 +377,13 @@ def _stage(
     label: str = "",
     *,
     failed_when: Callable[[Any], bool] | None = None,
+    describe: Callable[[Any], str] | None = None,
 ) -> bool:
     """Run one stage. Any exception is logged, recorded in sources_log (which
     is what the run status reports) and returned as False, so the stages after
     it still run and nothing propagates out of main. Work the stage left
-    uncommitted is rolled back rather than committed by the log row."""
+    uncommitted is rolled back rather than committed by the log row. describe,
+    where given, writes the log line from the result in place of the repr."""
     try:
         result = fn()
     except Exception as exc:
@@ -391,7 +394,16 @@ def _stage(
         except sqlite3.Error as db_exc:
             log.error("%s: the failure could not be recorded: %s", source, db_exc)
         return False
-    log.info("%s%s: %s", source, f" {label}" if label else "", result)
+    line = None
+    if describe:
+        try:
+            line = describe(result)
+        except Exception as exc:  # a log line never fails a stage that ran
+            log.warning("%s: the log line could not be written: %s", source, exc)
+    if line:
+        log.info("%s", line)
+    else:
+        log.info("%s%s: %s", source, f" {label}" if label else "", result)
     return not (failed_when and failed_when(result))
 
 

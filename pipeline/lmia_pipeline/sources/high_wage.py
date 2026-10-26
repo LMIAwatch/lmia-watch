@@ -239,6 +239,16 @@ def adoption_notice(diff: dict[str, list[str]], read_on: str) -> str:
     return f"IRCC high-wage list changed and was adopted for grading from {read_on}: {'; '.join(parts)}"
 
 
+def summary(diff: dict[str, list[str]] | None, count: int) -> str:
+    """The nightly log line for the stage: unchanged with the code count, or the size of each change."""
+    if diff is None:
+        return f"IRCC high-wage list not read; grading keeps the version in use ({count} codes)"
+    if not any(diff.values()):
+        return f"IRCC high-wage list unchanged ({count} codes)"
+    return (f"IRCC high-wage list changed: {len(diff['added'])} added, {len(diff['removed'])} removed, "
+            f"{len(diff['moved'])} moved")
+
+
 def adopt(conn: sqlite3.Connection, occupations: list[Occupation], modified: str | None, read_on: str,
           stamp: str) -> None:
     doc = build_document(occupations, modified, read_on)

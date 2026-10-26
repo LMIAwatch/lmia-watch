@@ -13,19 +13,33 @@ const EM_DASH = String.fromCharCode(0x2014);
 const nbsp = (s: string) => s.replace(/[  ]/g, " ");
 const get = (path: string, assets?: Fetcher) => app.request(path, {}, testEnv(assets));
 
-// The fixtures with the international file replaced (or removed with null).
-function withIntl(body: unknown): Fetcher {
+// The fixtures with some files replaced or added (removed with null).
+function withFiles(files: Record<string, unknown>): Fetcher {
   const base = makeFakeAssets();
   return {
     fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
       const req = input instanceof Request ? input : new Request(input, init);
-      if (new URL(req.url).pathname === "/data/international/index.json") {
+      const path = new URL(req.url).pathname.replace(/^\/data\//, "");
+      if (path in files) {
+        const body = files[path];
         return body === null ? new Response("not found", { status: 404 }) : new Response(JSON.stringify(body));
       }
       return base.fetch(req);
     },
   } as unknown as Fetcher;
 }
+
+// The fixtures with the international file replaced (or removed with null).
+const withIntl = (body: unknown): Fetcher => withFiles({ "international/index.json": body });
+
+// The occupation index with a page for 21231 and none for 60030.
+const occIndex = {
+  threshold: 3,
+  rows: [
+    { noc: "21231", indexed: true, records: 9, title: { en: "Software engineers and designers", fr: "Ingénieurs et concepteurs en logiciel" } },
+    { noc: "60030", indexed: false, records: 1, title: { en: "Restaurant and food service managers", fr: "Gestionnaires de la restauration" } },
+  ],
+};
 
 describe("the international-candidates page", () => {
   it("renders the lede, the change, the counts, the grades and the lists in English", async () => {
@@ -40,9 +54,13 @@ describe("the international-candidates page", () => {
     expect(html).toContain("The November 3, 2026 Change");
     expect(html).toContain("https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/check-score/high-wage.html");
     expect(html).toContain("as read on 2026-10-25 (page dated 2026-10-16): 186 occupations");
-    // The chart carries the change date as a numbered marker, with its legend.
-    expect(html).toContain('class="mark"');
-    expect(html).toContain("1 November 3, 2026: a job offer for Express Entry no longer needs an LMIA.");
+    // The chart carries the baseline and the change date as numbered lines, in
+    // date order, each with its legend line; the note says the days before the
+    // baseline undercount.
+    expect(html.match(/class="mark"/g)?.length).toBe(2 * 3);    // two lines in each of three panels
+    expect(html).toContain('<span class="legend-line">1 October 9, 2026: tracking began (the first full sweep of the filter).</span>');
+    expect(html).toContain('<span class="legend-line">2 November 3, 2026: a job offer for Express Entry no longer needs an LMIA.</span>');
+    expect(html).toContain("Tracking began on 2026-10-09 (line 1). The lighter bars before that date undercount, because postings that had already closed before the first sweep were never seen. Grades fill in as posting pages are read");
     // Breakdowns.
     expect(html).toContain("Live Postings Without an LMIA Request, by Grade");
     expect(html).toContain("Software engineers and designers");
@@ -50,6 +68,50 @@ describe("the international-candidates page", () => {
     expect(html).toContain(">not listed<");
     expect(html).toContain("Not recorded");   // the UN province bucket
     expect(html).not.toContain(EM_DASH);
+  });
+
+  it("draws the days before the baseline a lighter step, and only those", async () => {
+    const html = await (await get("/international")).text();
+    const bar = (title: string) => new RegExp(`<rect class="([^"]+)"[^>]*><title>${title}</title>`).exec(html)?.[1];
+    // The no-LMIA panel: A + B + C + not graded.
+    expect(bar("2026-10-06: 10")).toBe("bar bar-light");
+    expect(bar("2026-10-08: 20")).toBe("bar bar-light");
+    expect(bar("2026-10-09: 44")).toBe("bar");
+    expect(bar("2026-10-12: 37")).toBe("bar");
+    // Three early days in each of the two posting-date panels, and the facet panel's own light bars.
+    expect(html.match(/class="bar bar-light"/g)?.length).toBe(3 * 2 + international.facet.length);
+  });
+
+  it("keeps one line and the earlier note for a series that starts at the baseline", async () => {
+    const fromBaseline = { ...international, daily: international.daily.filter((r) => r.day >= international.baseline) };
+    const html = await (await get("/international", withIntl(fromBaseline))).text();
+    expect(html.match(/class="mark"/g)?.length).toBe(3);
+    expect(html).toContain('<span class="legend-line">1 November 3, 2026: a job offer for Express Entry no longer needs an LMIA.</span>');
+    expect(html).toContain("from 2026-10-09, the day this tracking began");
+    // Only the facet panel's bars are light, as before.
+    expect(html.match(/class="bar bar-light"/g)?.length).toBe(international.facet.length);
+    expect(html).not.toContain("tracking began (the first full sweep");
+  });
+
+  it("lists occupations by NOC code, linked where the occupation has a page, the title in the tooltip and read out", async () => {
+    const plain = await (await get("/international")).text();
+    // No occupation index: plain codes, the title still there for the tooltip and screen readers.
+    expect(plain).toContain('<span title="Software engineers and designers"><span class="mono">21231</span><span class="noc-name"> Software engineers and designers</span></span>');
+    expect(plain).not.toContain('href="/occupations/21231"');
+    const html = await (await get("/international", withFiles({ "occupations/index.json": occIndex }))).text();
+    expect(html).toContain('<a href="/occupations/21231" title="Software engineers and designers"><span class="mono">21231</span><span class="noc-name"> Software engineers and designers</span></a>');
+    expect(html).not.toContain('href="/occupations/60030"');
+    expect(html).toContain('<span title="Restaurant and food service managers"><span class="mono">60030</span>');
+    // The two breakdowns restack on a phone, each figure with its label.
+    expect(html.match(/<table class="restack restack-compact intl-split">/g)?.length).toBe(2);
+    expect(html).toContain('<td class="mono num" data-label="Not graded yet">');
+    const fr = nbsp(await (await get("/international?lang=fr", withFiles({ "occupations/index.json": occIndex }))).text());
+    expect(fr).toContain('<a href="/occupations/21231" title="Ingénieurs/ingénieures et concepteurs/conceptrices en logiciel">');
+  });
+
+  it("scrolls the recent postings inside their own box, header pinned", async () => {
+    const html = await (await get("/international")).text();
+    expect(html).toContain('<div class="table-wrap bordered scroll-y scroll-tall"><table class="restack intl-recent">');
   });
 
   it("separates what the employer selected from what the site inferred on every row", async () => {
@@ -98,6 +160,9 @@ describe("the international-candidates page", () => {
     expect(html).toContain("Son texte nomme Entrée express : « Express Entry ».");
     expect(html).toContain("8 032");
     expect(html).toContain("verifier-note/salaire-eleve.html");
+    expect(html).toContain("1 9 octobre 2026 : début du suivi (premier relevé complet du filtre).");
+    expect(html).toContain("2 3 novembre 2026 : une offre d’emploi pour Entrée express n’exige plus d’EIMT.");
+    expect(html).toContain("Les barres plus pâles qui précèdent cette date sont incomplètes");
     for (const english of ["Employer selected", "Site inferred", "These are signals", "Grade A<"]) expect(html).not.toContain(english);
   });
 

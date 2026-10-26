@@ -145,25 +145,34 @@ def test_the_index_holds_the_series_breakdowns_recent_rows_and_the_list_version(
     insert(conn, 3, lmia="requested", date_posted="2026-10-25")
     insert(conn, 4, detail_fetched_at=None, audience="unknown", date_posted="2026-10-26")
     insert(conn, 5, in_facet=0, date_posted="2026-10-20")     # before the baseline, and gone
+    insert(conn, 6, in_facet=0, date_posted="2026-08-25")     # more than 60 days before the baseline: left out of the series
     intl.regrade(conn, LISTED, now=NOW)
     set_meta(conn, "intl_baseline", "2026-10-25")
     set_meta(conn, "intl_last_run", NOW)
     conn.executemany("INSERT INTO jobbank_facet_counts (day, key, value) VALUES (?, ?, ?)",
-                     [("2026-10-25", "total", 8032), ("2026-10-26", "total", 8100), ("2026-10-26", "lmia_requested", 1090)])
+                     [("2026-10-24", "total", 7990), ("2026-10-25", "total", 8032), ("2026-10-26", "total", 8100),
+                      ("2026-10-26", "lmia_requested", 1090)])
     conn.commit()
     doc = intl.build_index(conn, "2026-10-26")
     assert doc["baseline"] == "2026-10-25" and doc["change_date"] == "2026-11-03"
-    assert doc["daily"] == [
+    # The series runs from 60 days before the baseline to the data date, every day present.
+    days = [d["day"] for d in doc["daily"]]
+    assert days[0] == "2026-08-26" and days[-1] == "2026-10-26" and len(days) == intl.BACKFILL_DAYS + 2
+    assert sum(d["all"] for d in doc["daily"]) == 5
+    by_day = {d["day"]: d for d in doc["daily"]}
+    assert by_day["2026-10-20"] == {"day": "2026-10-20", "all": 1, "lmia": 0, "A": 1, "B": 0, "C": 0, "unread": 0}
+    assert doc["daily"][-2:] == [
         {"day": "2026-10-25", "all": 2, "lmia": 1, "A": 1, "B": 0, "C": 0, "unread": 0},
         {"day": "2026-10-26", "all": 2, "lmia": 0, "A": 1, "B": 0, "C": 0, "unread": 1},
     ]
+    # The facet series keeps to the baseline on.
     assert doc["facet"] == [{"day": "2026-10-25", "total": 8032}, {"day": "2026-10-26", "total": 8100, "lmia_requested": 1090}]
-    assert doc["totals"] == {"live": 4, "live_lmia": 1, "live_no_lmia": 3, "unread": 1, "seen": 5}
+    assert doc["totals"] == {"live": 4, "live_lmia": 1, "live_no_lmia": 3, "unread": 1, "seen": 6}
     assert doc["by_grade"] == {"A": 2, "B": 0, "C": 0, "unread": 1}
     assert doc["by_province"][0] == {"k": "ON", "A": 1, "B": 0, "C": 0, "unread": 1}
     assert doc["by_noc"][0]["k"] == "21220" and doc["by_noc"][0]["points"] == 70 and doc["by_noc"][0]["teer"] == 1
     recent = {r["id"]: r for r in doc["recent"]}
-    assert set(recent) == {1, 2, 5}
+    assert set(recent) == {1, 2, 5, 6}
     assert recent[1]["lmia_history"] is True and recent[1]["employer_id"] == eid
     assert recent[2]["phrases"] == {"ee": ["Express Entry"]} and "ee_wording" in recent[2]["reasons"]
     assert doc["high_wage"]["count"] == 186 and doc["high_wage"]["read_on"] == "2026-10-25"

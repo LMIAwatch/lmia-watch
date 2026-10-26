@@ -14,9 +14,10 @@
 import type { Context } from "hono";
 import type { FC } from "hono/jsx";
 import { type Bar, ChartStack, type Marker, type Panel, dayPos } from "../chart";
+import { occupationLinks, type OccupationLinks } from "../crosslinks";
 import { EMPLOYER_ID_RE, loadJson, loadStats } from "../data";
 import type { AppEnv } from "../env";
-import { fmtInt, provinceName, t, tj, type Key, type Lang } from "../i18n";
+import { fmtInt, numberLocale, provinceName, t, tj, type Key, type Lang } from "../i18n";
 import { Layout, fmtWage, noDataPage, page } from "../layout";
 import { SOCIAL_CARD, pageTitle, type Seo } from "../seo";
 import { isListOf, isNum, isNumOrNull, isObj, isStr, isStrOrNull } from "../valid";
@@ -199,6 +200,15 @@ const total = (c: GradeCounts) => c.A + c.B + c.C + c.unread;
 
 // -- sections ----------------------------------------------------------------------------
 
+// The series reaches back before the baseline (the first full sweep), where
+// it undercounts; true when the file holds any day before it.
+export const hasBackfill = (d: IntlFile): boolean => d.baseline !== null && d.daily.length > 0 && d.daily[0].day < d.baseline;
+
+function longDate(lang: Lang, iso: string): string {
+  return new Intl.DateTimeFormat(numberLocale(lang), { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" })
+    .format(new Date(`${iso}T00:00:00Z`));
+}
+
 function chart(lang: Lang, d: IntlFile) {
   const n = (v: number) => fmtInt(v, lang);
   const facet = new Map(d.facet.map((f) => [f.day, typeof f.total === "number" ? f.total : null]));
@@ -208,26 +218,41 @@ function chart(lang: Lang, d: IntlFile) {
   const end = days[days.length - 1] < d.change_date ? d.change_date : days[days.length - 1];
   const axisDays = [days[0], end];
   const axis = dayAxis(lang, axisDays.length > 1 && axisDays[0] !== axisDays[1] ? axisDays : [days[0]]);
-  const bars = (value: (r: DayRow) => number | null, light = false): Bar[] => d.daily.flatMap((r) => {
+  // Days before the baseline are drawn a lighter step: they undercount.
+  const backfill = hasBackfill(d);
+  const early = (day: string) => backfill && day < (d.baseline as string);
+  const bars = (value: (r: DayRow) => number | null, light?: boolean): Bar[] => d.daily.flatMap((r) => {
     const v = value(r);
     if (v === null) return [];
     const x = dayPos(r.day);
-    return [{ x0: x - 0.5, x1: x + 0.5, value: v, light, title: t(lang, "intl.point_title", { day: r.day, n: n(v) }) }];
+    return [{ x0: x - 0.5, x1: x + 0.5, value: v, light: light ?? early(r.day), title: t(lang, "intl.point_title", { day: r.day, n: n(v) }) }];
   });
   const panels: Panel[] = [
     { title: t(lang, "intl.panel_no_lmia"), bars: bars((r) => r.A + r.B + r.C + r.unread) },
     { title: t(lang, "intl.panel_all"), bars: bars((r) => r.all) },
   ];
   if (facet.size) panels.push({ title: t(lang, "intl.panel_facet"), bars: bars((r) => facet.get(r.day) ?? null, true) });
+  // Two numbered lines, in date order: the baseline (when the series reaches
+  // back before it) and the rule change.
+  const inside = (x: number) => x >= axis.domain[0] && x <= axis.domain[1] + 0.5;
+  const legend: string[] = [];
+  const markers: Marker[] = [];
+  if (backfill && inside(dayPos(d.baseline as string))) {
+    markers.push({ x: dayPos(d.baseline as string), n: markers.length + 1 });
+    legend.push(t(lang, "intl.marker_baseline", { n: markers.length, date: longDate(lang, d.baseline as string) }));
+  }
   const changeX = dayPos(d.change_date);
-  const markers: Marker[] = changeX >= axis.domain[0] && changeX <= axis.domain[1] + 0.5 ? [{ x: changeX, n: 1 }] : [];
+  if (inside(changeX)) {
+    markers.push({ x: changeX, n: markers.length + 1 });
+    legend.push(t(lang, "intl.marker_legend", { n: markers.length }));
+  }
   const domain: [number, number] = [axis.domain[0], Math.max(axis.domain[1], changeX + 0.5)];
   return (
     <figure class="chart">
       <ChartStack domain={domain} panels={panels} height={140} xLabels={axis.labels} grid={axis.grid} markers={markers}
         fmt={(v) => fmtInt(Math.round(v), lang)} aria={t(lang, "intl.chart_aria")} />
       <figcaption class="chart-legend muted small">
-        {markers.length ? <span>{t(lang, "intl.marker_legend", { n: 1 })}</span> : null}
+        {legend.map((line) => <span class="legend-line">{line}</span>)}
       </figcaption>
     </figure>
   );
@@ -269,24 +294,41 @@ const DailyTable: FC<{ lang: Lang; d: IntlFile }> = ({ lang, d }) => {
   );
 };
 
+// The province and occupation breakdowns sit side by side: their headers wrap
+// where the column is narrow, and on a phone each row restacks with labels.
 const GradeHeads: FC<{ lang: Lang }> = ({ lang }) => (
   <>
-    {GRADES.map((g) => <th class="num">{t(lang, GRADE_LABEL[g])}</th>)}
-    <th class="num">{t(lang, "intl.col_unread")}</th>
+    {GRADES.map((g) => <th class="num th-wrap">{t(lang, GRADE_LABEL[g])}</th>)}
+    <th class="num th-wrap">{t(lang, "intl.col_unread")}</th>
     <th class="num">{t(lang, "intl.col_total")}</th>
   </>
 );
 
 const GradeCells: FC<{ lang: Lang; c: GradeCounts }> = ({ lang, c }) => (
   <>
-    {GRADES.map((g) => <td class="mono num">{fmtInt(c[g], lang)}</td>)}
-    <td class="mono num">{fmtInt(c.unread, lang)}</td>
-    <td class="mono num">{fmtInt(total(c), lang)}</td>
+    {GRADES.map((g) => <td class="mono num" data-label={t(lang, GRADE_LABEL[g])}>{fmtInt(c[g], lang)}</td>)}
+    <td class="mono num" data-label={t(lang, "intl.col_unread")}>{fmtInt(c.unread, lang)}</td>
+    <td class="mono num" data-label={t(lang, "intl.col_total")}>{fmtInt(total(c), lang)}</td>
   </>
 );
 
+// The occupation as its NOC code, linked to the occupation page where one
+// exists, so the breakdown stays narrow beside the province table. The title
+// is the link's tooltip and is read out with the code; a phone, where the row
+// restacks, shows it after the code.
+const NocCell: FC<{ lang: Lang; code: string; title: string; links: OccupationLinks }> = ({ lang, code, title, links }) => {
+  const inner = <><span class="mono">{code}</span><span class="noc-name"> {title}</span></>;
+  return (
+    <td class="noc-cell" data-label={t(lang, "rank.col_code")}>
+      {links.has(code) ? <a href={`/occupations/${code}`} title={title}>{inner}</a> : <span title={title}>{inner}</span>}
+    </td>
+  );
+};
+
+// A hundred tall rows: the table scrolls inside its own box, header pinned,
+// as the Data page's long lists do.
 const RecentTable: FC<{ lang: Lang; rows: IntlRow[] }> = ({ lang, rows }) => (
-  <div class="table-wrap bordered">
+  <div class="table-wrap bordered scroll-y scroll-tall">
     <table class="restack intl-recent">
       <thead>
         <tr>
@@ -392,7 +434,10 @@ function seo(lang: Lang): Seo {
 
 export async function internationalPage(c: Context<AppEnv>): Promise<Response> {
   const lang = c.get("lang");
-  const [stats, data] = await Promise.all([loadStats(c.env), loadJson<unknown>(c.env, "international/index.json")]);
+  // The occupation index decides which codes link; a missing file means plain codes.
+  const [stats, data, occupations] = await Promise.all([
+    loadStats(c.env), loadJson<unknown>(c.env, "international/index.json"), occupationLinks(c.env),
+  ]);
   if (!stats) return noDataPage(c, "intl.h1");
   const methodLink = <a href="/methodology#express-entry">{t(lang, "intl.method_link")}</a>;
   if (!isIntlFile(data)) {
@@ -452,7 +497,11 @@ export async function internationalPage(c: Context<AppEnv>): Promise<Response> {
       </section>
 
       <h2>{t(lang, "intl.chart_h")}</h2>
-      <p class="muted small">{t(lang, "intl.chart_note", { baseline: d.baseline ?? d.as_of })}</p>
+      <p class="muted small">
+        {hasBackfill(d)
+          ? t(lang, "intl.chart_note_backfill", { baseline: d.baseline ?? d.as_of })
+          : t(lang, "intl.chart_note", { baseline: d.baseline ?? d.as_of })}
+      </p>
       {chart(lang, d)}
       <DailyTable lang={lang} d={d} />
 
@@ -482,10 +531,12 @@ export async function internationalPage(c: Context<AppEnv>): Promise<Response> {
         <div>
           <h2>{t(lang, "intl.by_prov_h")}</h2>
           <div class="table-wrap">
-            <table>
+            <table class="restack restack-compact intl-split">
               <thead><tr><th>{t(lang, "search.province")}</th><GradeHeads lang={lang} /></tr></thead>
               <tbody>
-                {d.by_province.map((r) => <tr><td>{provLabel(lang, r.k)}</td><GradeCells lang={lang} c={r} /></tr>)}
+                {d.by_province.map((r) => (
+                  <tr><td data-label={t(lang, "search.province")}>{provLabel(lang, r.k)}</td><GradeCells lang={lang} c={r} /></tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -494,15 +545,15 @@ export async function internationalPage(c: Context<AppEnv>): Promise<Response> {
           <h2>{t(lang, "intl.by_noc_h")}</h2>
           <p class="muted small">{t(lang, "intl.by_noc_note", { n: d.by_noc.length })}</p>
           <div class="table-wrap">
-            <table>
+            <table class="restack restack-compact intl-split">
               <thead>
-                <tr><th>{t(lang, "employer.col_occupation")}</th><th>{t(lang, "intl.col_list")}</th><GradeHeads lang={lang} /></tr>
+                <tr><th class="th-wrap">{t(lang, "rank.col_code")}</th><th class="th-wrap">{t(lang, "intl.col_list")}</th><GradeHeads lang={lang} /></tr>
               </thead>
               <tbody>
                 {d.by_noc.map((r) => (
                   <tr>
-                    <td><span class="muted mono">{r.k}</span> {r.title[lang]}</td>
-                    <td class="nw">{r.points ? t(lang, "intl.points", { n: r.points }) : t(lang, "intl.not_listed")}</td>
+                    <NocCell lang={lang} code={r.k} title={r.title[lang]} links={occupations} />
+                    <td class="nw" data-label={t(lang, "intl.col_list")}>{r.points ? t(lang, "intl.points", { n: r.points }) : t(lang, "intl.not_listed")}</td>
                     <GradeCells lang={lang} c={r} />
                   </tr>
                 ))}

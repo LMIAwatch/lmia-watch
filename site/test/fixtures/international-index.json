@@ -26,6 +26,9 @@
     { "k": "60030", "points": null, "teer": 0, "title": { "en": "Restaurant and food service managers", "fr": "Gestionnaires de la restauration et des services alimentaires" }, "A": 0, "B": 88, "C": 9, "unread": 120 }
   ],
   "daily": [
+    { "day": "2026-10-06", "all": 12, "lmia": 2, "A": 1, "B": 3, "C": 2, "unread": 4 },
+    { "day": "2026-10-07", "all": 17, "lmia": 3, "A": 2, "B": 3, "C": 4, "unread": 5 },
+    { "day": "2026-10-08", "all": 23, "lmia": 3, "A": 3, "B": 4, "C": 5, "unread": 8 },
     { "day": "2026-10-09", "all": 51, "lmia": 7, "A": 6, "B": 9, "C": 10, "unread": 19 },
     { "day": "2026-10-10", "all": 44, "lmia": 5, "A": 5, "B": 8, "C": 12, "unread": 14 },
     { "day": "2026-10-11", "all": 39, "lmia": 6, "A": 4, "B": 7, "C": 9, "unread": 13 },

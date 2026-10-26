@@ -248,6 +248,9 @@ th.num { text-align: right; }
    itself stays short. */
 .scroll-y { max-height: 360px; overflow-y: auto; }
 .scroll-y thead th { position: sticky; top: 0; background: var(--white); z-index: 1; }
+/* The same box for a list of tall rows (the international page's recent
+   postings), a few rows high and never taller than most of the screen. */
+.scroll-y.scroll-tall { max-height: min(640px, 75vh); }
 /* Dates and figures never break at a hyphen. The doc pages also hold long API
    paths in these cells, so there a minimum width keeps dates whole instead. */
 td.mono { white-space: nowrap; }
@@ -279,6 +282,11 @@ td.mono { white-space: nowrap; }
 .reasons p { margin: 0 0 4px; }
 .reasons p:last-child { margin-bottom: 0; }
 .intl-recent td { vertical-align: top; }
+/* The occupation breakdown shows the NOC code; the title is read out with it
+   (and shown on a phone, where the row restacks), hidden on wider screens. */
+.noc-cell { white-space: nowrap; }
+.noc-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.chart-legend .legend-line { display: block; }
 @media (min-width: 1000px) { .intl-recent td:last-child { min-width: 26em; } }
 /* The methodology's section on the November 3, 2026 change (#express-entry):
    a block set apart by an accent rule and a light step of the Approved blue,
@@ -518,6 +526,7 @@ details summary { cursor: pointer; color: var(--accent); font-weight: 600; margi
   .restack-compact td.title-lead { color: var(--muted); }
   .restack-compact td[data-label]::before { margin-right: 6px; font-size: 13px; }
   .restack-compact td:first-child::before, .restack-compact td.title-lead::before, .restack-compact td.title-lead + td::before { content: none; }
+  .restack .noc-name { position: static; width: auto; height: auto; overflow: visible; clip: auto; white-space: normal; }
   .chip { max-width: 100%; }
   .filters, .toc { flex-basis: 100%; }
   .show-results { display: inline-block; }

@@ -221,6 +221,28 @@ def test_the_adoption_notice_reaches_the_run_status_and_leaves_the_run_ok(conn, 
     assert resilience.gate(status, date.fromisoformat(status["run_at"][:10]))[0] is True
 
 
+def test_the_nightly_log_line_reads_as_a_sentence(conn, fixtures, fake_client, caplog):
+    assert high_wage.summary({"added": [], "removed": [], "moved": []}, 186) == "IRCC high-wage list unchanged (186 codes)"
+    assert high_wage.summary({"added": ["11100"], "removed": ["00010", "21220"], "moved": []}, 185) == (
+        "IRCC high-wage list changed: 1 added, 2 removed, 0 moved")
+    assert high_wage.summary(None, 186) == "IRCC high-wage list not read; grading keeps the version in use (186 codes)"
+    # Through the stage runner, in place of the dictionary's repr.
+    from lmia_pipeline import cli
+    client = fake_client({high_wage.SOURCE_URL: page(fixtures).encode()})
+    with caplog.at_level("INFO", logger="lmia_pipeline"):
+        assert cli._stage(conn, "high_wage", lambda: high_wage.run(conn, client, now=NOW),
+                          describe=lambda diff: high_wage.summary(diff, len(high_wage.points_by_noc(conn)))) is True
+    lines = [r.getMessage() for r in caplog.records if r.name == "lmia_pipeline"]
+    assert lines == ["IRCC high-wage list unchanged (186 codes)"]
+
+
+def test_a_log_line_that_cannot_be_written_falls_back_to_the_result(conn, caplog):
+    from lmia_pipeline import cli
+    with caplog.at_level("INFO", logger="lmia_pipeline"):
+        assert cli._stage(conn, "x", lambda: {"a": 1}, "result", describe=lambda r: r["missing"]) is True
+    assert "x result: {'a': 1}" in [r.getMessage() for r in caplog.records]
+
+
 def test_a_fetch_error_is_caught(conn, fake_client):
     client = fake_client({})
 

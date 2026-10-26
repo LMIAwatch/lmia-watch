@@ -125,7 +125,10 @@ page says the check failed (`high_wage.stale`).
 - `international/index.json` (an optional export section; not written before
   the first pass): `as_of`, `baseline`, `change_date`, the list version, live
   totals, counts by grade, province and NOC (top 15), the daily series by
-  posting date from the baseline, the facet's own daily counts, the 100
+  posting date from 60 days before the baseline (`BACKFILL_DAYS`; the page
+  draws the baseline as a line and says the days before it undercount, since
+  postings that closed before the first sweep were never seen), the facet's
+  own daily counts from the baseline, the 100
   newest graded postings with reasons and phrases, and the designated-employer
   lists (`docs/designated-employers.md`).
 - Profiles: `intl`, the employer's postings (newest 20), only when there are any.

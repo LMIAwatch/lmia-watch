@@ -2846,6 +2846,14 @@ const STRINGS = {
     en: "By Job Bank's posting date, from {baseline}, the day this tracking began. Postings first seen in the weekly sweep are dated by their own posting date.",
     fr: "Selon la date d'affichage du Guichet-Emplois, depuis le {baseline}, jour où ce suivi a commencé. Les annonces trouvées par le relevé hebdomadaire sont datées selon leur propre date d'affichage.",
   },
+  "intl.chart_note_backfill": {
+    en: "By Job Bank's posting date. Tracking began on {baseline} (line 1). The lighter bars before that date undercount, because postings that had already closed before the first sweep were never seen. Grades fill in as posting pages are read, and postings first found by the weekly sweep are dated by their own posting date.",
+    fr: "Selon la date d'affichage du Guichet-Emplois. Le suivi a commencé le {baseline} (ligne 1). Les barres plus pâles qui précèdent cette date sont incomplètes, car les annonces déjà fermées avant le premier relevé n'ont jamais été vues. Les catégories se remplissent à mesure que les annonces sont lues, et les annonces trouvées par le relevé hebdomadaire sont datées selon leur propre date d'affichage.",
+  },
+  "intl.marker_baseline": {
+    en: "{n} {date}: tracking began (the first full sweep of the filter).",
+    fr: "{n} {date} : début du suivi (premier relevé complet du filtre).",
+  },
   "intl.marker_legend": {
     en: "{n} November 3, 2026: a job offer for Express Entry no longer needs an LMIA.",
     fr: "{n} 3 novembre 2026 : une offre d'emploi pour Entrée express n'exige plus d'EIMT.",
