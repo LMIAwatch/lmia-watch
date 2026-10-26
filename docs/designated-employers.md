@@ -84,8 +84,9 @@ layout, chosen so that no row on it reads as a person.
   the night it is read again; nothing on the nights between.
 - The set of lists not yet readable, whenever it changes.
 
-Both are attention items in status.json (`notices`) and in the watchdog's
-email, and leave the run ok. Every night, without an attention item, the lists
+Both are notices: information in status.json (`notices`), LAST_RUN.md and
+the daily check's email, never an item needing attention, so the run's last
+step passes, no issue opens and the run stays ok. Every night, without a notice, the lists
 in each state are in the stage's summary line (LAST_RUN.md) and in
 status.json's `registers.not_read`. The stage itself fails only on an exception.
 

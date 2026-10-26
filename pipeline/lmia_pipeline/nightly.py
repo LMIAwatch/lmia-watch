@@ -26,7 +26,10 @@ one, and always leaves a status file the site's daily check can read.
             unverifiable (resilience.smoke).
   checks    the monthly expiry checks of the tokens and the domain.
   attention list the items needing attention and write the GitHub issue's
-            texts; exits 1 when there are any.
+            texts; exits 1 when there are any. The run's notices are
+            printed beside them and never counted.
+  notices   print the run's notices as a section for LAST_RUN.md (nothing
+            when there are none); always exits 0.
   indexnow  after a deploy that worked: send the pages changed since the
             run's start to IndexNow (indexnow.py) and write the outcome.
             Exits 1 only when the key or the payload was rejected.
@@ -59,6 +62,7 @@ from pathlib import Path
 from typing import Any
 
 from . import config, indexnow, resilience
+from .sources import notices as gov_notices
 
 log = logging.getLogger("lmia_pipeline.nightly")
 
@@ -86,6 +90,10 @@ CLOCK_SLACK_S = 120
 # Wrangler refuses a single-object R2 upload above 300 MiB
 # (MAX_UPLOAD_SIZE_BYTES in its source), and the save step uploads one file.
 MAX_UPLOAD_MIB = 300
+
+# The longest notice part status.json keeps: a government notice line is its
+# date, its full title (at most 500 characters) and its canada.ca link.
+NOTICE_PART_MAX = 1200
 
 STEP_DETAIL = {
     "restore": "the database could not be restored, so nothing else ran",
@@ -372,6 +380,7 @@ def run_status(
     notices: list[dict[str, str]] = []
     international: dict[str, Any] = {}
     registers: dict[str, Any] = {}
+    government_notices: dict[str, Any] = {}
     for name, result in steps.items():
         if result == "failure":
             stages.append({"source": f"workflow {name}", "ok": False, "detail": STEP_DETAIL.get(name, "the step failed")})
@@ -392,6 +401,7 @@ def run_status(
             else:
                 stages.append({"source": "pipeline", "ok": False, "detail": "the run never started its stages"})
             international, registers = _source_summaries(conn)
+            government_notices = _notices_summary(conn, started)
         except sqlite3.Error as exc:
             stages.append({"source": "database", "ok": False, "detail": f"the run log cannot be read: {exc}"[:200]})
         finally:
@@ -428,11 +438,16 @@ def run_status(
         "rollback": rolled,
         "deploy_rolled_back": rolled == "rolled back",
         "checks": checks if isinstance(checks, dict) else {"due": None, "items": [], "detail": "the checks did not run"},
-        # Items needing attention that are not failures (a reference list that
-        # changed, a list not yet readable): attention items, but the run stays ok.
+        # Information that is not a failure (a government notice first listed,
+        # a reference list that changed, a list or feed that changed state):
+        # LAST_RUN.md and the daily check's email, never an item needing
+        # attention, and the run stays ok.
         "notices": notices,
         "international": international,
         "registers": registers,
+        # The government notices stage: listed, new tonight, last checked and
+        # each feed's state; its new items and feed changes are notices above.
+        "government_notices": government_notices,
         "ok": all(s["ok"] for s in stages) and verdict != "broken",
     }
 
@@ -445,8 +460,18 @@ def _notices(conn: sqlite3.Connection, started: str) -> list[dict[str, str]]:
             (started,)).fetchall()
     except sqlite3.Error:
         return []
-    # A stage may record several notices on one row, joined by " | ".
-    return [{"source": s, "detail": part.strip()[:600]} for s, n in rows for part in (n or "").split(" | ") if part.strip()]
+    # A stage may record several notices on one row, joined by " | ". A
+    # government notice carries its full title and link, so a part may be long.
+    return [{"source": s, "detail": part.strip()[:NOTICE_PART_MAX]} for s, n in rows
+            for part in (n or "").split(" | ") if part.strip()]
+
+
+def _notices_summary(conn: sqlite3.Connection, started: str | None) -> dict[str, Any]:
+    """Where the government notices stand ({} before the first read or on a database from before the tables)."""
+    try:
+        return gov_notices.status_summary(conn, started)
+    except (sqlite3.Error, ValueError):
+        return {}
 
 
 def _source_summaries(conn: sqlite3.Connection) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -466,7 +491,7 @@ def _source_summaries(conn: sqlite3.Connection) -> tuple[dict[str, Any], dict[st
         by_state: dict[str, list[str]] = {}
         for key, state in conn.execute("SELECT key, state FROM designated_lists ORDER BY key"):
             by_state.setdefault(state, []).append(key)
-        # Every night, the lists not read and which they are; an attention item
+        # Every night, the lists not read and which they are; a notice
         # only on the night a list changes state (the registers stage's notices).
         registers = {"lists": sum(len(v) for v in by_state.values()),
                      "states": {k: len(v) for k, v in by_state.items()},
@@ -684,6 +709,8 @@ def main(argv: list[str] | None = None) -> int:
     at.add_argument("--status", required=True)
     at.add_argument("--run-url", required=True)
     at.add_argument("--out-dir", required=True, help="where the issue's texts are written")
+    nt = sub.add_parser("notices", help="print the run's notices as a section for LAST_RUN.md")
+    nt.add_argument("--status", required=True)
     ix = sub.add_parser("indexnow", help="send the pages changed since the run's start to IndexNow")
     ix.add_argument("--db", required=True)
     ix.add_argument("--since", required=True,
@@ -733,6 +760,8 @@ def main(argv: list[str] | None = None) -> int:
         return _checks(args)
     if args.command == "attention":
         return _attention(args)
+    if args.command == "notices":
+        return _notice_section(args)
     if args.command == "site-bundle-check":
         return _site_bundle_check(args)
     if args.command == "indexnow":
@@ -828,7 +857,22 @@ def _attention(args: argparse.Namespace) -> int:
         (out / file).write_text(texts[name], encoding="utf-8")
     for item in items:
         print("ATTENTION:", item)
+    # Notices are information: shown in the step's log, never counted, so
+    # they neither fail the step nor open the issue.
+    for notice in resilience.notice_items(status):
+        print("NOTICE:", notice)
     return 1 if items else 0
+
+
+def _notice_section(args: argparse.Namespace) -> int:
+    """The run's notices for LAST_RUN.md, one per line; nothing when there are none."""
+    notices = resilience.notice_items(_read_json(args.status))
+    if notices:
+        print("Notices from this run (information; nothing failed):")
+        print()
+        for notice in notices:
+            print(f"- {' '.join(notice.split())}")
+    return 0
 
 
 def _indexnow(args: argparse.Namespace) -> int:

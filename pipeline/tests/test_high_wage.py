@@ -215,7 +215,9 @@ def test_the_adoption_notice_reaches_the_run_status_and_leaves_the_run_ok(conn, 
     notice = conn.execute("SELECT notice FROM sources_log WHERE source = 'high_wage'").fetchone()[0]
     assert status["ok"] is True
     assert status["notices"] == [{"source": "high_wage", "detail": notice}]
-    assert resilience.attention_items(status) == [f"high_wage: {notice}"]
+    # Information, never an item needing attention.
+    assert resilience.attention_items(status) == []
+    assert resilience.notice_items(status) == [f"high_wage: {notice}"]
     assert resilience.gate(status, date.fromisoformat(status["run_at"][:10]))[0] is True
 
 

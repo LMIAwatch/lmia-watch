@@ -63,10 +63,12 @@
 #   checks or the issue update never stops the run: the gate then runs the
 #   refresh, a missing version means no rollback tonight, and each outcome is
 #   in status.json.
-# - A notice (IRCC's high-wage list adopted after a change, or unreadable from
-#   tonight or readable again; a designated-employer list that stops being read
-#   or is read again) is an item needing attention in status.json's notices,
-#   raised on the change of state only, and it leaves the run ok, so no retry
+# - A notice (a government notice first listed tonight; IRCC's high-wage list
+#   adopted after a change, or unreadable from tonight or readable again; a
+#   designated-employer list or a news feed that stops being read or is read
+#   again) is information, never an item needing attention: it goes to
+#   status.json's notices, LAST_RUN.md and the daily check's email, never fails
+#   the last step or opens the issue, and leaves the run ok, so no retry
 #   follows: a retry would read the same page again.
 #
 # Secrets on the project account: CLOUDFLARE_API_TOKEN (Workers + R2 + D1),
@@ -678,9 +680,11 @@ jobs:
 
       # What the daily check in the Worker and the next retry's gate read: when
       # the run finished, which stages and steps succeeded (every step's
-      # outcome under steps), the notices (items needing attention that are not
-      # failures), where the international-candidates pass and the
-      # designated-employer lists stand, what the checks found, the outcomes of the X
+      # outcome under steps), the notices (information, never failures or
+      # items needing attention), where the international-candidates pass, the
+      # designated-employer lists and the government notices stand (each
+      # notice first listed tonight is one of the notices), what the checks
+      # found, the outcomes of the X
       # post, the Bluesky post, the Zenodo deposit, the search database sync,
       # the audience roll-up and the IndexNow submission, where the database
       # came from (restore), the smoke test and any rollback, and the expiry
@@ -755,6 +759,17 @@ jobs:
             echo "" >> LAST_RUN.md
             echo "Designated-employer lists: $(cat data/out/registers/last_outcome.txt)" >> LAST_RUN.md
           fi
+          if [ -f data/out/notices/last_outcome.txt ]; then
+            echo "" >> LAST_RUN.md
+            echo "Government notices: $(cat data/out/notices/last_outcome.txt)" >> LAST_RUN.md
+          fi
+          # The run's notices, one per line with its full text (nothing when
+          # there are none); a fault here leaves them out of the record only.
+          python -m lmia_pipeline.nightly notices --status data/out/status.json > data/out/notices.md 2>/dev/null || true
+          if [ -s data/out/notices.md ]; then
+            echo "" >> LAST_RUN.md
+            cat data/out/notices.md >> LAST_RUN.md
+          fi
           git config user.name "LMIA Watch"
           git config user.email "ops@lmiawatch.invalid"
           git add LAST_RUN.md
@@ -776,7 +791,9 @@ jobs:
       # set +e and never change the exit code, so a GitHub API fault costs the
       # issue, never the email. The label is created (or left as it is) each
       # time, so nothing has to be set up by hand. PYTHONPATH lets the helper
-      # run even if the pipeline install failed.
+      # run even if the pipeline install failed. The run's notices are printed
+      # in the step's log and never counted: they neither fail the step nor
+      # open the issue.
       - name: Items needing attention
         if: ${{ always() }}
         env:

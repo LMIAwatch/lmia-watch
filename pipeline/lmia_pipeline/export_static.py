@@ -35,6 +35,8 @@ Output tree (under data/out/static):
   international/index.json           postings open to international candidates, their grades and the
                                      designated-employer lists, behind /international (intl.py)
   program/index.json                 the program conditions behind /program (conditions.py)
+  notices.json                       IRCC and ESDC news items that name the programs, both languages, with
+                                     each feed's state, behind /notices and the home page (sources/notices.py)
   sitemaps/sitemap-<n>.xml           the fixed pages and every profile URL, at most 50,000 per file
   sitemaps/index.xml                 the sitemap index; the site serves it at /sitemap.xml and the
                                      parts at /sitemap-<n>.xml, since a sitemap may list only URLs
@@ -58,7 +60,7 @@ from xml.sax.saxutils import escape
 
 from . import conditions, config, intl, places, releases, trends
 from .db import get_meta, log_run
-from .sources import high_wage, registers
+from .sources import high_wage, notices, registers
 from .feeds import write_feeds
 from .normalize import period_end_date, period_sort_key
 from .zenodo import citation_from_meta
@@ -688,6 +690,10 @@ def sitemap_entries(conn: sqlite3.Connection, data_as_of: str | None,
     # Postings open to international candidates, once a pass has written its file.
     if "international" not in skip and get_meta(conn, "intl_last_run"):
         entries.append(("/international", dated))
+    # Government notices, once a read has written the file, dated by the day
+    # the list last gained an item.
+    if "notices" not in skip and get_meta(conn, "notices_last_run"):
+        entries.append(("/notices", notices.sitemap_lastmod(conn, data_as_of)))
     entries += [(f"/employers/{r['id']}", _lastmod(r["updated_at"]))
                 for r in conn.execute("SELECT id, updated_at FROM employers ORDER BY id")]
     # Occupation and place pages at or above the record threshold, each dated
@@ -796,6 +802,7 @@ def _write_static(conn: sqlite3.Connection, out: Path) -> dict[str, int]:
         ("places", lambda: places.write_places(conn, out)),
         ("aliases", lambda: write_aliases(conn, out)),
         ("international", lambda: intl.write_all(conn, out, meta.get("data_as_of"), registers.export_rows(conn))),
+        ("notices", lambda: notices.write_all(conn, out, meta.get("data_as_of"))),
     )
     for name, write in sections:
         try:

@@ -174,6 +174,12 @@ def record_names(conn: sqlite3.Connection, eid: str, source: str, *names: str | 
     return added
 
 
+# A stage's notices share one log row, joined by " | "; five government
+# notices with their full titles and links fit, with room for a stage's
+# other notices.
+NOTICE_MAX_CHARS = 3000
+
+
 def log_run(
     conn: sqlite3.Connection,
     source: str,
@@ -186,12 +192,14 @@ def log_run(
     notice: str | None = None,
 ) -> None:
     """One row of the run log. ok=False is a failed stage (the run status is not
-    ok, and a retry trigger runs the refresh again). notice is an item needing
-    attention that a retry would not change (a reference list that changed, a
-    list not yet readable): reported as an attention item, the run stays ok."""
+    ok, a retry trigger runs the refresh again, and it is an item needing
+    attention). notice is information a retry would not change (a reference
+    list that changed, a list not yet readable, a government notice first
+    listed): status.json's notices, LAST_RUN.md and the daily check's email,
+    never an item needing attention; the run stays ok."""
     conn.execute(
         "INSERT INTO sources_log (run_at, source, detail, rows_in, rows_new, excluded, ok, notice) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        (now_iso(), source, detail, rows_in, rows_new, excluded, 1 if ok else 0, (notice or "")[:900] or None),
+        (now_iso(), source, detail, rows_in, rows_new, excluded, 1 if ok else 0, (notice or "")[:NOTICE_MAX_CHARS] or None),
     )
     conn.commit()

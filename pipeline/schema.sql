@@ -609,6 +609,43 @@ CREATE TABLE IF NOT EXISTS designated_matches (
   PRIMARY KEY (employer_id, list_key, employer_name)
 );
 
+-- Government notices (sources/notices.py): IRCC and ESDC news items on
+-- Canada.ca whose title or summary, in either language, contains one of the
+-- program terms. Read nightly from the departments' English and French news
+-- feeds; the two languages of an item are paired on the feed's timestamp.
+-- Only matched items are stored, as published (the summary without its
+-- dateline). A NULL French title means no French item paired (the site shows
+-- the English with a note), a NULL English one the reverse. Rows are never
+-- deleted; the site lists the last 12 months.
+CREATE TABLE IF NOT EXISTS gov_notices (
+  id TEXT PRIMARY KEY,                           -- first 16 hex characters of the SHA-1 of the canada.ca URL (English, else French)
+  department TEXT NOT NULL,                      -- ircc | esdc
+  item_type TEXT NOT NULL,                       -- news_release | backgrounder | statement | speech | media_advisory | other
+  published_at TEXT NOT NULL,                    -- the feed's timestamp as published, with its offset
+  published TEXT NOT NULL,                       -- its date (YYYY-MM-DD), as the department dated it
+  title_en TEXT,
+  summary_en TEXT,
+  url_en TEXT,
+  title_fr TEXT,
+  summary_fr TEXT,
+  url_fr TEXT,
+  terms_en TEXT,                                 -- JSON list of the terms the English title or summary contains
+  terms_fr TEXT,                                 -- the same for the French
+  first_seen TEXT NOT NULL,                      -- ISO datetime of the run that first stored it
+  last_seen TEXT NOT NULL                        -- ISO datetime of the latest run that read it
+);
+
+-- One row per news feed read for gov_notices, with the state of its last read.
+-- A feed that cannot be read keeps the items already stored.
+CREATE TABLE IF NOT EXISTS gov_notice_feeds (
+  key TEXT PRIMARY KEY,                          -- ircc_en | ircc_fr | esdc_en | esdc_fr
+  state TEXT NOT NULL,                           -- ok | failing
+  checked_at TEXT NOT NULL,                      -- ISO datetime of the last read
+  last_ok_at TEXT,                               -- ISO datetime of the last good read
+  entries INTEGER NOT NULL DEFAULT 0,            -- items in the last good read
+  detail TEXT                                    -- why the last read failed, or what it found
+);
+
 -- ---------------------------------------------------------------------------
 -- Site-owned tables. The pipeline never writes, deletes or exports these.
 -- ---------------------------------------------------------------------------

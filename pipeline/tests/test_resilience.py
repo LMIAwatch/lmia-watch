@@ -3,6 +3,7 @@ the weekly snapshot restore, the expiry checks, and the attention items and
 issue texts. Every network call goes to a fake session."""
 
 import gzip
+from pathlib import Path
 import json
 import logging
 from datetime import date, datetime, timedelta, timezone
@@ -725,6 +726,66 @@ def test_attention_command_writes_the_issue_texts_and_its_exit_code(tmp_path, ca
     assert (out / "close.md").read_text() == "The run of 2026-10-23 finished with nothing needing attention: https://example.org/run/2\n"
     assert nightly.main(["attention", "--status", str(tmp_path / "none.json"), "--run-url", "u", "--out-dir", str(out)]) == 1
     assert (out / "items.txt").read_text() == "no run status was written\n"
+
+
+NOTICES = [
+    {"source": "gov_notices", "detail": "Government notice: 2026-10-26 Express Entry measure https://www.canada.ca/en/m.html"},
+    {"source": "high_wage", "detail": "IRCC high-wage list changed and was adopted for grading from 2026-10-26: 1 added"},
+    {"source": "registers", "detail": "Designated-employer lists read again: aip_nl"},
+]
+
+
+def test_notices_are_information_never_items_needing_attention():
+    status = {"run_at": "2026-10-27T00:48:10+00:00", "ok": True, "stages": [{"source": "gov_notices", "ok": True}],
+              "notices": NOTICES + [{"source": "x"}, "junk"]}
+    assert resilience.attention_items(status) == []
+    assert resilience.notice_items(status) == [
+        "gov_notices: Government notice: 2026-10-26 Express Entry measure https://www.canada.ca/en/m.html",
+        "high_wage: IRCC high-wage list changed and was adopted for grading from 2026-10-26: 1 added",
+        "registers: Designated-employer lists read again: aip_nl",
+    ]
+    assert resilience.notice_items(None) == []
+    # A failed stage beside them is still an item needing attention.
+    failed = {**status, "stages": [{"source": "jobbank", "ok": False, "detail": "HTTP 503"}]}
+    assert resilience.attention_items(failed) == ["jobbank: HTTP 503"]
+
+
+def test_the_attention_command_passes_with_notices_alone_and_prints_them(tmp_path, capsys):
+    status = tmp_path / "status.json"
+    status.write_text(json.dumps({"run_at": "2026-10-27T00:48:10+00:00", "ok": True, "stages": [], "notices": NOTICES}))
+    out = tmp_path / "attention"
+    assert nightly.main(["attention", "--status", str(status), "--run-url", "u", "--out-dir", str(out)]) == 0
+    printed = capsys.readouterr().out
+    assert printed.startswith("NOTICE: gov_notices: Government notice: 2026-10-26 Express Entry measure")
+    assert "ATTENTION" not in printed
+    # Nothing for the issue: the step neither opens nor updates it.
+    assert (out / "items.txt").read_text() == ""
+
+
+def test_the_notices_command_writes_the_section_for_last_run(tmp_path, capsys):
+    status = tmp_path / "status.json"
+    status.write_text(json.dumps({"run_at": "2026-10-27T00:48:10+00:00", "stages": [], "notices": NOTICES}))
+    assert nightly.main(["notices", "--status", str(status)]) == 0
+    assert capsys.readouterr().out == (
+        "Notices from this run (information; nothing failed):\n\n"
+        "- gov_notices: Government notice: 2026-10-26 Express Entry measure https://www.canada.ca/en/m.html\n"
+        "- high_wage: IRCC high-wage list changed and was adopted for grading from 2026-10-26: 1 added\n"
+        "- registers: Designated-employer lists read again: aip_nl\n"
+    )
+    status.write_text(json.dumps({"run_at": "2026-10-27T00:48:10+00:00", "stages": []}))
+    assert nightly.main(["notices", "--status", str(status)]) == 0
+    assert nightly.main(["notices", "--status", str(tmp_path / "none.json")]) == 0
+    assert capsys.readouterr().out == ""
+
+
+def test_the_workflow_keeps_notices_out_of_the_attention_step_and_records_them():
+    text = (Path(__file__).resolve().parents[2] / ".github" / "workflows" / "nightly.yml").read_text(encoding="utf-8")
+    record = text.split("- name: Record the run so the schedule stays enabled", 1)[1].split("\n      - ", 1)[0]
+    assert ("python -m lmia_pipeline.nightly notices --status data/out/status.json > data/out/notices.md "
+            "2>/dev/null || true") in record
+    assert "cat data/out/notices.md >> LAST_RUN.md" in record
+    attention = text.split("- name: Items needing attention", 1)[1].split("\n      - ", 1)[0]
+    assert "exit $code" in attention and "notices" not in attention.split("run: |", 1)[1]
 
 
 def test_a_clean_night_with_the_new_fields_has_no_items(tmp_path):

@@ -20,6 +20,7 @@ python -m lmia_pipeline run --esdc                               # one stage
 python -m lmia_pipeline run --jobbank --limit 1 --detail-budget 2  # dev-sized Job Bank run
 python -m lmia_pipeline run --intl --limit 1 --intl-detail-budget 3  # dev-sized pass over postings open to international candidates
 python -m lmia_pipeline run --highwage --registers                  # IRCC's high-wage list check, designated-employer lists
+python -m lmia_pipeline run --notices                               # IRCC and ESDC news feeds (four requests)
 python scripts/build_high_wage_list.py                              # rebuild the fallback copy data/high_wage_nocs.json (optional)
 python -m lmia_pipeline run --export                             # csv, mirror and static JSON
 python -m lmia_pipeline search-sync --db ../data/lmia.sqlite     # search database: changed rows as SQL batches
@@ -50,14 +51,17 @@ which records the ledger. Operator guide: `../docs/hosted-search.md`.
 Stage order: esdc, ircc, jobbank, highwage (IRCC's list, adopted when it
 changes), intl (postings open to international candidates), registry (BC,
 federal, Quebec), grants, alberta, fmcsa, registers (designated-employer lists),
-wages, lfs, vacancies, program (processing times, CMA list, wage thresholds),
-geography, indicators and status, export.
-A stage records an item needing attention that is not a failure (IRCC's list
-adopted after a change or unreadable from tonight, a designated-employer list
-that stops being read or is read again) as a notice on its `sources_log` row
-(`log_run(..., notice=...)`), on the change of state only: the run status lists
-it under `notices` and the attention step reports it, but the run stays ok, so
-no retry trigger runs the refresh again for it.
+notices (IRCC and ESDC news that names the programs), wages, lfs, vacancies,
+program (processing times, CMA list, wage thresholds), geography, indicators
+and status, export.
+A stage records information that is not a failure (IRCC's list adopted after
+a change or unreadable from tonight, a designated-employer list or a news feed
+that stops being read or is read again, a government notice first listed that
+night) as a notice on its `sources_log` row (`log_run(..., notice=...)`, up to
+`db.NOTICE_MAX_CHARS`, 3,000 characters, per row): the run status lists it
+under `notices`, LAST_RUN.md and the daily check's email carry it (one line
+each, `nightly notices`), and it is never an item needing attention: the last
+step passes, no issue opens, the run stays ok and no retry follows.
 Before any stage, `run` compares `meta.normalize_version` with
 `normalize.NORMALIZE_VERSION` and, when the database is older, re-derives every
 employer id once (`migrate.py`).
@@ -79,6 +83,7 @@ marking, because a capped run has not seen the whole feed.
 | `intl.py` | the grades of those postings (A, B, C, with reason keys), recomputed every night, and `international/index.json`, the profile rows and the stats counts |
 | `sources/high_wage.py` | IRCC's list of high-wage occupations: read nightly and, when it changed and passes the checks (120 to 400 codes, the three tiers, none in two), adopted into `high_wage_editions` and used for grading from that night (one notice); the committed `data/high_wage_nocs.json` is the fallback before any edition and the parser is shared with `scripts/build_high_wage_list.py` |
 | `sources/registers.py` | the published designated-employer lists (Atlantic Immigration Program by province, the Rural and Francophone Community Immigration Pilots by community): a registry of 24 lists with address, format and terms; HTML, JSON and PDF lists (pypdf, layout text, a rule per list) read nightly with their last good rows kept when a read fails or looks broken (under 5 rows, or a drop of more than 60 percent); notices on a change of state only; matched to employers by name and place within the list's province (`../docs/designated-employers.md`) |
+| `sources/notices.py` | government notices: the Canada.ca news feeds of IRCC and ESDC in English and French (api.io.canada.ca, Atom, the last 12 months), one request each a night; an item is kept when its title or summary in either language contains one of 18 program terms; the two languages are paired on the feed's timestamp (then type, then feed order), the summary's dateline is left out, and the item stored in `gov_notices` under an id from its canada.ca URL; a feed that cannot be read keeps its items (a notice on the change of state only), each item first listed is a notice of its own (five a night, a count for the rest; the first night is one line); `notices.json` for `/notices` and the home page |
 | `normalize.py` | name identity (`split_trade_name`, `norm_name`), addresses, dates, codes |
 | `migrate.py` | re-derives employer ids, merges duplicates and rewrites every referencing table after a normalization change |
 | `sources/ircc.py` | parses the non-compliant employers JSON and the reason legend from the page, links findings by legal name first, and copies a finding's street and names onto its employer |
@@ -122,12 +127,13 @@ data/out/static/        the JSON the site serves as static assets (see export_st
                           occupations/*.json, places/**/*.json (places.py),
                           program/index.json (conditions.py),
                           international/index.json (intl.py, with the designated-employer lists)
+                          notices.json (sources/notices.py, the last 12 months, each feed's state)
 data/out/search/        written by `search-sync`: batch-0001.sql and on (at most 5 MB or
                         5,000 statements each, up to 100 rows per upsert statement),
                         manifest.json, last_outcome.txt
 data/out/indexnow/      written by `nightly indexnow`: urls.txt (the pages selected),
                         last_outcome.txt
-data/out/intl/, data/out/registers/
+data/out/intl/, data/out/registers/, data/out/notices/
                         last_outcome.txt: the stage's one-line summary for LAST_RUN.md
 ```
 The static export is deterministic (sorted keys and rows), so an unchanged file

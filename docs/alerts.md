@@ -23,6 +23,16 @@ deposit, the search database sync or the audience roll-up failed, or the run
 rolled back a deploy. One email a day at most, repeated while an item
 remains. Nothing is sent on a healthy day.
 
+Notices are not alerts. A government notice first listed that night, IRCC's
+high-wage list adopted or unreadable, or a designated-employer list or news
+feed that stopped being read or is read again is a notice: `status.json`
+lists it under `notices`, LAST_RUN.md carries it, and the email gives it a
+section of its own, one notice a line with its full text. A morning with
+notices and no alert still sends an email, with the subject "LMIA Watch: n
+notices from the last run". Notices never fail the workflow's last step or
+open the run-attention issue, and they come only from a status written in
+the last 36 hours.
+
 The check runs at the same time as the first retry (below), so on a morning
 after a failed midnight run the email can name a fault that the retry then
 fixes. The next day's check is quiet if it did.

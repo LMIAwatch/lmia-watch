@@ -8,9 +8,10 @@ The page lists NOC 2021 unit groups in three HTML tables, one per tier (100,
 the nightly check uses (lmia_pipeline.sources.high_wage.parse_page), so a page
 this script reads is a page the check reads the same way.
 
-Run it when the nightly run reports "IRCC high-wage list changed", look at the
-diff of the file it writes, and commit it: the grades follow the committed
-file from the next run, and the attention item clears.
+The nightly run adopts a changed list by itself (a notice, never an item
+needing attention); the committed file is only the fallback before any
+edition is stored, so refreshing it is optional: look at the diff of the
+file this writes and commit it.
 
 Usage: python scripts/build_high_wage_list.py [--from PATH] [--out PATH] [--read-on YYYY-MM-DD]
   --from PATH      read a saved copy of the page instead of downloading it

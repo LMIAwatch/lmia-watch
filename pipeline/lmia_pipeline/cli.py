@@ -16,11 +16,11 @@ from . import bluesky, config, export, export_static, indicators, migrate, searc
 from .db import connect, hours_since, log_run
 from .http import PoliteClient
 from .sources import esdc, geography, ircc, jobbank, lfs, program, registry_bc, registry_federal, registry_quebec
-from .sources import alberta_records, fmcsa, grants, high_wage, jobbank_intl, registers, vacancies, wages
+from .sources import alberta_records, fmcsa, grants, high_wage, jobbank_intl, notices, registers, vacancies, wages
 
 log = logging.getLogger("lmia_pipeline")
-STAGES = ["esdc", "ircc", "jobbank", "highwage", "intl", "registry", "grants", "alberta", "fmcsa", "registers", "wages",
-          "lfs", "vacancies", "program", "geography", "indicators", "export"]
+STAGES = ["esdc", "ircc", "jobbank", "highwage", "intl", "registry", "grants", "alberta", "fmcsa", "registers", "notices",
+          "wages", "lfs", "vacancies", "program", "geography", "indicators", "export"]
 
 # Job Bank is crawled once a day and no more. A re-run of a failed night, or a
 # run started by hand, must not send a second pass; the guard is in the
@@ -285,6 +285,15 @@ def _command(conn: sqlite3.Connection, args: argparse.Namespace) -> int:
         _outcome_file("registers", "last_outcome.txt", "failed")
         ok &= _stage(conn, "registers", lambda: _with_outcome(
             "registers", registers.run(conn, PoliteClient(max_attempts=registers.CLIENT_ATTEMPTS))), "lists")
+    # Government notices (sources/notices.py): the IRCC and ESDC news feeds on
+    # Canada.ca, one request each, through a client of its own like the lists
+    # above. A feed that cannot be read keeps its items and is a notice, and
+    # each item first listed tonight is a notice; the stage fails only on an
+    # exception.
+    if "notices" in stages:
+        _outcome_file("notices", "last_outcome.txt", "failed")
+        ok &= _stage(conn, "gov_notices", lambda: _with_outcome(
+            "notices", notices.run(conn, PoliteClient(max_attempts=notices.CLIENT_ATTEMPTS))), "listed")
     # The reference tables for the wage and unemployment indicators. Each is
     # cached: wages and the LFS table are revalidated at most once a month,
     # the boundary files never after the first load. A failure leaves the

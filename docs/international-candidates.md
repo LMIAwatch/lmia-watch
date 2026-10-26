@@ -139,7 +139,9 @@ page says the check failed (`high_wage.stale`).
 ## Run status
 
 `status.json` carries `international` (last run, last sweep, baseline, live
-and unread counts, whether the last read of IRCC's page worked) and `notices`.
+and unread counts, whether the last read of IRCC's page worked) and `notices`
+(information for LAST_RUN.md and the daily check's email, never an item
+needing attention).
 LAST_RUN.md gains the stage's one-line summary. A failure (facet not applied,
 feed unreadable, an incomplete sweep, Job Bank not answering) fails the stage
 like the LMIA crawl.

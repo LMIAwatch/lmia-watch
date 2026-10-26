@@ -25,11 +25,12 @@ is a layout problem; either way the last good rows stay. A PDF pypdf cannot
 read at all is "not yet readable". Names that read as a person are never
 stored (project rule 3).
 
-Notices (attention items that never fail the run), on a change of state
-only: a list the night it stops being read and the night it is read again,
-and the set of lists not yet readable whenever it changes. Every night the
-lists in each state are in the stage's summary (LAST_RUN.md) and in
-status.json's registers, without an attention item.
+Notices (information, never an item needing attention: status.json,
+LAST_RUN.md and the daily check's email; the run stays ok), on a change of
+state only: a list the night it stops being read and the night it is read
+again, and the set of lists not yet readable whenever it changes. Every
+night the lists in each state are in the stage's summary (LAST_RUN.md) and
+in status.json's registers, without a notice.
 
 Matching (every night, rules in matching.py, never across provinces): the
 list's name normalizes to an employer's in the list's province, with the
@@ -758,7 +759,7 @@ def run(conn: sqlite3.Connection, client: PoliteClient, *, now: str | None = Non
     notices = _notices(conn, before, states)
     conn.commit()
     # One row, its notices joined by NOTICE_SEP; the run status splits them
-    # into one attention item each (nightly._notices).
+    # into one notice each (nightly._notices).
     log_run(conn, "registers", detail=stats.summary(), rows_in=rows, rows_new=matched,
             notice=NOTICE_SEP.join(notices) if notices else None)
     return stats

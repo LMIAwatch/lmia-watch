@@ -17,6 +17,8 @@ nightly.py calls these from its command line; the workflow calls nightly.py.
   attention_items, issue_texts
                 the items the run's last step reports, and the text of the
                 GitHub issue it opens, updates or closes.
+  notice_items  the run's notices: information for LAST_RUN.md and the
+                daily check's email, never an item needing attention.
 
 Every function here returns its finding rather than raising: a fault in this
 layer must never stop a night that would otherwise have worked. Tokens travel
@@ -713,12 +715,20 @@ def attention_items(status: Any) -> list[str]:
     checks = status.get("checks")
     if isinstance(checks, dict):
         items.extend(f"Expiry check: {i}" for i in checks.get("items") or [] if isinstance(i, str))
-    # Notices: a reference list that changed, a list not yet readable, a list
-    # not read tonight. Each needs a person, but none means the run failed.
-    for n in status.get("notices") or []:
-        if isinstance(n, dict) and isinstance(n.get("detail"), str) and n["detail"]:
-            items.append(f"{n.get('source') or 'notice'}: {n['detail']}")
+    # The run's notices (notice_items) are not here: they never fail the step
+    # or open the issue.
     return items
+
+
+def notice_items(status: Any) -> list[str]:
+    """The run's notices, one line each: a government notice first listed, IRCC's
+    high-wage list adopted or unreadable, a designated-employer list or a news
+    feed that changed state. Information, never an item needing attention: they
+    go to LAST_RUN.md and the daily check's email, and the run stays ok."""
+    if not isinstance(status, dict):
+        return []
+    return [f"{n.get('source') or 'notice'}: {n['detail']}" for n in status.get("notices") or []
+            if isinstance(n, dict) and isinstance(n.get("detail"), str) and n["detail"]]
 
 
 def issue_texts(items: list[str], run_url: str, day: str) -> dict[str, str]:
