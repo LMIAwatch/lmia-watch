@@ -580,14 +580,33 @@ jobs:
       - name: Save the public files to R2
         id: save_files
         if: ${{ !cancelled() && steps.deploy.outcome == 'success' && steps.smoke.outputs.verdict != 'broken' }}
+        # Each upload is tried three times, 20, 40 and 60 seconds apart: the
+        # API answers an occasional 524 on a single put (2026-10-26), and one
+        # such answer must not leave the rest of the files a day old. A file
+        # still failing after three tries is named, the loop goes on, and the
+        # step fails at the end so the attention item says so.
         run: |
-          "$WRANGLER" r2 object put --remote "$BUCKET/static.tar.gz" --file data/out/static.tar.gz
+          put() {
+            local attempt
+            for attempt in 1 2 3; do
+              if "$WRANGLER" r2 object put --remote "$1" --file "$2"; then return 0; fi
+              echo "::warning::upload of $1 failed (attempt $attempt of 3)"
+              sleep $((20 * attempt))
+            done
+            return 1
+          }
+          failed=""
+          put "$BUCKET/static.tar.gz" data/out/static.tar.gz || failed="$failed static.tar.gz"
           for f in data/out/csv/*.csv; do
-            "$WRANGLER" r2 object put --remote "$BUCKET/downloads/$(basename "$f")" --file "$f"
+            put "$BUCKET/downloads/$(basename "$f")" "$f" || failed="$failed $(basename "$f")"
           done
           for f in data/out/mirror/*; do
-            "$WRANGLER" r2 object put --remote "$BUCKET/mirror/$(basename "$f")" --file "$f"
+            put "$BUCKET/mirror/$(basename "$f")" "$f" || failed="$failed $(basename "$f")"
           done
+          if [ -n "$failed" ]; then
+            echo "::error::not saved to R2 after three tries:$failed"
+            exit 1
+          fi
 
       # The audience counts (docs/search-engines.md, section 6). Analytics
       # Engine keeps the Worker's data points for three months; this keeps
