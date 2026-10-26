@@ -202,6 +202,21 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); width
 .two-col > div > .sub:first-child { margin-top: 0; }
 .sub + .bars, .sub + .table-wrap { margin-top: 4px; }
 .topic p.links { margin: 14px 0 0; font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px 20px; }
+/* Government notices (/notices): a dated list, no table. The home page's short list of the latest three. */
+.notice-kept { margin-top: 4px; }
+.notice-list { list-style: none; padding: 0; margin: 16px 0 0; }
+.notice-list > li { border-top: 1px solid var(--rule); padding: 14px 0 16px; margin: 0; }
+.notice-list > li:first-child { border-top: 2px solid var(--text); }
+.notice-meta { margin: 0 0 4px; font-size: 14px; color: var(--muted); }
+.notice-meta .mono { color: var(--text); font-weight: 600; }
+.notice-meta abbr { text-decoration: none; }
+.notice-title { font-size: 18px; line-height: 1.35; margin: 0 0 6px; font-weight: 600; }
+.notice-summary { margin: 0 0 6px; max-width: 72ch; }
+.notice-feed { margin: 0; font-size: 14px; color: var(--muted); }
+.home-notice-list { list-style: none; padding: 0; margin: 0; }
+.home-notice-list li { margin: 0; padding: 6px 0; border-bottom: 1px solid var(--rule); }
+.home-notice-list li:last-child { border-bottom: 0; }
+.home-notice-list .mono { margin-right: 8px; }
 .panel { background: var(--panel); padding: 20px 24px; margin-top: 24px; }
 .panel h2 { margin-top: 0; }
 .panel > :last-child { margin-bottom: 0; }

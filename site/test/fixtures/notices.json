@@ -1,0 +1,383 @@
+{
+  "as_of": "2026-10-25",
+  "last_checked": "2026-10-25",
+  "window_from": "2025-10-25",
+  "count": 10,
+  "first": "2026-02-17",
+  "last": "2026-10-16",
+  "terms": [
+    {
+      "label": "LMIA",
+      "lang": "en"
+    },
+    {
+      "label": "labour market impact assessment",
+      "lang": "en"
+    },
+    {
+      "label": "Temporary Foreign Worker",
+      "lang": "en"
+    },
+    {
+      "label": "TFWP",
+      "lang": "en"
+    },
+    {
+      "label": "Express Entry",
+      "lang": "en"
+    },
+    {
+      "label": "work permit",
+      "lang": "en"
+    },
+    {
+      "label": "Job Bank",
+      "lang": "en"
+    },
+    {
+      "label": "wage threshold",
+      "lang": "en"
+    },
+    {
+      "label": "refusal to process",
+      "lang": "en"
+    },
+    {
+      "label": "International Mobility Program",
+      "lang": "en"
+    },
+    {
+      "label": "permanent residence job offer",
+      "lang": "en"
+    },
+    {
+      "label": "EIMT",
+      "lang": "fr"
+    },
+    {
+      "label": "étude d’impact sur le marché du travail",
+      "lang": "fr"
+    },
+    {
+      "label": "travailleurs étrangers temporaires",
+      "lang": "fr"
+    },
+    {
+      "label": "Entrée express",
+      "lang": "fr"
+    },
+    {
+      "label": "permis de travail",
+      "lang": "fr"
+    },
+    {
+      "label": "Guichet-Emplois",
+      "lang": "fr"
+    }
+  ],
+  "feeds": [
+    {
+      "key": "ircc_en",
+      "department": "ircc",
+      "lang": "en",
+      "state": "ok",
+      "checked": "2026-10-25",
+      "last_ok": "2026-10-25"
+    },
+    {
+      "key": "ircc_fr",
+      "department": "ircc",
+      "lang": "fr",
+      "state": "ok",
+      "checked": "2026-10-25",
+      "last_ok": "2026-10-25"
+    },
+    {
+      "key": "esdc_en",
+      "department": "esdc",
+      "lang": "en",
+      "state": "ok",
+      "checked": "2026-10-25",
+      "last_ok": "2026-10-25"
+    },
+    {
+      "key": "esdc_fr",
+      "department": "esdc",
+      "lang": "fr",
+      "state": "ok",
+      "checked": "2026-10-25",
+      "last_ok": "2026-10-25"
+    }
+  ],
+  "items": [
+    {
+      "id": "f1ff7900dc914f4f",
+      "department": "ircc",
+      "type": "news_release",
+      "published": "2026-10-16",
+      "title": {
+        "en": "Canada refocusing Express Entry on top talent that drives economic growth",
+        "fr": "Le Canada réoriente le système Entrée express vers les travailleurs qualifiés qui stimulent l’économie"
+      },
+      "summary": {
+        "en": "Building a stronger Canada means restoring confidence in a well-managed immigration system that meets our economic needs. This includes attracting and retaining skilled talent to complement the Canadian workforce and drive economic growth.",
+        "fr": "Pour bâtir un Canada plus fort, il faut rétablir la confiance dans un système d’immigration bien géré qui réponde à nos besoins économiques. Cela passe notamment par l’attraction et le maintien en poste de travailleurs qualifiés qui viennent appuyer la main-d’œuvre canadienne et stimuler la croissance économique."
+      },
+      "url": {
+        "en": "https://www.canada.ca/en/immigration-refugees-citizenship/news/2026/10/canada-refocusing-express-entry-on-top-talent-that-drives-economic-growth.html",
+        "fr": "https://www.canada.ca/fr/immigration-refugies-citoyennete/nouvelles/2026/10/le-canada-reoriente-le-systeme-entree-express-vers-les-travailleurs-qualifies-qui-stimulent-leconomie.html"
+      },
+      "terms": {
+        "en": [
+          "Express Entry"
+        ],
+        "fr": [
+          "Entrée express"
+        ]
+      },
+      "first_seen": "2026-10-24"
+    },
+    {
+      "id": "b274e27dad6856c5",
+      "department": "ircc",
+      "type": "backgrounder",
+      "published": "2026-10-16",
+      "title": {
+        "en": "Changes to Express Entry for high-wage occupations",
+        "fr": "Modifications apportées au système Entrée Express concernant les professions à salaire élevé"
+      },
+      "summary": {
+        "en": "On November 3, 2026, changes to Express Entry willintroduce points for eligible Canadian work experience or qualifying job offers in high­wage occupations, and remove labour market impact assessment (LMIA) requirements for qualifying job offers used to establish program eligibility and obtain Comprehensive Ranking System (CRS) points",
+        "fr": "Le 3 novembre 2026, des modifications à Entrée express permettront d’attribuer des points pour une expérience de travail admissible au Canada ou une offre d’emploi admissible dans une profession à salaire élevé; de supprimer les exigences relatives à l’évaluation de l’impact sur le marché du travail (EIMT) pour les offres d’emploi admissibles utilisées pour l’admissibilité aux programmes et obtenir des points dans le Système de classement global (SCG)."
+      },
+      "url": {
+        "en": "https://www.canada.ca/en/immigration-refugees-citizenship/news/2026/10/changes-to-express-entry-for-high-wage-occupations.html",
+        "fr": "https://www.canada.ca/fr/immigration-refugies-citoyennete/nouvelles/2026/10/modifications-apportees-au-systeme-entree-express-concernant-les-professions-a-salaire-eleve.html"
+      },
+      "terms": {
+        "en": [
+          "LMIA",
+          "labour market impact assessment",
+          "Express Entry"
+        ],
+        "fr": [
+          "EIMT",
+          "Entrée express"
+        ]
+      },
+      "first_seen": "2026-10-24"
+    },
+    {
+      "id": "1fb646204060c3d3",
+      "department": "esdc",
+      "type": "news_release",
+      "published": "2026-07-09",
+      "title": {
+        "en": "The Government of Canada highlights doubling of compliance monetary penalties under the Temporary Foreign Worker Program",
+        "fr": "Le gouvernement du Canada souligne le doublement des sanctions pécuniaires en cas de non-conformité dans le cadre du Programme des travailleurs étrangers temporaires"
+      },
+      "summary": {
+        "en": "The federal government is focused on building lasting economic strength. This starts right here at home.",
+        "fr": "La priorité du gouvernement fédéral consiste à renforcer l’économie de façon durable. Et cela commence ici même, chez nous."
+      },
+      "url": {
+        "en": "https://www.canada.ca/en/employment-social-development/news/2026/07/the-government-of-canada-highlights-doubling-of-compliance-monetary-penalties-under-the-temporary-foreign-worker-program.html",
+        "fr": "https://www.canada.ca/fr/emploi-developpement-social/nouvelles/2026/07/le-gouvernement-du-canada-souligne-le-doublement-des-sanctions-pecuniaires-en-cas-de-non-conformite-dans-le-cadre-du-programme-des-travailleurs-etr.html"
+      },
+      "terms": {
+        "en": [
+          "Temporary Foreign Worker"
+        ],
+        "fr": [
+          "travailleurs étrangers temporaires"
+        ]
+      },
+      "first_seen": "2026-10-24"
+    },
+    {
+      "id": "d4ffbd7126f5f23e",
+      "department": "ircc",
+      "type": "backgrounder",
+      "published": "2026-06-04",
+      "title": {
+        "en": "Canada strengthens borders while supporting economic and tourism ties with Saint-Pierre-et-Miquelon",
+        "fr": "Le Canada renforce ses frontières tout en soutenant les liens économiques et touristiques avec Saint-Pierre-et-Miquelon"
+      },
+      "summary": {
+        "en": "As part of Canada’s Border Plan, Immigration, Refugees and Citizenship Canada and its partners have strengthened screening, increased information sharing, and enhanced fraud detection to help identify non-genuine travellers and protect the integrity of Canada’s immigration and asylum systems. In 2025, Canada also strengthened authorities to cancel eTAs, visas, and work or study permits in specific circumstances on a case-by-case basis.",
+        "fr": "Dans le cadre du Plan frontalier du Canada, Immigration, Réfugiés et Citoyenneté Canada et ses partenaires ont renforcé les contrôles, augmenté l’échange de renseignements et amélioré la détection des fraudes pour aider à identifier les voyageurs non authentiques et protéger l’intégrité des systèmes d’immigration et d’asile du Canada. En 2025, le Canada a également renforcé les pouvoirs d’annulation des AVE, des visas et des permis de travail ou d’études dans des situations particulières, au cas par cas."
+      },
+      "url": {
+        "en": "https://www.canada.ca/en/immigration-refugees-citizenship/news/2026/06/canada-strengthens-borders-while-supporting-economic-and-tourism-ties-with-saint-pierre-et-miquelon.html",
+        "fr": "https://www.canada.ca/fr/immigration-refugies-citoyennete/nouvelles/2026/06/le-canada-renforce-ses-frontieres-tout-en-soutenant-les-liens-economiques-et-touristiques-avec-saint-pierre-et-miquelon.html"
+      },
+      "terms": {
+        "en": [],
+        "fr": [
+          "permis de travail"
+        ]
+      },
+      "first_seen": "2026-10-24"
+    },
+    {
+      "id": "cd67bc4d8f202671",
+      "department": "ircc",
+      "type": "news_release",
+      "published": "2026-03-31",
+      "title": {
+        "en": "Canada extends certain work permit measures for Ukrainians",
+        "fr": null
+      },
+      "summary": {
+        "en": "As Russia's illegal war against Ukraine continues, Canada continues to support Ukrainian people who are here contributing to our communities and labour market.",
+        "fr": null
+      },
+      "url": {
+        "en": "https://www.canada.ca/en/immigration-refugees-citizenship/news/2026/03/canada-extends-certain-work-permit-measures-for-ukrainians.html",
+        "fr": null
+      },
+      "terms": {
+        "en": [
+          "work permit"
+        ],
+        "fr": []
+      },
+      "first_seen": "2026-10-24"
+    },
+    {
+      "id": "ca6474abc038d1a7",
+      "department": "ircc",
+      "type": "backgrounder",
+      "published": "2026-03-13",
+      "title": {
+        "en": "Canada–Quebec collaboration on immigration",
+        "fr": "Collaboration Canada-Québec concernant l’immigration"
+      },
+      "summary": {
+        "en": "Under Canada’s constitution, responsibility for immigration is shared between the federal and provincial or territorial governments. The federal government is responsible for setting overall immigration levels, including the admission targets for each immigration category, issuing visas, and managing permanent residence and temporary foreign worker programs.",
+        "fr": "Aux termes de la Constitution du Canada, le gouvernement fédéral partage la responsabilité de l’immigration avec les gouvernements provinciaux et territoriaux. Le gouvernement fédéral est chargé de fixer les niveaux globaux d’immigration, y compris les objectifs d’admission pour chaque catégorie d’immigration, de délivrer les visas et de gérer les programmes de résidence permanente et de travailleurs étrangers temporaires."
+      },
+      "url": {
+        "en": "https://www.canada.ca/en/immigration-refugees-citizenship/news/2026/03/canadaquebec-collaboration-on-immigration.html",
+        "fr": "https://www.canada.ca/fr/immigration-refugies-citoyennete/nouvelles/2026/03/collaboration-canada-quebec-concernant-limmigration.html"
+      },
+      "terms": {
+        "en": [
+          "Temporary Foreign Worker"
+        ],
+        "fr": [
+          "travailleurs étrangers temporaires"
+        ]
+      },
+      "first_seen": "2026-10-24"
+    },
+    {
+      "id": "cc4101b670e58a45",
+      "department": "esdc",
+      "type": "news_release",
+      "published": "2026-03-13",
+      "title": {
+        "en": "Government of Canada taking action to support rural employers under the Temporary Foreign Worker Program",
+        "fr": "Le gouvernement du Canada prend des mesures pour appuyer les employeurs des régions rurales dans le cadre du Programme des travailleurs étrangers temporaires"
+      },
+      "summary": {
+        "en": "Strong local businesses and a reliable workforce are essential to keeping rural economies growing and communities thriving across Canada. Canadians must always be first in line for available jobs. However, in regions experiencing severe labour shortages, the Temporary Foreign Worker (TFW) Program allows employers to hire foreign workers to address critical, short-term workforce gaps when qualified Canadians or permanent residents are not available.",
+        "fr": "Des entreprises locales solides et une main-d’œuvre fiable sont essentielles pour soutenir la croissance des économies rurales et la vitalité des collectivités partout au Canada. Les Canadiens doivent toujours être les premiers à avoir accès aux emplois disponibles. Toutefois, dans les régions où les pénuries de main-d’œuvre sont particulièrement importantes, le Programme des travailleurs étrangers temporaires permet aux employeurs d’embaucher des travailleurs étrangers afin de combler des besoins essentiels et temporaires lorsqu’aucun Canadien ou résident permanent qualifié n’est disponible."
+      },
+      "url": {
+        "en": "https://www.canada.ca/en/employment-social-development/news/2026/03/government-of-canada-taking-action-to-support-rural-employers-under-the-temporary-foreign-worker-program.html",
+        "fr": "https://www.canada.ca/fr/emploi-developpement-social/nouvelles/2026/03/le-gouvernement-du-canada-prend-des-mesures-pour-appuyer-les-employeurs-des-regions-rurales-dans-le-cadre-du-programme-des-travailleurs-etrangers-t.html"
+      },
+      "terms": {
+        "en": [
+          "Temporary Foreign Worker"
+        ],
+        "fr": [
+          "travailleurs étrangers temporaires"
+        ]
+      },
+      "first_seen": "2026-10-24"
+    },
+    {
+      "id": "943e9b0bf0bb6617",
+      "department": "ircc",
+      "type": "speech",
+      "published": "2026-02-18",
+      "title": {
+        "en": "Speaking notes for the Honourable Lena Metlege Diab, Minister of Immigration, Refugees and Citizenship: Prioritizing top talent in 2026 Express Entry Categories",
+        "fr": "Allocution prononcée par l'honorable Lena Metlege Diab, ministre de l’Immigration, des Réfugiés et de la Citoyenneté : Prioriser les talents de premier plan dans les catégories d’Entrée express de 2026"
+      },
+      "summary": {
+        "en": "Speaking notes for the Honourable Lena Metlege Diab, Minister of Immigration, Refugees and Citizenship: Prioritizing top talent in 2026 Express Entry Categories",
+        "fr": "Allocution prononcée par l'honorable Lena Metlege Diab, ministre de l’Immigration, des Réfugiés et de la Citoyenneté : Canada accorde la priorité aux talent dans d’Éntree express"
+      },
+      "url": {
+        "en": "https://www.canada.ca/en/immigration-refugees-citizenship/news/2026/02/speaking-notes-for-the-honourable-lena-metlege-diab-minister-of-immigration-refugees-and-citizenship-prioritizing-top-talent-in-2026-express-entry.html",
+        "fr": "https://www.canada.ca/fr/immigration-refugies-citoyennete/nouvelles/2026/02/allocution-prononcee-par-lhonorable-lena-metlege-diab-ministre-de-limmigration-des-refugies-et-de-la-citoyennete-priorites-dans-dentree-express-2026.html"
+      },
+      "terms": {
+        "en": [
+          "Express Entry"
+        ],
+        "fr": [
+          "Entrée express"
+        ]
+      },
+      "first_seen": "2026-10-24"
+    },
+    {
+      "id": "aba6b17ffbf19271",
+      "department": "ircc",
+      "type": "news_release",
+      "published": "2026-02-18",
+      "title": {
+        "en": "Canada prioritizes top talent in 2026 immigration Express Entry categories",
+        "fr": "Le Canada accorde la priorité aux meilleurs talents dans les catégories d’immigration d’Entrée express 2026"
+      },
+      "summary": {
+        "en": "Canada is taking back control to return immigration to sustainable levels, while ensuring it continues to support the economy. As global competition for skilled workers intensifies, Canada’s immigration system is focused on attracting and retaining highly skilled immigrants through the International Talent Attraction Strategy.",
+        "fr": "Le Canada reprend le contrôle afin de ramener l’immigration à des niveaux viables, tout en veillant à ce qu’elle continue de soutenir l’économie. Alors que la concurrence mondiale pour la main-d’œuvre qualifiée s’intensifie, le système d’immigration canadien s’efforce d’attirer et de retenir les personnes immigrantes hautement qualifiées grâce à la Stratégie d’attraction des talents internationaux."
+      },
+      "url": {
+        "en": "https://www.canada.ca/en/immigration-refugees-citizenship/news/2026/02/canada-prioritizes-top-talent-in-2026-immigration-express-entry-categories.html",
+        "fr": "https://www.canada.ca/fr/immigration-refugies-citoyennete/nouvelles/2026/02/le-canada-accorde-la-priorite-aux-meilleurs-talents-dans-les-categories-dimmigration-dentree-express-2026.html"
+      },
+      "terms": {
+        "en": [
+          "Express Entry"
+        ],
+        "fr": [
+          "Entrée express"
+        ]
+      },
+      "first_seen": "2026-10-24"
+    },
+    {
+      "id": "faab002853633666",
+      "department": "ircc",
+      "type": "media_advisory",
+      "published": "2026-02-17",
+      "title": {
+        "en": "Minister Diab to make an announcement at the Canadian Club Toronto",
+        "fr": "La ministre Diab fera une annonce au Club canadien de Toronto"
+      },
+      "summary": {
+        "en": "The Honourable Lena Metlege Diab, Minister of Immigration, Refugees and Citizenship, will make an announcement related to immigration Express Entry categories as part of an address to the Canadian Club Toronto. A media availability will follow.",
+        "fr": "L’honorable Lena Metlege Diab, ministre de l'Immigration, des Réfugiés et de la Citoyenneté, fera une annonce relative aux catégories d’immigration d’Entrée express dans le cadre d’une allocution au Club canadien de Toronto. Une conférence de presse suivra."
+      },
+      "url": {
+        "en": "https://www.canada.ca/en/immigration-refugees-citizenship/news/2026/02/minister-diab-to-make-an-announcement-at-the-canadian-club-toronto.html",
+        "fr": "https://www.canada.ca/fr/immigration-refugies-citoyennete/nouvelles/2026/02/la-ministre-diab-fera-une-annonce-au-club-canadien-de-toronto.html"
+      },
+      "terms": {
+        "en": [
+          "Express Entry"
+        ],
+        "fr": [
+          "Entrée express"
+        ]
+      },
+      "first_seen": "2026-10-24"
+    }
+  ]
+}

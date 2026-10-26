@@ -11,7 +11,8 @@ import { EE_LINKS } from "./methodology";
 import { isListOf, isNum, isNumOrNull, isObj, isStr, isStrOrNull } from "../valid";
 
 // The changelog, newest first whatever order the entries are written in.
-// Add an entry here; the table sorts by date.
+// Add an entry here; the table sorts by date, and entries of the same date
+// keep their order here (the sort is stable).
 export type ChangeRow = { date: string; change: Key; recomputed: Key; vars?: Record<string, string | number> };
 export const CHANGELOG: readonly ChangeRow[] = [
   { date: "2026-10-12", change: "data.change_drafted", recomputed: "data.recomputed_all", vars: { rules: "0.1" } },
@@ -26,8 +27,9 @@ export const CHANGELOG: readonly ChangeRow[] = [
   { date: "2026-10-22", change: "data.change_program", recomputed: "data.recomputed_program", vars: { rules: "0.3" } },
   { date: "2026-10-23", change: "data.change_search", recomputed: "data.recomputed_search" },
   { date: "2026-10-24", change: "data.change_surfaces", recomputed: "data.recomputed_none" },
-  { date: "2026-10-25", change: "data.change_card_links", recomputed: "data.recomputed_none" },
+  { date: "2026-10-26", change: "data.change_notices", recomputed: "data.recomputed_notices" },
   { date: "2026-10-25", change: "data.change_intl", recomputed: "data.recomputed_intl" },
+  { date: "2026-10-25", change: "data.change_card_links", recomputed: "data.recomputed_none" },
 ];
 // Numbers in an entry are formatted for the page's language; the drafted entry names the latest period.
 export function changelog(latestPeriod: string, lang: Lang): { date: string; change: Key; recomputed: Key; vars: Record<string, string> }[] {
@@ -84,6 +86,8 @@ export const LICENCE_ROWS: readonly { material: Key; terms: Key }[] = [
   { material: "data.lic.jobbank_intl", terms: "data.lic.jobbank_terms" },
   { material: "data.lic.high_wage", terms: "data.lic.high_wage_terms" },
   { material: "data.lic.registers", terms: "data.lic.registers_terms" },
+  // Government notices: the departments' own titles and summaries, under canada.ca's terms.
+  { material: "data.lic.notices", terms: "data.lic.notices_terms" },
 ];
 
 // Job Bank's search under the international-candidates filter, in each language.

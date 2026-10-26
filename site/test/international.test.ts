@@ -5,7 +5,7 @@ import { app } from "../src/index";
 import { t } from "../src/i18n";
 import { isIntlFile, reasonSentences } from "../src/pages/international";
 import { routeTemplate } from "../src/views";
-import { collectAlerts, readStatus } from "../src/watchdog";
+import { collectAlerts, collectNotices, readStatus } from "../src/watchdog";
 import { emptyAssets, makeFakeAssets, testEnv } from "./assets";
 import international from "./fixtures/international-index.json";
 
@@ -263,16 +263,17 @@ describe("the Data page", () => {
 });
 
 describe("the watchdog", () => {
-  it("emails each notice the run recorded, and drops an unreadable one", () => {
+  it("carries each notice the run recorded as information, never an alert, and drops an unreadable one", () => {
     const { status } = readStatus({
       run_at: "2026-10-20T00:48:00Z", ok: true, stages: [],
       notices: [{ source: "high_wage", detail: "IRCC high-wage list changed: 2 codes added, 0 removed" }, { bad: true }, "x"],
     });
     expect(status?.notices).toEqual([{ source: "high_wage", detail: "IRCC high-wage list changed: 2 codes added, 0 removed" }]);
-    const alerts = collectAlerts({
+    const inputs = {
       now: new Date("2026-10-20T06:00:00Z"), dataAsOf: "2026-10-20", backupUploaded: new Date("2026-10-20T00:50:00Z"), status,
-    });
-    expect(alerts).toEqual(["The last run noted (high_wage): IRCC high-wage list changed: 2 codes added, 0 removed"]);
+    };
+    expect(collectAlerts(inputs)).toEqual([]);
+    expect(collectNotices(inputs)).toEqual(["high_wage: IRCC high-wage list changed: 2 codes added, 0 removed"]);
   });
 });
 

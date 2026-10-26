@@ -52,6 +52,7 @@ const SENTINELS = [
   "Your name and role",
   "is a secondary source",
   "Employer selected:",
+  "touch these programs only in passing",
 ];
 
 const FRENCH_PAGES = [
@@ -74,6 +75,7 @@ const FRENCH_PAGES = [
   "/downloads/employers.csv?lang=fr",
   "/program?lang=fr",
   "/international?lang=fr",
+  "/notices?lang=fr",
   "/cite?lang=fr",
 ];
 
@@ -444,7 +446,7 @@ describe("rendered French pages", () => {
 
   it("keep the sentinel list honest: each phrase is on an English page", async () => {
     const pages = await Promise.all(
-      ["/", "/search", "/search?status=refused", "/map", "/methodology", "/data", "/support", "/cite", "/employers/emp-a000000001", "/nothing-here", "/employers/emp-a000000001/respond", "/international"].map(
+      ["/", "/search", "/search?status=refused", "/map", "/methodology", "/data", "/support", "/cite", "/employers/emp-a000000001", "/nothing-here", "/employers/emp-a000000001/respond", "/international", "/notices"].map(
         async (p) => (await get(p)).text(),
       ),
     );

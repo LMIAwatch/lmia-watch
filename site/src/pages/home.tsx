@@ -6,6 +6,7 @@ import { Badge, Layout, fmtInt, noDataPage, page, periodLabel, slashBreaks } fro
 import { homeJsonLd, pageSeo } from "../seo";
 import { isListOf, isNum, isObj, isStr, isStrOrNull } from "../valid";
 import { FeedLinks } from "./feeds";
+import { HomeNotices, loadNotices } from "./notices";
 import { isBilingual } from "./places";
 
 // The lists of stats.json that only this page reads, checked here rather than
@@ -31,7 +32,9 @@ export async function homePage(c: Context<AppEnv>): Promise<Response> {
   ) return noDataPage(c, "common.home");
   // Pending postings by province, from the search facets, beside the week's
   // postings in the pending row; each row links to the filtered search.
-  const facets = await loadFacets(c.env).catch(() => null);
+  // The three latest government notices, below the topic rows. Optional: a
+  // missing or unreadable notices.json leaves the block out.
+  const [facets, notices] = await Promise.all([loadFacets(c.env).catch(() => null), loadNotices(c.env)]);
   const pendingByProv = Object.entries(facets?.default.status_prov ?? {})
     .filter(([k, n]) => k.startsWith("pending|") && n > 0)
     .map(([k, n]) => ({ k: k.slice("pending|".length), n }))
@@ -270,6 +273,8 @@ export async function homePage(c: Context<AppEnv>): Promise<Response> {
           </div>
         </div>
       </section>
+
+      {notices ? <HomeNotices d={notices} lang={lang} /> : null}
 
       <section class="panel">
         <h2>{t(lang, "home.how")}</h2>

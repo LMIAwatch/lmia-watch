@@ -206,16 +206,17 @@ function shift(iso: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function passes(r: Seed, q: SearchQuery, skip: "status" | "prov" | null = null): boolean {
+// dataDate: the date the API counts date filters from (the counts file's data_as_of, else today).
+function passes(r: Seed, q: SearchQuery, skip: "status" | "prov" | null = null, dataDate: string = DATA_DATE): boolean {
   if (skip !== "status" && q.status.length && q.status.length < 3 && !q.status.includes(r.status as any)) return false;
   if (skip !== "prov" && q.province.length && !q.province.includes(r.prov ?? "UN")) return false;
   if (q.stream.length && !q.stream.some((s) => SPELLINGS[s].includes(r.stream ?? ""))) return false;
   if (q.nocCode && !(r.noc ?? "").startsWith(q.nocCode)) return false;
   if (q.wageMin !== null && !(r.wage_min !== null && r.wage_min >= q.wageMin)) return false;
   if (q.wageMax !== null && !(r.wage_max !== null && r.wage_max <= q.wageMax)) return false;
-  if (q.date === "7d" && !(r.kind === "posting" && r.date !== null && r.date >= shift(DATA_DATE, -7))) return false;
+  if (q.date === "7d" && !(r.kind === "posting" && r.date !== null && r.date >= shift(dataDate, -7))) return false;
   if (q.date === "last_quarter" &&
-    !(r.kind === "posting" ? r.date !== null && r.date >= shift(DATA_DATE, -92) : r.period === LATEST_PERIOD)) return false;
+    !(r.kind === "posting" ? r.date !== null && r.date >= shift(dataDate, -92) : r.period === LATEST_PERIOD)) return false;
   if (q.yearFrom !== null && r.year < q.yearFrom) return false;
   if (q.yearTo !== null && r.year > q.yearTo) return false;
   if (q.indicator && !r.ind.split(",").includes(q.indicator)) return false;
@@ -239,7 +240,9 @@ function ordered(rows: Seed[], sort: string): Seed[] {
   return out;
 }
 
-const expected = (q: SearchQuery) => ordered(SEEDS.filter((r) => passes(r, q)), q.sort).map(keyOf);
+const expected = (q: SearchQuery, dataDate: string = DATA_DATE) => ordered(SEEDS.filter((r) => passes(r, q, null, dataDate)), q.sort).map(keyOf);
+// Without counts.json the API counts from today, so the expectation must too.
+const TODAY = new Date().toISOString().slice(0, 10);
 const keyOfRow = (r: { kind: string; ref: number }) => `${r.kind === "posting" ? "p" : "e"}:${r.ref}`;
 
 // Every page of a query through runSearch, with a plan forced or chosen.
@@ -380,10 +383,10 @@ describe("filters and sorts", () => {
       for (const c of cases) {
         const qs = `${c}${c ? "&" : ""}sort=${sort}`;
         const q = query(qs);
-        for (const environment of [withCounts(), withoutCounts()]) {
+        for (const [environment, dataDate] of [[withCounts(), DATA_DATE], [withoutCounts(), TODAY]] as const) {
           const { status, body } = await api(qs, environment);
           expect(status, qs).toBe(200);
-          const want = expected(q);
+          const want = expected(q, dataDate);
           expect(body.rows.map(keyOfRow), qs).toEqual(want.slice(0, 50));
           expect(body.total, qs).toBe(want.length);
           expect(body.capped).toBe(false);

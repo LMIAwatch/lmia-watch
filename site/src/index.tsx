@@ -21,6 +21,7 @@ import { homePage } from "./pages/home";
 import { internationalPage } from "./pages/international";
 import { mapPage } from "./pages/map";
 import { methodologyPage } from "./pages/methodology";
+import { noticesPage } from "./pages/notices";
 import { rankingsPage } from "./pages/rankings";
 import { releasePage, releasesIndexPage } from "./pages/releases";
 import { occupationPage, occupationsIndex } from "./pages/occupations";
@@ -101,6 +102,8 @@ app.get("/trends/:view", trendsPage);
 app.get("/program", programPage);
 // Postings open to international candidates and the designated-employer lists: one small JSON file.
 app.get("/international", internationalPage);
+// IRCC and ESDC news items that name the programs, as the departments published them: one small JSON file.
+app.get("/notices", noticesPage);
 app.get("/occupations", occupationsIndex);
 app.get("/occupations/:noc", occupationPage);
 app.get("/places", placesIndex);

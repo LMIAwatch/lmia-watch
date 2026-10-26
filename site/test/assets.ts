@@ -6,6 +6,7 @@ import area from "./fixtures/area-V0N.json";
 import clusters from "./fixtures/clusters-latest.json";
 import facets from "./fixtures/facets.json";
 import international from "./fixtures/international-index.json";
+import notices from "./fixtures/notices.json";
 import profiles from "./fixtures/profiles-a00.json";
 import program from "./fixtures/program-index.json";
 import latest from "./fixtures/search-latest.json";
@@ -37,6 +38,8 @@ const FILES: Record<string, unknown> = {
   "program/index.json": program,
   // Postings open to international candidates and the designated-employer lists (/international).
   "international/index.json": international,
+  // Government notices (/notices and the home page's short list), from the pipeline's export of its feed fixtures.
+  "notices.json": notices,
 };
 
 // The assets binding sends a strong ETag that changes with the file's

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildEmail, collectAlerts, gatherInputs, readStatus, runWatchdog } from "../src/watchdog";
+import { buildEmail, collectAlerts, collectNotices, gatherInputs, readStatus, runWatchdog } from "../src/watchdog";
 import { testEnv } from "./assets";
 
 const now = new Date("2026-10-20T06:00:00Z");
@@ -97,6 +97,58 @@ describe("daily check", () => {
     expect(raw).toContain("1. one thing\r\n2. another");
     expect(raw).toContain("https://github.com/LMIAwatch/lmia-watch/actions");
     expect(buildEmail("a@b.ca", "c@d.ca", ["x"], now)).toContain("1 item need attention");
+  });
+});
+
+describe("daily check: notices", () => {
+  const notices = [
+    { source: "gov_notices", detail: "Government notice: 2026-10-19 Express Entry measure https://www.canada.ca/en/x.html" },
+    { source: "registers", detail: "Designated-employer lists read again: aip_nl" },
+  ];
+  const withNotices = { ...healthy, status: { ...healthy.status, notices } };
+
+  it("lists the run's notices apart from the alerts, and never as an alert", () => {
+    expect(collectAlerts(withNotices)).toEqual([]);
+    expect(collectNotices(withNotices)).toEqual([
+      "gov_notices: Government notice: 2026-10-19 Express Entry measure https://www.canada.ca/en/x.html",
+      "registers: Designated-employer lists read again: aip_nl",
+    ]);
+    // A status older than the last night is an alert of its own; its notices went out the morning after it.
+    const stale = { ...withNotices, status: { ...withNotices.status, run_at: "2026-10-18T00:48:00Z" } };
+    expect(collectNotices(stale)).toEqual([]);
+    expect(collectNotices({ ...healthy, status: null })).toEqual([]);
+  });
+
+  it("sends notices alone with a subject that says notices", () => {
+    const raw = buildEmail("a@b.ca", "c@d.ca", [], now, collectNotices(withNotices));
+    expect(raw).toContain("Subject: LMIA Watch: 2 notices from the last run");
+    expect(raw).not.toContain("need attention");
+    expect(raw).toContain("Daily check at 2026-10-20T06:00 UTC: nothing needs attention.");
+    expect(raw).toContain("Notices from the last run (information; nothing failed):");
+    expect(raw).toContain("- gov_notices: Government notice: 2026-10-19 Express Entry measure https://www.canada.ca/en/x.html");
+    expect(raw).toContain("when the last run recorded notices.");
+  });
+
+  it("puts alerts first and notices after them when there are both", () => {
+    const raw = buildEmail("a@b.ca", "c@d.ca", ["one thing"], now, ["registers: read again"]);
+    expect(raw).toContain("Subject: LMIA Watch: 1 item need attention, 1 notice");
+    expect(raw.indexOf("1. one thing")).toBeLessThan(raw.indexOf("- registers: read again"));
+    expect(raw).toContain("it repeats each day while an item remains.");
+  });
+
+  it("decides to send on a morning with notices and no alert", async () => {
+    // The morning after the fixture's data date (stats.json: 2026-10-12).
+    const morning = new Date("2026-10-13T06:00:00Z");
+    const bucket = {
+      head: async () => ({ uploaded: new Date("2026-10-13T00:50:00Z") }),
+      get: async () => ({ text: async () => JSON.stringify({ ...withNotices.status, run_at: "2026-10-13T00:48:00Z" }) }),
+    } as unknown as R2Bucket;
+    const env = { ...testEnv(), DATA: bucket, ALERT_EMAIL: "", ALERT_FROM: "" };
+    const result = await runWatchdog(env as never, morning);
+    expect(result.alerts).toEqual([]);
+    expect(result.notices).toHaveLength(2);
+    // No address configured in the test: the email is composed but not sent.
+    expect(result.sent).toBe(false);
   });
 });
 

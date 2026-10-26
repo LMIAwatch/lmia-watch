@@ -50,7 +50,8 @@ const STRINGS = {
   "nav.places": { en: "Places", fr: "Lieux" },
   "nav.releases": { en: "Releases", fr: "Publications" },
   "nav.methodology": { en: "Methodology", fr: "Méthodologie" },
-  "nav.data": { en: "Data & About", fr: "Données et à propos" },
+  "nav.data": { en: "About", fr: "À propos" },
+  "nav.notices": { en: "Notices", fr: "Avis" },
   "nav.support": { en: "Donate", fr: "Faire un don" },
   "nav.lang": { en: "FR", fr: "EN" },
   "nav.dark": { en: "Dark", fr: "Sombre" },
@@ -65,6 +66,7 @@ const STRINGS = {
   "footer.feeds": { en: "Feeds", fr: "Fils" },
   "footer.corrections": { en: "Corrections", fr: "Corrections" },
   "footer.cite": { en: "Cite", fr: "Citer" },
+  "footer.notices": { en: "Government Notices", fr: "Avis du gouvernement" },
   "footer.support": { en: "Support the Site", fr: "Soutenir le site" },
   "footer.x": { en: "LMIA Watch on X", fr: "LMIA Watch sur X" },
   "footer.bluesky": { en: "LMIA Watch on Bluesky", fr: "LMIA Watch sur Bluesky" },
@@ -172,7 +174,7 @@ const STRINGS = {
   "error.no_data_text": { en: "Try again after the next nightly run.", fr: "Réessayez après la prochaine mise à jour de nuit." },
   "error.file": { en: "File Not Published Yet", fr: "Fichier pas encore publié" },
   "error.file_text": { en: "The file {file} is not available yet.", fr: "Le fichier {file} n'est pas encore disponible." },
-  "error.file_back": { en: "Back to Data & About", fr: "Retour à Données et à propos" },
+  "error.file_back": { en: "Back to the About page", fr: "Retour à la page À propos" },
   "error.not_found": { en: "Page Not Found", fr: "Page introuvable" },
   "error.not_found_text": { en: "{home} or {search}.", fr: "{home} ou {search}." },
   "error.not_found_home": { en: "Go to the home page", fr: "Aller à la page d'accueil" },
@@ -3150,6 +3152,101 @@ const STRINGS = {
   "data.terms.pe_policy": { en: "Prince Edward Island website disclaimer and copyright policy", fr: "Avis et politique sur le droit d'auteur du site de l'Île-du-Prince-Édouard" },
   "data.terms.nl_disclaimer": { en: "gov.nl.ca disclaimer", fr: "Avis de non-responsabilité de gov.nl.ca" },
   "data.terms.community_site": { en: "The community website's copyright (all rights reserved)", fr: "Droit d'auteur du site de la collectivité (tous droits réservés)" },
+  // --- government notices (pages/notices.tsx, pipeline/lmia_pipeline/sources/notices.py) ---
+  "notices.h1": { en: "Government Notices", fr: "Avis du gouvernement" },
+  "notices.lead": {
+    en: "Official notices from IRCC and ESDC whose title or summary mentions the programs behind these records.",
+    fr: "Avis officiels d'IRCC et d'EDSC dont le titre ou le résumé mentionne les programmes dont relèvent ces dossiers.",
+  },
+  "notices.passing": {
+    en: "Some listed notices may touch these programs only in passing.",
+    fr: "Certains avis listés ne touchent ces programmes qu'en passant.",
+  },
+  "notices.is_not": {
+    en: "The list does not summarize the rules and is not complete: a notice that uses none of the terms below does not appear. A notice listed here has not changed any record on this site. How a change reaches the records is set out in the {link}.",
+    fr: "La liste ne résume pas les règles et n'est pas complète : un avis qui n'emploie aucun des termes ci-dessous n'y figure pas. Un avis listé ici n'a modifié aucun dossier du site. La façon dont un changement atteint les dossiers est décrite dans la {link}.",
+  },
+  "notices.method_link": { en: "methodology", fr: "méthodologie" },
+  "notices.not_published": {
+    en: "The notices have not been read yet. This page fills after the next nightly refresh.",
+    fr: "Les avis n'ont pas encore été lus. Cette page se remplira après la prochaine mise à jour de nuit.",
+  },
+  "notices.count_one": { en: "{n} notice, {first} to {last}", fr: "{n} avis, du {first} au {last}" },
+  "notices.count_many": { en: "{n} notices, {first} to {last}", fr: "{n} avis, du {first} au {last}" },
+  "notices.none": { en: "No notices from the last 12 months", fr: "Aucun avis des 12 derniers mois" },
+  "notices.order": { en: "Newest first, from the last 12 months.", fr: "Du plus récent au plus ancien, sur les 12 derniers mois." },
+  "notices.kept": {
+    en: "Checked each night; last checked {date}. A feed that cannot be read keeps its last items on this page and is noted in the run report.",
+    fr: "Vérifié chaque nuit; dernière vérification le {date}. Un fil qui ne peut pas être lu garde ses derniers éléments sur cette page et est signalé dans le rapport d'exécution.",
+  },
+  "notices.not_read": {
+    en: "Could not be read at the last check: {feeds}. The items read before stay listed.",
+    fr: "Impossible à lire à la dernière vérification : {feeds}. Les éléments lus auparavant restent listés.",
+  },
+  "notices.not_read_feed": { en: "the {dept} feed in {lang} (last read {date})", fr: "le fil d'{dept} en {lang} (dernière lecture le {date})" },
+  "notices.not_read_feed_never": { en: "the {dept} feed in {lang} (not read yet)", fr: "le fil d'{dept} en {lang} (pas encore lu)" },
+  "notices.feed": { en: "Feed: {feed}.", fr: "Fil : {feed}." },
+  "notices.terms": { en: "Terms: {terms}.", fr: "Termes : {terms}." },
+  "notices.terms_other": { en: "Terms (French version): {terms}.", fr: "Termes (version anglaise) : {terms}." },
+  "notices.fr_missing": {
+    en: "Title in English: the French feed does not carry this item.",
+    fr: "Titre en anglais : le fil français ne donne pas cet élément.",
+  },
+  "notices.en_missing": {
+    en: "Title in French: the English feed does not carry this item.",
+    fr: "Titre en français : le fil anglais ne donne pas cet élément.",
+  },
+  "notices.type.news_release": { en: "News release", fr: "Communiqué de presse" },
+  "notices.type.backgrounder": { en: "Backgrounder", fr: "Document d'information" },
+  "notices.type.statement": { en: "Statement", fr: "Déclaration" },
+  "notices.type.speech": { en: "Speech", fr: "Discours" },
+  "notices.type.media_advisory": { en: "Media advisory", fr: "Avis aux médias" },
+  "notices.dept.ircc": { en: "IRCC", fr: "IRCC" },
+  "notices.dept.esdc": { en: "ESDC", fr: "EDSC" },
+  "notices.dept.ircc_long": { en: "Immigration, Refugees and Citizenship Canada", fr: "Immigration, Réfugiés et Citoyenneté Canada" },
+  "notices.dept.esdc_long": { en: "Employment and Social Development Canada", fr: "Emploi et Développement social Canada" },
+  "notices.feed.ircc": { en: "IRCC news, Canada.ca (Atom)", fr: "nouvelles d'IRCC, Canada.ca (Atom)" },
+  "notices.feed.esdc": { en: "ESDC news, Canada.ca (Atom)", fr: "nouvelles d'EDSC, Canada.ca (Atom)" },
+  "notices.feed_lang.en": { en: "English", fr: "anglais" },
+  "notices.feed_lang.fr": { en: "French", fr: "français" },
+  "notices.src_h": { en: "Sources and Terms", fr: "Sources et conditions" },
+  "notices.src_read": {
+    en: "Read each night: the news feeds of Immigration, Refugees and Citizenship Canada and of Employment and Social Development Canada on Canada.ca, in English and French. They carry news releases, backgrounders, statements, speeches and media advisories.",
+    fr: "Lus chaque nuit : les fils de nouvelles d'Immigration, Réfugiés et Citoyenneté Canada et d'Emploi et Développement social Canada sur Canada.ca, en français et en anglais. Ils regroupent communiqués de presse, documents d'information, déclarations, discours et avis aux médias.",
+  },
+  "notices.src_terms": {
+    en: "An item is listed when its title or summary, in either language, contains one of these terms: {terms}.",
+    fr: "Un élément figure ici lorsque son titre ou son résumé, dans l'une ou l'autre langue, contient l'un de ces termes : {terms}.",
+  },
+  "notices.src_not_covered": {
+    en: "Not covered: the Canada Gazette, Parts I and II (its feeds name each issue, not the notices in it), and pages without a feed, such as IRCC's notices and ministerial instructions.",
+    fr: "Non couverts : la Gazette du Canada, parties I et II (ses fils nomment chaque numéro, pas les avis qu'il contient), et les pages sans fil, comme les avis et les instructions ministérielles d'IRCC.",
+  },
+  "notices.src_licence": {
+    en: "Titles and summaries are Crown copyright, reproduced under the {terms} (non-commercial reproduction with attribution). Each title links to the department's own page. The dateline at the start of a summary is left out, since the date is shown.",
+    fr: "Les titres et les résumés sont protégés par le droit d'auteur de la Couronne et reproduits conformément à l'{terms} (reproduction non commerciale avec mention de la source). Chaque titre mène à la page du ministère. La ligne de date au début d'un résumé est omise, puisque la date est affichée.",
+  },
+  "notices.src_terms_link": { en: "canada.ca terms and conditions", fr: "avis de Canada.ca" },
+  "notices.seo_title": { en: "Government Notices from IRCC and ESDC", fr: "Avis du gouvernement d'IRCC et d'EDSC" },
+  "notices.seo_desc": {
+    en: "Official IRCC and ESDC news on Canada.ca that names the LMIA, the Temporary Foreign Worker Program, Express Entry or work permits, checked nightly.",
+    fr: "Nouvelles officielles d'IRCC et d'EDSC sur Canada.ca qui nomment l'EIMT, le Programme des travailleurs étrangers temporaires, Entrée express ou les permis de travail.",
+  },
+  "notices.home_h": { en: "Government Notices", fr: "Avis du gouvernement" },
+  "notices.home_all": { en: "All notices", fr: "Tous les avis" },
+  "data.lic.notices": {
+    en: "Government notices (the Canada.ca news feeds of IRCC and ESDC): the titles, summaries and links on the Notices page and the home page",
+    fr: "Avis du gouvernement (fils de nouvelles d'IRCC et d'EDSC sur Canada.ca) : les titres, résumés et liens de la page Avis et de la page d'accueil",
+  },
+  "data.lic.notices_terms": {
+    en: "Crown copyright, reproduced under the {terms}: non-commercial reproduction with attribution. Each title links to the department's own page.",
+    fr: "Droit d'auteur de la Couronne, reproduits selon les {terms} : reproduction non commerciale avec mention de la source. Chaque titre mène à la page du ministère.",
+  },
+  "data.change_notices": {
+    en: "New Government Notices page: official IRCC and ESDC news items on Canada.ca whose title or summary names the programs behind these records, read nightly from the departments' English and French news feeds and listed as published, with the three latest on the home page. The Data & About menu item is now About.",
+    fr: "Nouvelle page Avis du gouvernement : les nouvelles officielles d'IRCC et d'EDSC sur Canada.ca dont le titre ou le résumé nomme les programmes dont relèvent ces dossiers, lues chaque nuit dans les fils de nouvelles des ministères en français et en anglais et listées telles que publiées, avec les trois plus récentes sur la page d'accueil. L'élément de menu Données et à propos s'appelle maintenant À propos.",
+  },
+  "data.recomputed_notices": { en: "Nothing recomputed; new file notices.json", fr: "Aucun recalcul; nouveau fichier notices.json" },
 } as const satisfies Record<string, Entry>;
 
 export type Key = keyof typeof STRINGS;
@@ -3198,6 +3295,7 @@ export const SAME_IN_BOTH: ReadonlySet<Key> = new Set<Key>([
   "intl.points",
   "intl.col_total",
   "data.reg_col_format",
+  "notices.dept.ircc",
 ]);
 
 export function allKeys(): Key[] {

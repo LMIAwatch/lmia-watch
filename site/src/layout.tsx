@@ -168,6 +168,7 @@ export const Layout: FC<
     ["/releases", "nav.releases"],
     ["/trends", "nav.trends"],
     ["/international", "nav.international"],
+    ["/notices", "nav.notices"],
     ["/methodology", "nav.methodology"],
     ["/data", "nav.data"],
     ["/support", "nav.support"],
@@ -179,7 +180,7 @@ export const Layout: FC<
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>{title}</title>
-        <link rel="stylesheet" href="/styles.css?v=20" />
+        <link rel="stylesheet" href="/styles.css?v=21" />
         <script src="/theme.js"></script>
         <script src="/links.js" defer></script>
         <link rel="preload" href="/fonts/public-sans-latin-var.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
@@ -245,6 +246,7 @@ export const Layout: FC<
             <a href="/feeds">{t(lang, "footer.feeds")}</a>
             <a href="/corrections">{t(lang, "footer.corrections")}</a>
             <a href="/cite">{t(lang, "footer.cite")}</a>
+            <a href="/notices">{t(lang, "footer.notices")}</a>
             <a href="/support">{t(lang, "footer.support")}</a>
             <span class="footer-copyright">
               {/* The maple leaf of the flag, the same path the marketing site uses. */}

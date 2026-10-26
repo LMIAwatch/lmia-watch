@@ -136,11 +136,12 @@ describe("support page", () => {
     expect(html).toContain('style="width:94.1%"');
   });
 
-  it("is in the main navigation after Data & About, in both languages, and in the footer", async () => {
+  it("is in the main navigation after About, in both languages, and in the footer", async () => {
     const html = await (await get("/")).text();
     const nav = mainNav(html);
     expect(nav).toContain(">Donate</a>");
-    expect(nav.indexOf(">Data &amp; About</a>")).toBeLessThan(nav.indexOf(">Donate</a>"));
+    expect(nav.indexOf(">About</a>")).toBeGreaterThan(-1);
+    expect(nav.indexOf(">About</a>")).toBeLessThan(nav.indexOf(">Donate</a>"));
     expect(html).toContain('<a href="/support">Support the Site</a>');
 
     const fr = mainNav(await (await get("/", { cookie: "lang=fr" })).text());

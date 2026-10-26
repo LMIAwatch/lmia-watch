@@ -22,7 +22,7 @@ describe("data page licences", () => {
       "findings.csv": "canada",
       "esdc_resources.csv": "ogl",
     });
-    expect(LICENCE_ROWS.length).toBe(13);
+    expect(LICENCE_ROWS.length).toBe(14);
   });
 
   it("states the licence per source in English, with no blanket relicensing", async () => {

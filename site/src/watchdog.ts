@@ -5,9 +5,12 @@ import { loadStats } from "./data";
 // site needs a hand: data that stopped refreshing, a backup that stopped
 // arriving, a refresh whose stages failed, a daily post that X or Bluesky
 // refused, a Zenodo deposit, search database sync or audience roll-up that
-// failed, a deploy the run rolled back because the site answered with
-// server errors after it, or a notice the run recorded (a reference list that
-// changed, a designated-employer list not readable or not read).
+// failed, or a deploy the run rolled back because the site answered with
+// server errors after it. The run's notices (a government notice first listed
+// that night, IRCC's high-wage list adopted or unreadable, a designated-employer
+// list or a news feed that changed state) are information, not alerts: the
+// email carries them in a section of their own, and a morning with notices and
+// no alert still sends one, with a subject that says notices.
 // It reads only what the nightly run leaves behind (the stats file, the
 // backup's timestamp, status.json in R2), so a run that never happened is
 // caught as well as one that failed. Sending goes through Cloudflare's email
@@ -28,7 +31,7 @@ export type RunStatus = {
   views_rollup?: string;
   deploy_rolled_back?: boolean;
   stages?: { source: string; ok: boolean; detail?: string }[];
-  // Items needing a person that are not failures (status.json "notices").
+  // Information from the run that is not a failure (status.json "notices"); never an alert.
   notices?: { source: string; detail: string }[];
 };
 
@@ -134,9 +137,6 @@ export function collectAlerts(i: Inputs): string[] {
     if (i.status.views_rollup === "failed") {
       out.push("The audience roll-up failed. The next run catches up; check the CLOUDFLARE_ANALYTICS_TOKEN secret and the run log.");
     }
-    for (const n of i.status.notices ?? []) {
-      out.push(`The last run noted (${n.source}): ${n.detail.slice(0, 400)}`);
-    }
     if (i.status.deploy_rolled_back === true) {
       out.push("The site answered with server errors after the last deploy, so the run rolled the Worker back to the version before it. The site shows the previous data until a later run deploys again; check the run log.");
     }
@@ -144,17 +144,39 @@ export function collectAlerts(i: Inputs): string[] {
   return out;
 }
 
-export function buildEmail(from: string, to: string, alerts: string[], now: Date): string {
-  const subject = `LMIA Watch: ${alerts.length} item${alerts.length === 1 ? "" : "s"} need attention`;
+// A government notice carries its full title and link, so a notice may be long.
+export const NOTICE_CHARS = 1200;
+
+// The last run's notices, one line each. Only from a run recent enough to be
+// the last night's: an older status is an alert of its own, and its notices
+// went out the morning after it.
+export function collectNotices(i: Inputs): string[] {
+  const runAt = i.status?.run_at;
+  if (!runAt) return [];
+  const age = (i.now.getTime() - Date.parse(runAt)) / HOUR;
+  if (!(age >= 0 && age <= DATA_STALE_HOURS)) return [];
+  return (i.status?.notices ?? []).map((n) => `${n.source}: ${n.detail.slice(0, NOTICE_CHARS)}`);
+}
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+export function buildEmail(from: string, to: string, alerts: string[], now: Date, notices: string[] = []): string {
+  const subject = alerts.length
+    ? `LMIA Watch: ${plural(alerts.length, "item")} need attention${notices.length ? `, ${plural(notices.length, "notice")}` : ""}`
+    : `LMIA Watch: ${plural(notices.length, "notice")} from the last run`;
+  const when = `Daily check at ${now.toISOString().slice(0, 16)} UTC`;
   const lines = [
-    `Daily check at ${now.toISOString().slice(0, 16)} UTC found:`,
-    "",
-    ...alerts.map((a, n) => `${n + 1}. ${a}`),
+    ...(alerts.length ? [`${when} found:`, "", ...alerts.map((a, n) => `${n + 1}. ${a}`)] : [`${when}: nothing needs attention.`]),
+    ...(notices.length
+      ? ["", "Notices from the last run (information; nothing failed):", "", ...notices.map((n) => `- ${n}`)]
+      : []),
     "",
     "Run log: https://github.com/LMIAwatch/lmia-watch/actions",
     "Site: https://lmiawatch.ca/data",
     "",
-    "This message is sent by the site's own daily check; it repeats each day while an item remains.",
+    alerts.length
+      ? "This message is sent by the site's own daily check; it repeats each day while an item remains."
+      : "This message is sent by the site's own daily check when the last run recorded notices.",
   ];
   return [
     `From: LMIA Watch <${from}>`,
@@ -198,22 +220,27 @@ export async function gatherInputs(env: Env, now: Date): Promise<Inputs> {
   return { now, dataAsOf, backupUploaded, status, statusProblem: problems.join(" ") || null };
 }
 
-export async function runWatchdog(env: Env, now: Date = new Date()): Promise<{ alerts: string[]; sent: boolean; error?: string }> {
-  const alerts = collectAlerts(await gatherInputs(env, now));
-  if (alerts.length === 0) return { alerts, sent: false };
+export async function runWatchdog(
+  env: Env, now: Date = new Date(),
+): Promise<{ alerts: string[]; notices: string[]; sent: boolean; error?: string }> {
+  const inputs = await gatherInputs(env, now);
+  const alerts = collectAlerts(inputs);
+  const notices = collectNotices(inputs);
+  if (alerts.length === 0 && notices.length === 0) return { alerts, notices, sent: false };
+  const counts = `${alerts.length} alert(s), ${notices.length} notice(s)`;
   const to = (env.ALERT_EMAIL ?? "").trim();
   const from = (env.ALERT_FROM ?? "").trim();
   if (!env.ALERTS || !to || !from) {
-    console.log(`watchdog: ${alerts.length} alert(s), no email binding or address configured`);
-    return { alerts, sent: false };
+    console.log(`watchdog: ${counts}, no email binding or address configured`);
+    return { alerts, notices, sent: false };
   }
   try {
     const { EmailMessage } = await import("cloudflare:email");
-    await env.ALERTS.send(new EmailMessage(from, to, buildEmail(from, to, alerts, now)));
-    console.log(`watchdog: ${alerts.length} alert(s), email sent`);
-    return { alerts, sent: true };
+    await env.ALERTS.send(new EmailMessage(from, to, buildEmail(from, to, alerts, now, notices)));
+    console.log(`watchdog: ${counts}, email sent`);
+    return { alerts, notices, sent: true };
   } catch (e) {
-    console.log(`watchdog: ${alerts.length} alert(s), email failed: ${String(e).slice(0, 200)}`);
-    return { alerts, sent: false, error: String(e).slice(0, 300) };
+    console.log(`watchdog: ${counts}, email failed: ${String(e).slice(0, 200)}`);
+    return { alerts, notices, sent: false, error: String(e).slice(0, 300) };
   }
 }
