@@ -493,6 +493,9 @@ export async function employerPage(c: Context<AppEnv>): Promise<Response> {
     </thead>
   );
 
+  // Every profile names the bulk files as an alternate representation, for
+  // the crawlers and tools that read the Link header rather than /llms.txt.
+  c.header("Link", '</downloads/employers.csv>; rel="alternate"; type="text/csv"; title="Every employer, bulk data", </llms.txt>; rel="help"; type="text/plain"');
   return page(
     c,
     <Layout lang={lang} title={employer.display_name} dataAsOf={stats.data_as_of} seo={profileSeo(profile, lang)}>

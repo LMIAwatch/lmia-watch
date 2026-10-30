@@ -778,3 +778,16 @@ pages carry no email address to hide).
 - `run_worker_first` with a list of patterns (`*` matches deeply, `!`
   excludes), read 2026-10-22:
   `developers.cloudflare.com/workers/static-assets/binding/`
+
+## 8. Pointing crawlers at the bulk files
+
+Nothing obliges a crawler to read the nightly CSVs instead of 160,000 profile
+pages, so the site makes the files easy to find for the ones that look:
+`/llms.txt` (the convention AI crawlers and agents read first) names every
+download, the Data page and the Zenodo deposit; every profile answers with a
+`Link` header naming `employers.csv` as an alternate representation and
+`/llms.txt` as help; robots.txt says the same in its opening comment, carries
+Cloudflare's `Content-Signal` line (search yes, AI input yes, AI training no),
+and no longer disallows `/downloads/` for search engines and Bing, which the
+Worker's ten-a-minute cap still protects. The AI-training group stays
+disallowed from everything.

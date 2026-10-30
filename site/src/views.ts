@@ -83,7 +83,7 @@ export function routeTemplate(method: string, path: string): { route: string; ki
   if (FEED_PATH.test(path)) return { route: "/data/feeds/:file", kind: "feed" };
   if (path === "/data/feeds/index.json") return { route: path, kind: "file" };
   if (path === "/hooks/kofi") return { route: path, kind: "hook" };
-  if (path === "/robots.txt") return { route: path, kind: "file" };
+  if (path === "/robots.txt" || path === "/llms.txt") return { route: path, kind: "file" };
   if (/^\/sitemap(?:-[0-9]+)?\.xml$/.test(path)) return { route: "/sitemap.xml", kind: "file" };
   return { route: "other", kind: "other" };
 }

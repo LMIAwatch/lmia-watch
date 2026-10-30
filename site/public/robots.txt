@@ -1,11 +1,15 @@
 # LMIA Watch. Every page is open to search engines, in English and in French
-# (?lang=fr). The payment webhook, the JSON API, the bulk downloads and the
-# response form are not pages to index.
+# (?lang=fr). The payment webhook, the JSON API and the response form are not
+# pages to index.
+#
+# Crawling the 160,000 profile pages gains nothing the nightly bulk files do
+# not hold: see /llms.txt for the files, their licences and the Zenodo deposit.
+# The bulk files under /downloads/ may be fetched (ten a minute per address).
 User-agent: *
+Content-Signal: search=yes, ai-input=yes, ai-train=no
 Allow: /
 Disallow: /hooks/
 Disallow: /api/
-Disallow: /downloads/
 Disallow: /employers/*/respond
 # A search with filters or a page cursor, a correction form opened from a
 # profile (?employer=) and a map opened on a postal area (?fsa=) each name the
@@ -26,7 +30,6 @@ User-agent: bingbot
 Allow: /
 Disallow: /hooks/
 Disallow: /api/
-Disallow: /downloads/
 Disallow: /employers/*/respond
 Disallow: /search?
 Allow: /search?lang=fr$

@@ -476,6 +476,16 @@ export async function sitemapFile(c: Context<AppEnv>): Promise<Response> {
 // public/robots.txt is served by the assets layer before the Worker runs. This
 // route answers when a request reaches the Worker anyway (a run-worker-first
 // configuration, the test runtime), from the same file.
+// public/llms.txt tells AI crawlers and agents where the bulk files are, so
+// they need not walk the profiles; served the same way as robots.txt.
+export async function llmsTxt(c: Context<AppEnv>): Promise<Response> {
+  const res = c.env.ASSETS ? await c.env.ASSETS.fetch(new Request("https://assets.invalid/llms.txt")) : null;
+  if (!res || !res.ok) return c.notFound();
+  return new Response(res.body, {
+    headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=3600" },
+  });
+}
+
 export async function robotsTxt(c: Context<AppEnv>): Promise<Response> {
   const res = c.env.ASSETS ? await c.env.ASSETS.fetch(new Request("https://assets.invalid/robots.txt")) : null;
   if (!res || !res.ok) return c.notFound();

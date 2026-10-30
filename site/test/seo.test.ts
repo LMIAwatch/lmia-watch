@@ -5,7 +5,7 @@ import { app } from "../src/index";
 import { DOWNLOADS } from "../src/pages/data";
 import { scriptJson } from "../src/layout";
 import { DESCRIPTION_MAX, SOCIAL_CARD, SOCIAL_SQUARE, profileBreadcrumbJsonLd, profileDescription } from "../src/seo";
-import { emptyAssets, testEnv } from "./assets";
+import { emptyAssets, fakeAssets, testEnv } from "./assets";
 import profileFixtures from "./fixtures/profiles-a00.json";
 import sitemapPart from "./fixtures/sitemap-1.xml?raw";
 import sitemapIndex from "./fixtures/sitemap-index.xml?raw";
@@ -322,6 +322,24 @@ describe("crawler files", () => {
     expect(none.status).toBe(404);
   });
 
+  it("/llms.txt points crawlers at the bulk files, and every profile names them in a Link header", async () => {
+    const res = await app.request("/llms.txt", {}, env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+    const text = await res.text();
+    expect(text).toContain("https://lmiawatch.ca/downloads/employers.csv");
+    expect(text).toContain("https://lmiawatch.ca/cite");
+    expect(text).not.toContain("—");
+    const profile = await app.request("/employers/emp-a000000001", {}, testEnv(fakeAssets));
+    expect(profile.status).toBe(200);
+    expect(profile.headers.get("link")).toContain('</downloads/employers.csv>; rel="alternate"; type="text/csv"');
+    expect(profile.headers.get("link")).toContain('</llms.txt>; rel="help"');
+    // robots.txt no longer shuts the bulk files away from crawlers.
+    const robots = await (await app.request("/robots.txt", {}, env)).text();
+    expect(robots).not.toContain("Disallow: /downloads/");
+    expect(robots).toContain("Content-Signal: search=yes, ai-input=yes, ai-train=no");
+  });
+
   it("/robots.txt is the file in public/, open to all with the sitemap named", async () => {
     // The real assets binding, which serves site/public.
     const res = await app.request("/robots.txt", {}, env);
@@ -329,14 +347,14 @@ describe("crawler files", () => {
     expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
     const text = await res.text();
     const rules = text.split("\n").filter((l) => l && !l.startsWith("#"));
-    // Everyone may crawl the pages, at a polite pace; the hooks, API, downloads and the response form are not pages,
+    // Everyone may crawl the pages, at a polite pace, and may fetch the bulk files; the hooks, API and the response form are not pages,
     // and the query forms of /search, /corrections and /map all name the plain page as their canonical URL.
     expect(rules.slice(0, 13)).toEqual([
       "User-agent: *",
+      "Content-Signal: search=yes, ai-input=yes, ai-train=no",
       "Allow: /",
       "Disallow: /hooks/",
       "Disallow: /api/",
-      "Disallow: /downloads/",
       "Disallow: /employers/*/respond",
       "Disallow: /search?",
       "Allow: /search?lang=fr$",
@@ -349,12 +367,11 @@ describe("crawler files", () => {
     // Bing obeys Crawl-delay, so its own group carries the same rules without one.
     const bing = rules.indexOf("User-agent: bingbot");
     expect(bing).toBeGreaterThan(0);
-    expect(rules.slice(bing, bing + 12)).toEqual([
+    expect(rules.slice(bing, bing + 11)).toEqual([
       "User-agent: bingbot",
       "Allow: /",
       "Disallow: /hooks/",
       "Disallow: /api/",
-      "Disallow: /downloads/",
       "Disallow: /employers/*/respond",
       "Disallow: /search?",
       "Allow: /search?lang=fr$",
@@ -370,7 +387,7 @@ describe("crawler files", () => {
     // The search page itself is never shut out.
     expect(lines).not.toContain("Disallow: /search");
     const everyone = rules.slice(0, rules.indexOf("Crawl-delay: 5"));
-    const bingRules = rules.slice(bing, bing + 12);
+    const bingRules = rules.slice(bing, bing + 11);
     const open = [
       "/", "/search", "/search?lang=fr", "/employers/x", "/employers/x?lang=fr", "/places/bc",
       "/corrections", "/corrections?lang=fr", "/map", "/map?lang=fr",

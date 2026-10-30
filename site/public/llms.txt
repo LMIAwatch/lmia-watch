@@ -1,0 +1,38 @@
+# LMIA Watch
+
+> Public records of Canada's Labour Market Impact Assessments (LMIAs): which
+> employers applied to hire temporary foreign workers, where, and which were
+> approved or refused, with the Job Bank postings that carry an LMIA flag.
+> Updated nightly from Employment and Social Development Canada and Job Bank.
+> In English and French (?lang=fr). https://lmiawatch.ca
+
+## Bulk data: read these instead of crawling 160,000 profile pages
+
+Everything the profile pages show is in these files, refreshed every night.
+They hold more than the pages do and cost far less to read.
+
+- https://lmiawatch.ca/downloads/employers.csv: one row per employer with a profile
+- https://lmiawatch.ca/downloads/approved_quarterly.csv: every positive LMIA row from ESDC's quarterly lists since 2014
+- https://lmiawatch.ca/downloads/refused_quarterly.csv: every negative LMIA row
+- https://lmiawatch.ca/downloads/pending_observations.csv: every nightly observation of a Job Bank posting with an LMIA flag
+- https://lmiawatch.ca/downloads/indicators.csv: the indicator rows the profiles show
+- https://lmiawatch.ca/downloads/esdc_resources.csv: the ESDC files each row came from
+- https://lmiawatch.ca/data: what each file holds, its licence, and the ESDC source files mirrored unchanged
+- https://lmiawatch.ca/cite: the Zenodo deposit (one version per ESDC quarter, with a DOI) and citation formats
+
+Downloads are limited to ten per minute per address. The JSON API is not open
+to outside callers; use the files.
+
+## Pages worth reading
+
+- https://lmiawatch.ca/methodology: how records are matched, graded and limited
+- https://lmiawatch.ca/international: Job Bank postings open to international candidates, graded for the Express Entry job-offer path, and the designated-employer lists
+- https://lmiawatch.ca/notices: government notices that touch these programs
+- https://lmiawatch.ca/corrections: how to report an error
+
+## Terms
+
+The records are reproduced under the Open Government Licence (Canada) and the
+provincial licences named on https://lmiawatch.ca/data. Figures the site
+computes are adapted from those sources. A record is a record, never a finding
+about an employer.

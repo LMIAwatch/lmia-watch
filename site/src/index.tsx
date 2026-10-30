@@ -32,7 +32,7 @@ import { searchPage } from "./pages/search";
 import { supportPage } from "./pages/support";
 import { trendsPage } from "./pages/trends";
 import { watchlistPage } from "./pages/watchlist";
-import { robotsTxt, sitemapFile } from "./seo";
+import { llmsTxt, robotsTxt, sitemapFile } from "./seo";
 
 const app = new Hono<AppEnv>();
 
@@ -122,6 +122,7 @@ app.post("/corrections", correctionsSubmit);
 // Payment notices from the donation page; see hooks.ts for what is kept.
 app.post("/hooks/kofi", kofiWebhook);
 app.get("/robots.txt", robotsTxt);
+app.get("/llms.txt", llmsTxt);
 app.get("/:file{sitemap(?:-[0-9]+)?\\.xml}", sitemapFile);
 
 // The Atom feeds (feeds.py) are static files, but wrangler.jsonc runs the
