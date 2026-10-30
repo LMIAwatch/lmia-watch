@@ -9,8 +9,11 @@ Each run pages both facets completely. That is the only way to notice that a
 posting's flag disappeared, which is what happens when a decision lands.
 Posting pages are fetched only for postings never fetched before, within a
 per-run budget, so the first backfill spreads over several nights inside the
-five-second crawl delay. Nothing about how to apply, and no contact detail,
-is ever read from a posting.
+five-second crawl delay. A posting page that answers 404 or 410 has been
+removed from Job Bank, and the posting is marked gone that night; one that
+fails for a passing reason (a 5xx, a timeout, a dropped connection) is tried
+again on later nights, up to DETAIL_RETRIES failures on record. Nothing about
+how to apply, and no contact detail, is ever read from a posting.
 """
 
 from __future__ import annotations
@@ -55,6 +58,14 @@ DETAIL_BUDGET_S = 4 * 3600.0
 # (postings come and go during the sweep, so the two never match exactly).
 COMPLETE_SHARE = 0.9
 MAX_VACANCIES = 1_000_000
+# A posting page answering one of these has been removed from Job Bank. Only
+# the status the client reports counts: a redirect to the search page that
+# ends in a 200 is read like any other page.
+REMOVED_STATUSES = frozenset({404, 410})
+# Failed attempts on record (detail_attempts) that still leave a posting page
+# queued for a later night. The attempt after the last of them gives up when
+# it fails too, so a page that never answers cannot hold a budget slot forever.
+DETAIL_RETRIES = 3
 
 
 @dataclass
@@ -99,7 +110,10 @@ class RunStats:
     excluded: int = 0
     new_postings: int = 0
     details_fetched: int = 0
-    marked_gone: int = 0
+    marked_gone: int = 0        # by a complete sweep that no longer listed them
+    gone_on_fetch: int = 0      # posting pages that answered 404 or 410
+    detail_retry: int = 0       # posting pages that failed for a passing reason, left for a later night
+    detail_given_up: int = 0    # posting pages that failed once more after DETAIL_RETRIES failures
     locations_fixed: int = 0    # stored provinces repair_locations turned into a code
     complete: bool = True       # every facet swept to its end; only then is anything marked gone
     problems: list[str] = field(default_factory=list)
@@ -114,6 +128,38 @@ def search_url(facet: str, page: int) -> str:
 
 def posting_url(posting_id: int) -> str:
     return f"{config.JOBBANK_BASE}/jobsearch/jobposting/{posting_id}"
+
+
+def fetch_failure(exc: Exception) -> str:
+    """How a posting page's fetch failed: 'removed' (the page answered 404 or
+    410), 'transient' (the host or the network, after the client's own
+    retries) or 'other' (anything else, a parse problem included)."""
+    if isinstance(exc, FetchError):
+        if exc.status in REMOVED_STATUSES:
+            return "removed"
+        if exc.transient:
+            return "transient"
+    return "other"
+
+
+def record_failed_attempt(conn: sqlite3.Connection, table: str, posting_id: int, prior: int | None, stamp: str,
+                          exc: Exception, label: str = "posting") -> bool:
+    """Record a posting page's fetch that failed for a passing reason; True when it gave up.
+
+    The page stays queued (detail_fetched_at NULL) while DETAIL_RETRIES or
+    fewer failures are on record; the failure after that sets
+    detail_fetched_at with no details, so the page leaves the queue.
+    """
+    attempts = (prior or 0) + 1
+    if attempts > DETAIL_RETRIES:
+        log.warning("%s %s: giving up after %d failed attempts: %s", label, posting_id, attempts, exc)
+        conn.execute(f"UPDATE {table} SET detail_attempts = ?, detail_fetched_at = ?, updated_at = ? WHERE posting_id = ?",
+                     (attempts, stamp, stamp, posting_id))
+        return True
+    log.warning("%s %s: attempt %d failed, left for a later night: %s", label, posting_id, attempts, exc)
+    conn.execute(f"UPDATE {table} SET detail_attempts = ?, updated_at = ? WHERE posting_id = ?",
+                 (attempts, stamp, posting_id))
+    return False
 
 
 def _clean(text: str | None) -> str | None:
@@ -404,7 +450,7 @@ def run(
 
     if not aborted:
         stats.details_fetched, problem = _fetch_details(
-            conn, client, detail_budget, stamp, deadline=started + DETAIL_BUDGET_S, clock=clock,
+            conn, client, detail_budget, stamp, deadline=started + DETAIL_BUDGET_S, clock=clock, stats=stats,
         )
         if problem:
             stats.problems.append(problem)
@@ -418,8 +464,10 @@ def run(
         set_meta(conn, "jobbank_last_run", stamp)
     detail = (
         f"pages={stats.pages} listed={stats.listed} new={stats.new_postings} "
-        f"details={stats.details_fetched} gone={stats.marked_gone}"
+        f"details={stats.details_fetched} gone={stats.marked_gone} gone_on_fetch={stats.gone_on_fetch}"
     )
+    if stats.detail_retry or stats.detail_given_up:
+        detail += f" detail_retry_later={stats.detail_retry} detail_gave_up={stats.detail_given_up}"
     if repaired["postings"]:
         detail += f" provinces_fixed={repaired['postings']} postal_codes_moved={repaired['postal_codes']}"
     if repaired["employers_not_codes"]:
@@ -556,13 +604,20 @@ def _upsert_listing(
 def _fetch_details(
     conn: sqlite3.Connection, client: PoliteClient, budget: int, stamp: str,
     *, deadline: float = float("inf"), clock: Callable[[], float] = time.monotonic,
+    stats: RunStats | None = None,
 ) -> tuple[int, str | None]:
-    """Posting pages fetched, and why the loop stopped early (None when it did not)."""
+    """Posting pages fetched, and why the loop stopped early (None when it did not).
+
+    Pages not read go to stats: removed (404 or 410; the posting is marked
+    gone), failed for a passing reason (left for a later night) or given up.
+    """
+    if stats is None:
+        stats = RunStats()
     if budget <= 0:
         return 0, None
     rows = conn.execute(
         """
-        SELECT posting_id, employer_id FROM jobbank_postings
+        SELECT posting_id, employer_id, detail_attempts FROM jobbank_postings
         WHERE detail_fetched_at IS NULL AND flag_current != 'gone'
         ORDER BY date_posted DESC, posting_id DESC LIMIT ?
         """,
@@ -572,21 +627,39 @@ def _fetch_details(
     for row in rows:
         if clock() > deadline:
             return fetched, f"posting pages stopped after {fetched}, past the {DETAIL_BUDGET_S / 3600:.0f} h budget"
+        pid = row["posting_id"]
         try:
-            html = client.get_text(posting_url(row["posting_id"]))
+            html = client.get_text(posting_url(pid))
+            f = parse_detail_page(html)
         except AbortRun as exc:
             # The host stopped answering: stop asking. The posting is left
-            # unfetched so a later night tries it again.
+            # unfetched, its attempts as they were, so a later night tries it again.
             return fetched, f"posting pages stopped after {fetched}: {exc}"
-        except Exception as exc:  # one missing page must not stop the run
-            log.warning("posting %s: %s", row["posting_id"], exc)
-            conn.execute(
-                "UPDATE jobbank_postings SET detail_fetched_at = ?, updated_at = ? WHERE posting_id = ?",
-                (stamp, stamp, row["posting_id"]),
-            )
+        except Exception as exc:  # one page must not stop the run
+            kind = fetch_failure(exc)
+            if kind == "removed":
+                # Job Bank has taken the posting down: gone tonight, as a
+                # complete sweep marks a posting it no longer lists.
+                log.info("posting %s: removed from Job Bank (%s)", pid, exc)
+                conn.execute(
+                    "UPDATE jobbank_postings SET flag_current = 'gone', detail_fetched_at = ?, updated_at = ? "
+                    "WHERE posting_id = ?",
+                    (stamp, stamp, pid),
+                )
+                stats.gone_on_fetch += 1
+            elif kind == "transient":
+                if record_failed_attempt(conn, "jobbank_postings", pid, row["detail_attempts"], stamp, exc):
+                    stats.detail_given_up += 1
+                else:
+                    stats.detail_retry += 1
+            else:
+                log.warning("posting %s: %s", pid, exc)
+                conn.execute(
+                    "UPDATE jobbank_postings SET detail_fetched_at = ?, updated_at = ? WHERE posting_id = ?",
+                    (stamp, stamp, pid),
+                )
             conn.commit()
             continue
-        f = parse_detail_page(html)
         conn.execute(
             """
             UPDATE jobbank_postings SET
@@ -601,7 +674,7 @@ def _fetch_details(
             (
                 f.title, f.street, f.city, f.province, f.postal_code,
                 f.wage_min, f.wage_max, f.wage_unit, f.vacancies,
-                f.date_posted, f.valid_through, f.noc_code, stamp, stamp, row["posting_id"],
+                f.date_posted, f.valid_through, f.noc_code, stamp, stamp, pid,
             ),
         )
         if f.postal_code or f.street:

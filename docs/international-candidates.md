@@ -70,6 +70,18 @@ Code: `pipeline/lmia_pipeline/sources/jobbank_intl.py` (the crawl),
    dialogs, the apply section) is removed first, since the LMIA notice itself
    names permanent residents.
 
+   A posting page that answers 404 or 410 has been removed from Job Bank: the
+   posting is marked gone that night (`in_facet = 0`, `gone_at`, the fields a
+   complete sweep sets) and counted as "gone on fetch" in the night's log
+   line, apart from the sweep's removals. A page that fails for a passing
+   reason (a 5xx, a timeout, a connection that fails) after the client's own
+   retries stays unread, its `detail_attempts` goes up by one, and it is asked
+   for again on later nights, in the same order. After three such failures on
+   record, the next failure gives up: the posting is marked read with no
+   details and logged. A pass stopped by the client's breaker leaves the count
+   as it was. Any other failure (a page that does not parse, an unexpected
+   error) marks the page read, logs a warning and moves on.
+
 Then: a posting the LMIA crawl saw keeps "requested" or "approved"
 (`join_lmia`); the employer id is filled only when the employer identity
 (name and province, as `upsert_employer` computes it) names an employer that

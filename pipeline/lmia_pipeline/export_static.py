@@ -562,7 +562,8 @@ def write_profiles(conn: sqlite3.Connection, out: Path, related: dict[str, list[
             names[r["employer_id"]].append({"name": r["raw_name"], "source": r["source"]})
         postings = defaultdict(list)
         for r in conn.execute(f"SELECT * FROM jobbank_postings WHERE employer_id IN ({marks}) ORDER BY date_posted DESC, posting_id DESC", ids):
-            postings[r["employer_id"]].append(dict(r))
+            # detail_attempts is the crawler's own bookkeeping, not part of the record.
+            postings[r["employer_id"]].append({k: r[k] for k in r.keys() if k != "detail_attempts"})
         records = defaultdict(list)
         for r in conn.execute(
             f"SELECT employer_id, id, list, period, employer_raw, province, stream, city, postal_code, noc_code, noc_title, "

@@ -26,7 +26,12 @@ Each night, after the LMIA crawl and through the same polite client:
      crawl marks a flag gone. A sweep that stops short is tried again the next
      night;
   4. posting pages for postings not read yet, newest first, within a nightly
-     budget: the "Who can apply" block (international, authorized workers,
+     budget. A page that answers 404 or 410 has been removed from Job Bank:
+     the posting is marked gone that night (in_facet = 0, gone_at), as a
+     complete sweep would mark it. A page that fails for a passing reason (a
+     5xx, a timeout, a dropped connection) is tried again on later nights, up
+     to jobbank.DETAIL_RETRIES failures on record. From each page read:
+     the "Who can apply" block (international, authorized workers,
      Canadians only, or unknown), the LMIA marker, the NOC code, the terms of
      employment, and phrases in the posting's own text (Express Entry,
      permanent-residence support, "LMIA exempt" or "not required"), each kept
@@ -164,15 +169,20 @@ class IntlStats:
     new_postings: int = 0
     sweep: str = "not due"          # not due | complete | incomplete | skipped
     sweep_pages: int = 0
-    marked_gone: int = 0
+    marked_gone: int = 0            # by a complete sweep that no longer listed them
     details_fetched: int = 0
+    gone_on_fetch: int = 0          # posting pages that answered 404 or 410
+    detail_retry: int = 0           # posting pages that failed for a passing reason, left for a later night
+    detail_given_up: int = 0        # posting pages that failed once more after jobbank.DETAIL_RETRIES failures
     grades: dict[str, int] = field(default_factory=dict)
     problems: list[str] = field(default_factory=list)
 
     def summary(self) -> str:
         g = self.grades
+        retry = (f"retry later {self.detail_retry}, given up {self.detail_given_up}, "
+                 if self.detail_retry or self.detail_given_up else "")
         text = (f"facet {self.counts.get('total', 'unknown')} live, feed {self.feed_entries}, new {self.new_postings}, "
-                f"pages read {self.details_fetched}, sweep {self.sweep}"
+                f"pages read {self.details_fetched}, gone on fetch {self.gone_on_fetch}, {retry}sweep {self.sweep}"
                 f"{f' ({self.marked_gone} gone)' if self.sweep == 'complete' else ''}, "
                 f"grades A {g.get('A', 0)} B {g.get('B', 0)} C {g.get('C', 0)}")
         return text + (f"; problems: {'; '.join(self.problems)}" if self.problems else "")
@@ -434,10 +444,8 @@ def resolve_employers(conn: sqlite3.Connection) -> int:
     return len(changes)
 
 
-def _store_detail(conn: sqlite3.Connection, posting_id: int, html: str, stamp: str) -> bool:
+def _store_detail(conn: sqlite3.Connection, posting_id: int, d: jobbank.DetailFields, f: IntlFields, stamp: str) -> bool:
     """Write one posting page's fields; False when the page names a private household (the row is dropped)."""
-    d = jobbank.parse_detail_page(html)
-    f = parse_intl_detail(html)
     if is_private_household(d.employer, d.title):
         conn.execute("DELETE FROM jobbank_intl_postings WHERE posting_id = ?", (posting_id,))
         conn.commit()
@@ -653,7 +661,7 @@ def _read_details(conn: sqlite3.Connection, client: PoliteClient, stats: IntlSta
     is graded tonight, and the backlog of the first sweep fills in behind it. True when the host stopped
     answering."""
     rows = conn.execute(
-        "SELECT posting_id FROM jobbank_intl_postings WHERE detail_fetched_at IS NULL AND in_facet = 1 "
+        "SELECT posting_id, detail_attempts FROM jobbank_intl_postings WHERE detail_fetched_at IS NULL AND in_facet = 1 "
         "ORDER BY first_seen DESC, CASE found_by WHEN 'sweep' THEN 1 ELSE 0 END, date_posted DESC, posting_id DESC "
         "LIMIT ?", (budget,)).fetchall()
     for row in rows:
@@ -661,18 +669,35 @@ def _read_details(conn: sqlite3.Connection, client: PoliteClient, stats: IntlSta
             stats.problems.append(f"posting pages stopped after {stats.details_fetched}, past the "
                                   f"{DETAIL_BUDGET_S / 60:.0f} min budget")
             return False
+        pid = row["posting_id"]
         try:
-            html = client.get_text(jobbank.posting_url(row["posting_id"]))
+            html = client.get_text(jobbank.posting_url(pid))
+            d, f = jobbank.parse_detail_page(html), parse_intl_detail(html)
         except AbortRun as exc:
+            # Left unfetched, its attempts as they were, for a later night.
             stats.problems.append(f"posting pages stopped after {stats.details_fetched}: {exc}")
             return True
-        except Exception as exc:  # one missing page must not stop the pass
-            log.warning("intl posting %s: %s", row["posting_id"], exc)
-            conn.execute("UPDATE jobbank_intl_postings SET detail_fetched_at = ?, updated_at = ? WHERE posting_id = ?",
-                         (stamp, stamp, row["posting_id"]))
+        except Exception as exc:  # one page must not stop the pass
+            kind = jobbank.fetch_failure(exc)
+            if kind == "removed":
+                # Job Bank has taken the posting down: gone tonight, as a complete sweep marks one it no longer lists.
+                log.info("intl posting %s: removed from Job Bank (%s)", pid, exc)
+                conn.execute("UPDATE jobbank_intl_postings SET in_facet = 0, gone_at = ?, detail_fetched_at = ?, updated_at = ? "
+                             "WHERE posting_id = ?", (stamp, stamp, stamp, pid))
+                stats.gone_on_fetch += 1
+            elif kind == "transient":
+                if jobbank.record_failed_attempt(conn, "jobbank_intl_postings", pid, row["detail_attempts"], stamp, exc,
+                                                 label="intl posting"):
+                    stats.detail_given_up += 1
+                else:
+                    stats.detail_retry += 1
+            else:
+                log.warning("intl posting %s: %s", pid, exc)
+                conn.execute("UPDATE jobbank_intl_postings SET detail_fetched_at = ?, updated_at = ? WHERE posting_id = ?",
+                             (stamp, stamp, pid))
             conn.commit()
             continue
-        if not _store_detail(conn, row["posting_id"], html, stamp):
+        if not _store_detail(conn, pid, d, f, stamp):
             stats.excluded += 1
         stats.details_fetched += 1
     return False

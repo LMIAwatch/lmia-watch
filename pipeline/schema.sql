@@ -83,7 +83,10 @@ CREATE TABLE IF NOT EXISTS jobbank_postings (
   flag_current TEXT NOT NULL,                    -- requested | approved | gone
   flag_first TEXT NOT NULL,                      -- requested | approved
   approved_seen_at TEXT,                         -- first scrape that saw the approved flag
-  detail_fetched_at TEXT,                        -- NULL until the posting page itself was parsed
+  detail_fetched_at TEXT,                        -- NULL until the posting page itself was parsed, found removed
+                                                 -- (404 or 410) or given up after repeated passing failures
+  detail_attempts INTEGER NOT NULL DEFAULT 0,    -- posting-page fetches that failed for a passing reason (5xx, timeout,
+                                                 -- connection); the page stays queued while this is at most 3
   url TEXT NOT NULL,
   updated_at TEXT NOT NULL                       -- any write to the row, for incremental export
 );
@@ -543,7 +546,10 @@ CREATE TABLE IF NOT EXISTS jobbank_intl_postings (
   grade TEXT,                                    -- A | B | C (intl.grade_posting); NULL with an LMIA request, before the page is read,
                                                  -- or when the page no longer says international
   grade_reasons TEXT,                            -- JSON list of reason keys behind the grade (intl.REASONS)
-  detail_fetched_at TEXT,                        -- NULL until the posting page was fetched (or found missing)
+  detail_fetched_at TEXT,                        -- NULL until the posting page was fetched, found removed (404 or 410)
+                                                 -- or given up after repeated passing failures
+  detail_attempts INTEGER NOT NULL DEFAULT 0,    -- posting-page fetches that failed for a passing reason (5xx, timeout,
+                                                 -- connection); the page stays queued while this is at most 3
   url TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

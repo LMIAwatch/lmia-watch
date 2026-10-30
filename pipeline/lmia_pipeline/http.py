@@ -69,7 +69,18 @@ def retry_after_seconds(value: str | None, now: datetime | None = None) -> float
 
 
 class FetchError(Exception):
-    """One request failed in a way that retries did not fix."""
+    """One request failed in a way that retries did not fix.
+
+    status is the HTTP status the host answered with (None when no answer
+    came); transient is True when the failure was the host or the network
+    (a 5xx or 429, a timeout, a connection that failed or broke off) rather
+    than the resource, so a caller may ask again on a later run.
+    """
+
+    def __init__(self, message: str, *, status: int | None = None, transient: bool = False) -> None:
+        super().__init__(message)
+        self.status = status
+        self.transient = transient
 
 
 class AbortRun(Exception):
@@ -195,7 +206,7 @@ class PoliteClient:
                 # ConnectTimeout is a ConnectionError too: the host took no
                 # connection at all, which a read timeout does not mean.
                 self._retry_or_fail(url, attempt, repr(exc), host=host,
-                                    connect=isinstance(exc, requests.ConnectionError))
+                                    connect=isinstance(exc, requests.ConnectionError), transient=_transient(exc))
                 continue
             self._mark(host)
             # Any answer means the host is taking connections again.
@@ -210,13 +221,14 @@ class PoliteClient:
             if resp.status_code >= 500 or resp.status_code == 429:
                 wait = retry_after_seconds(_header(resp, "Retry-After"))
                 _close(resp)
-                self._retry_or_fail(url, attempt, f"HTTP {resp.status_code}", wait)
+                self._retry_or_fail(url, attempt, f"HTTP {resp.status_code}", wait, status=resp.status_code,
+                                    transient=True)
                 continue
             if resp.status_code >= 400:
                 _close(resp)
                 # A missing resource is a data fact, not a host problem, so it
                 # does not count toward the circuit breaker.
-                raise FetchError(f"HTTP {resp.status_code} for {url}")
+                raise FetchError(f"HTTP {resp.status_code} for {url}", status=resp.status_code)
 
             try:
                 content = self._read_body(resp, started, body_limit)
@@ -226,7 +238,7 @@ class PoliteClient:
                 # never cached.
                 _close(resp)
                 self._mark(host)
-                self._retry_or_fail(url, attempt, repr(exc))
+                self._retry_or_fail(url, attempt, repr(exc), transient=_transient(exc))
                 continue
             self._mark(host)
             self._consecutive_failures = 0
@@ -258,7 +270,7 @@ class PoliteClient:
             except requests.RequestException as exc:
                 self._mark(host)
                 self._retry_or_fail(url, attempt, repr(exc), host=host,
-                                    connect=isinstance(exc, requests.ConnectionError))
+                                    connect=isinstance(exc, requests.ConnectionError), transient=_transient(exc))
                 continue
             self._mark(host)
             self._connect_failures.pop(host, None)
@@ -266,18 +278,19 @@ class PoliteClient:
             if resp.status_code >= 500 or resp.status_code == 429:
                 wait = retry_after_seconds(_header(resp, "Retry-After"))
                 _close(resp)
-                self._retry_or_fail(url, attempt, f"HTTP {resp.status_code}", wait)
+                self._retry_or_fail(url, attempt, f"HTTP {resp.status_code}", wait, status=resp.status_code,
+                                    transient=True)
                 continue
             if resp.status_code >= 400:
                 _close(resp)
-                raise FetchError(f"HTTP {resp.status_code} for {url}")
+                raise FetchError(f"HTTP {resp.status_code} for {url}", status=resp.status_code)
             try:
                 size = self._write_body(resp, part, started, body_limit)
             except (requests.RequestException, _SlowBody, OSError) as exc:
                 _close(resp)
                 part.unlink(missing_ok=True)
                 self._mark(host)
-                self._retry_or_fail(url, attempt, repr(exc))
+                self._retry_or_fail(url, attempt, repr(exc), transient=_transient(exc))
                 continue
             self._mark(host)
             self._consecutive_failures = 0
@@ -356,7 +369,8 @@ class PoliteClient:
         return size
 
     def _retry_or_fail(self, url: str, attempt: int, reason: str, wait: float | None = None, *,
-                       host: str | None = None, connect: bool = False) -> None:
+                       host: str | None = None, connect: bool = False, status: int | None = None,
+                       transient: bool = False) -> None:
         fail_fast = self.connect_fail_fast.get(host or "") if connect else None
         attempts = min(self.max_attempts, CONNECT_ATTEMPTS) if fail_fast else self.max_attempts
         # The host's own Retry-After wins over the backoff when it is longer;
@@ -378,7 +392,7 @@ class PoliteClient:
             raise AbortRun(
                 f"{self._consecutive_failures} requests failed in a row; last {reason} ({url})"
             )
-        raise FetchError(f"{url}: {reason} after {attempt} attempts")
+        raise FetchError(f"{url}: {reason} after {attempt} attempts", status=status, transient=transient)
 
     def _cache_paths(self, url: str) -> tuple[Path, Path]:
         key = hashlib.sha1(url.encode("utf-8")).hexdigest()
@@ -405,6 +419,14 @@ class PoliteClient:
             "fetched_at": time.time(),
         }
         path_meta.write_text(json.dumps(meta), encoding="utf-8")
+
+
+def _transient(exc: BaseException) -> bool:
+    """A failure of the host or the network, not of the request: a timeout, a
+    connection that failed or broke off mid-body, or a body that would not
+    finish arriving. A redirect loop or a bad URL is not."""
+    return isinstance(exc, (requests.Timeout, requests.ConnectionError, requests.exceptions.ChunkedEncodingError,
+                            _SlowBody))
 
 
 def _header(resp: Any, name: str) -> str | None:

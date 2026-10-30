@@ -12,8 +12,11 @@ import json
 import re
 
 import pytest
+import requests
 
+from conftest import FakeResponse
 from lmia_pipeline.db import get_meta, set_meta, upsert_employer
+from lmia_pipeline.exclusions import is_private_household
 from lmia_pipeline.http import AbortRun
 from lmia_pipeline.sources import jobbank, jobbank_intl as ji
 
@@ -209,10 +212,12 @@ def test_posting_pages_are_read_and_graded(conn, fixtures, fake_client):
     assert json.loads(rows[50571474]["grade_reasons"]) == ["intl", "no_lmia", "full_time", "permanent", "high_wage:70"]
     assert rows[50578251]["grade"] == "B"   # restaurant managers, TEER 0, not on the list
     assert rows[50572922]["grade"] == "C"   # food counter attendants, TEER 5
-    # Pages the fake does not serve answer 404: fetched, unread, ungraded.
+    # Pages the fake does not serve answer 404: removed from Job Bank, so gone tonight, unread, ungraded.
     missing = [r for pid, r in rows.items() if str(pid) not in DETAILS]
     assert missing and all(r["detail_fetched_at"] == NOW and r["grade"] is None for r in missing)
+    assert all((r["in_facet"], r["gone_at"]) == (0, NOW) for r in missing)
     assert stats.grades["A"] == 1 and stats.details_fetched == 3   # pages read; a 404 is not counted
+    assert stats.gone_on_fetch == len(missing)
 
 
 def test_a_household_posting_page_drops_the_row(conn, fixtures, fake_client):
@@ -261,7 +266,7 @@ def test_a_complete_weekly_sweep_marks_what_left_the_facet_gone_and_a_return_bri
     later = "2026-11-02T00:10:00Z"
     stats = ji.run(conn, fake_client(mapping_for(fixtures)), detail_budget=0, now=later)
     # Posting 1 and the feed's postings the six-result sweep does not list.
-    assert stats.sweep == "complete" and stats.marked_gone >= 1
+    assert stats.sweep == "complete" and stats.marked_gone >= 1 and stats.gone_on_fetch == 0
     listed = {i.posting_id for i in jobbank.parse_search_page(text(fixtures, "jobbank_intl_search.html"))}
     still = {r[0] for r in conn.execute("SELECT posting_id FROM jobbank_intl_postings WHERE in_facet = 1")}
     assert still == listed - {50576712, 50575863, 50575872}  # less the names read as a person
@@ -387,3 +392,87 @@ def test_posting_pages_are_read_newest_first_within_a_budget_of_400(conn, fixtur
     client.get_text = record
     ji._read_details(conn, client, ji.IntlStats(), "2026-11-04T00:30:00Z", 4, deadline=float("inf"), clock=lambda: 0.0)
     assert asked == ["5", "4", "3", "6"]
+
+
+# -- posting pages that do not answer ------------------------------------------------
+
+
+@pytest.mark.parametrize("status", [410, 404])
+def test_a_removed_posting_page_marks_the_posting_gone_that_night(conn, fixtures, fake_client, status):
+    set_meta(conn, "intl_sweep_at", "2026-10-25T00:10:00Z")   # no sweep tonight
+    m = mapping_for(fixtures, details=DETAILS)
+    removed = {i.posting_id for i in ji.parse_feed(text(fixtures, "jobbank_intl_feed.xml"))
+               if str(i.posting_id) not in DETAILS and i.employer and not is_private_household(i.employer, i.title)}
+    for pid in removed:
+        m[jobbank.posting_url(pid)] = FakeResponse(status)
+    stats = ji.run(conn, fake_client(m), detail_budget=50, now=NOW)
+    rows = {r["posting_id"]: dict(r) for r in conn.execute("SELECT * FROM jobbank_intl_postings")}
+    assert removed and removed <= set(rows)
+    for pid in removed:
+        r = rows[pid]
+        assert (r["in_facet"], r["gone_at"], r["detail_fetched_at"], r["updated_at"]) == (0, NOW, NOW, NOW)
+        assert (r["grade"], json.loads(r["grade_reasons"]), r["detail_attempts"]) == (None, ["not_read"], 0)
+    # Counted apart from a sweep's removals (none tonight). One feed posting has a page in DETAILS.
+    assert (stats.gone_on_fetch, stats.marked_gone, stats.sweep, stats.details_fetched) == (len(removed), 0, "not due", 1)
+    detail = conn.execute("SELECT detail FROM sources_log WHERE source = 'jobbank_intl'").fetchone()[0]
+    assert f"pages read 1, gone on fetch {len(removed)}, sweep not due" in detail
+    assert not stats.problems
+
+
+def _feed_posting(conn, pid: int = 7, attempts: int = 0) -> None:
+    ji._upsert(conn, posting_id=pid, title="cook", employer="Cook Shop Ltd", city=None, province="ON",
+               postal_code=None, salary_text=None, date_posted=None, lmia_flag=None, found_by="feed", stamp=NOW)
+    conn.execute("UPDATE jobbank_intl_postings SET detail_attempts = ? WHERE posting_id = ?", (attempts, pid))
+    conn.commit()
+
+
+def _intl(conn, pid: int = 7):
+    return conn.execute("SELECT * FROM jobbank_intl_postings WHERE posting_id = ?", (pid,)).fetchone()
+
+
+def test_a_5xx_posting_page_is_left_for_a_later_night_and_the_fourth_attempt_gives_up(conn, fake_client):
+    _feed_posting(conn)
+    nights = ["2026-10-26T00:30:00Z", "2026-10-27T00:30:00Z", "2026-10-28T00:30:00Z", "2026-10-29T00:30:00Z"]
+    for n, night in enumerate(nights, start=1):
+        stats = ji.IntlStats()
+        client = fake_client({jobbank.posting_url(7): FakeResponse(500)}, max_attempts=1)
+        assert ji._read_details(conn, client, stats, night, 5, deadline=float("inf"), clock=lambda: 0.0) is False
+        # Selected again each night until it gives up.
+        assert [url for url, _ in client.fake_session.calls] == [jobbank.posting_url(7)]
+        row = _intl(conn)
+        assert row["detail_attempts"] == n and row["in_facet"] == 1
+        if n <= jobbank.DETAIL_RETRIES:
+            assert row["detail_fetched_at"] is None and (stats.detail_retry, stats.detail_given_up) == (1, 0)
+            assert "retry later 1, given up 0" in stats.summary()
+        else:
+            assert row["detail_fetched_at"] == night and (stats.detail_retry, stats.detail_given_up) == (0, 1)
+        assert not stats.problems
+    client = fake_client({jobbank.posting_url(7): FakeResponse(500)}, max_attempts=1)
+    ji._read_details(conn, client, ji.IntlStats(), "2026-10-30T00:30:00Z", 5, deadline=float("inf"), clock=lambda: 0.0)
+    assert client.fake_session.calls == []
+
+
+def test_a_timeout_counts_as_an_attempt(conn, fake_client):
+    _feed_posting(conn)
+    client = fake_client({}, max_attempts=1)
+
+    def time_out(url, **kwargs):
+        raise requests.ConnectTimeout("connect timed out")
+
+    client.session.get = time_out
+    stats = ji.IntlStats()
+    ji._read_details(conn, client, stats, NOW, 5, deadline=float("inf"), clock=lambda: 0.0)
+    row = _intl(conn)
+    assert (row["detail_fetched_at"], row["detail_attempts"]) == (None, 1)
+    assert stats.detail_retry == 1
+
+
+def test_a_pass_stopped_by_the_breaker_leaves_the_attempts_alone(conn, fake_client):
+    _feed_posting(conn, attempts=2)
+    client = fake_client({jobbank.posting_url(7): FakeResponse(503)}, max_attempts=1, max_consecutive_failures=1)
+    stats = ji.IntlStats()
+    assert ji._read_details(conn, client, stats, NOW, 5, deadline=float("inf"), clock=lambda: 0.0) is True
+    row = _intl(conn)
+    assert (row["detail_fetched_at"], row["detail_attempts"]) == (None, 2)
+    assert (stats.detail_retry, stats.detail_given_up) == (0, 0)
+    assert "posting pages stopped after 0" in stats.problems[0]
