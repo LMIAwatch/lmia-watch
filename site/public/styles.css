@@ -238,6 +238,8 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); width
 
 /* tables: no outer border, a 2 px rule under the headers, 1 px between rows */
 .table-wrap { overflow-x: auto; }
+/* A paragraph straight after a table keeps the same gap a paragraph has below it. */
+.table-wrap + p { margin-top: 12px; }
 .table-wrap.bordered { border: 0; }
 table { border-collapse: collapse; width: 100%; font-size: 15px; }
 th { text-align: left; font-weight: 700; color: var(--text); padding: 10px 16px 10px 0; border-bottom: 2px solid var(--text); white-space: nowrap; vertical-align: bottom; }
