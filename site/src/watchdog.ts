@@ -29,6 +29,8 @@ export type RunStatus = {
   zenodo_deposit?: string;
   search_sync?: string;
   views_rollup?: string;
+  search_console?: string;
+  views_report?: string;
   deploy_rolled_back?: boolean;
   stages?: { source: string; ok: boolean; detail?: string }[];
   // Information from the run that is not a failure (status.json "notices"); never an alert.
@@ -62,6 +64,8 @@ export function readStatus(raw: unknown): { status: RunStatus | null; problem: s
   if (typeof r.zenodo_deposit === "string") status.zenodo_deposit = r.zenodo_deposit;
   if (typeof r.search_sync === "string") status.search_sync = r.search_sync;
   if (typeof r.views_rollup === "string") status.views_rollup = r.views_rollup;
+  if (typeof r.search_console === "string") status.search_console = r.search_console;
+  if (typeof r.views_report === "string") status.views_report = r.views_report;
   // Only a real true counts: a rollback alert from a field of the wrong type
   // would send the operator after a deploy that never happened.
   if (typeof r.deploy_rolled_back === "boolean") status.deploy_rolled_back = r.deploy_rolled_back;
@@ -136,6 +140,12 @@ export function collectAlerts(i: Inputs): string[] {
     }
     if (i.status.views_rollup === "failed") {
       out.push("The audience roll-up failed. The next run catches up; check the CLOUDFLARE_ANALYTICS_TOKEN secret and the run log.");
+    }
+    if (i.status.search_console === "failed") {
+      out.push("The Search Console import failed. The next run catches up; check the GSC_SERVICE_ACCOUNT_JSON secret and the run log.");
+    }
+    if (i.status.views_report === "failed") {
+      out.push("The monthly audience report was not written. The next run tries again; check the run log.");
     }
     if (i.status.deploy_rolled_back === true) {
       out.push("The site answered with server errors after the last deploy, so the run rolled the Worker back to the version before it. The site shows the previous data until a later run deploys again; check the run log.");

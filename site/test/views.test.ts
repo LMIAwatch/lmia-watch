@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { app } from "../src/index";
-import { countryCode, referrerHost, routeTemplate } from "../src/views";
+import { agentClass, countryCode, dailySalt, deviceClass, referrerHost, routeTemplate, utcDay, visitorHash } from "../src/views";
 import { testEnv } from "./assets";
 
 // A stand-in for the Analytics Engine binding that keeps what it is given.
@@ -95,7 +95,8 @@ describe("measurement middleware", () => {
     const [p] = points;
     expect(p).toEqual({
       indexes: ["/employers/:id"],
-      blobs: ["/employers/:id", "page", "fr", "", "news.example.org", "GET"],
+      // No VIEWS_SALT_KEY in the test environment, so no visitor code.
+      blobs: ["/employers/:id", "page", "fr", "", "news.example.org", "GET", "", "human", "desktop", ""],
       doubles: [200],
     });
     const raw = JSON.stringify(p);
@@ -130,7 +131,8 @@ describe("measurement middleware", () => {
     const req = new Request("http://localhost/search", { headers: { referer: "https://lmiawatch.ca/" } });
     Object.defineProperty(req, "cf", { value: { country: "CA", city: "Somewhere", latitude: "1" } });
     await app.fetch(req, { ...testEnv(), VIEWS: dataset });
-    expect(points[0].blobs).toEqual(["/search", "page", "en", "CA", "lmiawatch.ca", "GET"]);
+    // No user agent at all: a program, so a bot with no device and no code.
+    expect(points[0].blobs).toEqual(["/search", "page", "en", "CA", "lmiawatch.ca", "GET", "", "bot", "", ""]);
     expect(JSON.stringify(points)).not.toContain("Somewhere");
   });
 
@@ -141,5 +143,142 @@ describe("measurement middleware", () => {
     expect(await res.text()).toContain("<h1>");
     expect((await visit("/methodology")).status).toBe(200);
     expect((await visit("/methodology", undefined)).status).toBe(200);
+  });
+});
+
+const CHROME = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
+const IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
+const ANDROID_PHONE = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36";
+const ANDROID_TABLET = "Mozilla/5.0 (Linux; Android 13; SM-X700) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
+const IPAD = "Mozilla/5.0 (iPad; CPU OS 12_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/12.1 Mobile/15E148 Safari/604.1";
+const FIREFOX = "Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0";
+const CUBOT = "Mozilla/5.0 (Linux; Android 10; CUBOT X30) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36";
+
+describe("bot or human", () => {
+  it("counts a browser as a person", () => {
+    for (const ua of [CHROME, IPHONE, ANDROID_PHONE, ANDROID_TABLET, IPAD, FIREFOX, CUBOT, UA]) {
+      expect(agentClass(ua, undefined), ua).toBe("human");
+    }
+  });
+
+  it("counts crawlers, scripts, the site's own client and a missing agent as bots", () => {
+    for (const ua of [
+      "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+      "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+      "Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)",
+      "Mozilla/5.0 (compatible; Yahoo! Slurp; http://help.yahoo.com/help/us/ysearch/slurp)",
+      "Mozilla/5.0 (compatible; Baiduspider/2.0; +http://www.baidu.com/search/spider.html)",
+      "Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)",
+      "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.2; +https://openai.com/gptbot)",
+      "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/130.0.0.0 Safari/537.36",
+      "Mozilla/5.0 (compatible; Google-InspectionTool/1.0)",
+      "Mozilla/5.0 (compatible; LMIAWatch/0.1; +https://lmiawatch.ca)",
+      "LMIAWatch/0.1 (+https://lmiawatch.ca; https://lmiawatch.ca/corrections)",
+      "python-requests/2.32.3",
+      "curl/8.5.0",
+      "Wget/1.21.4",
+      "Go-http-client/2.0",
+      "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+      "Feedly/1.0 (+https://feedly.com/poller.html; 12 subscribers; like FeedFetcher-Google)",
+      "",
+      "   ",
+    ]) {
+      expect(agentClass(ua, undefined), ua).toBe("bot");
+    }
+    expect(agentClass(undefined, undefined)).toBe("bot");
+    expect(agentClass(null, undefined)).toBe("bot");
+  });
+
+  it("takes the edge's verified-bot category over the user agent, whatever the category", () => {
+    expect(agentClass(CHROME, "Search Engine Crawler")).toBe("bot");
+    expect(agentClass(CHROME, "Monitoring & Analytics")).toBe("bot");
+    expect(agentClass(CHROME, "")).toBe("human");
+    expect(agentClass(CHROME, 7)).toBe("human");
+  });
+
+  it("counts every feed poll and payment hook as a bot, whatever its agent", () => {
+    expect(agentClass(CHROME, undefined, "feed")).toBe("bot");
+    expect(agentClass(CHROME, undefined, "hook")).toBe("bot");
+    expect(agentClass(CHROME, undefined, "page")).toBe("human");
+    expect(agentClass(CHROME, undefined, "api")).toBe("human");
+  });
+
+  it("records the edge's verified-bot category as a bot on the data point", async () => {
+    const { points, dataset } = recorder();
+    const req = new Request("http://localhost/search", { headers: { "user-agent": CHROME } });
+    Object.defineProperty(req, "cf", { value: { country: "US", verifiedBotCategory: "Search Engine Crawler" } });
+    await app.fetch(req, { ...testEnv(), VIEWS: dataset, VIEWS_SALT_KEY: "test-secret" });
+    expect(points[0].blobs?.slice(6)).toEqual(["", "bot", "", ""]);
+  });
+});
+
+describe("device class", () => {
+  it("reads desktop, mobile or tablet from the user agent", () => {
+    expect(deviceClass(CHROME)).toBe("desktop");
+    expect(deviceClass(FIREFOX)).toBe("desktop");
+    expect(deviceClass(IPHONE)).toBe("mobile");
+    expect(deviceClass(ANDROID_PHONE)).toBe("mobile");
+    expect(deviceClass(CUBOT)).toBe("mobile");
+    expect(deviceClass(ANDROID_TABLET)).toBe("tablet");
+    expect(deviceClass(IPAD)).toBe("tablet");
+    expect(deviceClass("Mozilla/5.0 (Android 4.4; Tablet; rv:41.0) Gecko/41.0 Firefox/41.0")).toBe("tablet");
+    expect(deviceClass("")).toBe("");
+    expect(deviceClass(undefined)).toBe("");
+  });
+
+  it("takes Chromium's mobile hint for a phone that asked for the desktop site", () => {
+    expect(deviceClass(CHROME, "?1")).toBe("mobile");
+    expect(deviceClass(CHROME, "?0")).toBe("desktop");
+  });
+});
+
+describe("the daily visitor code", () => {
+  // Expected values computed outside the Worker with Python's hmac and hashlib:
+  // salt = HMAC-SHA-256(b"test-secret", day) as hex, code = SHA-256(salt + "\n" + ip + "\n" + ua) as hex, first 16.
+  it("is SHA-256 of the day's salt, the address and the agent, cut to 16 hex characters", async () => {
+    expect(await dailySalt("test-secret", "2026-10-30")).toBe("5b0248d5b21c43729cd708863dd2f9e467325491b708a44979acbedbd34c2683");
+    expect(await visitorHash("test-secret", "2026-10-30", IP, UA)).toBe("79b509108f501ba3");
+  });
+
+  it("changes every UTC day, with the address and with the secret", async () => {
+    expect(await dailySalt("test-secret", "2026-10-31")).toBe("d90ec944394394b6b987859d350ad7ff658f75d0db9b3f50a1d5ae0a7dcaadbb");
+    expect(await visitorHash("test-secret", "2026-10-31", IP, UA)).toBe("e16bd6bd25051507");
+    expect(await visitorHash("test-secret", "2026-10-30", "203.0.113.43", UA)).not.toBe("79b509108f501ba3");
+    expect(await visitorHash("other-secret", "2026-10-30", IP, UA)).not.toBe("79b509108f501ba3");
+    expect(utcDay(new Date("2026-10-30T23:59:59.999Z"))).toBe("2026-10-30");
+    expect(utcDay(new Date("2026-10-31T00:00:00Z"))).toBe("2026-10-31");
+  });
+
+  it("is empty without the secret", async () => {
+    expect(await visitorHash(undefined, "2026-10-30", IP, UA)).toBe("");
+    expect(await visitorHash("", "2026-10-30", IP, UA)).toBe("");
+  });
+
+  it("is written for a person's request and never for a bot's, and the address and agent are not", async () => {
+    const { points, dataset } = recorder();
+    const env = { ...testEnv(), VIEWS: dataset, VIEWS_SALT_KEY: "test-secret" };
+    const headers = { "cf-connecting-ip": IP, "user-agent": UA };
+    await app.request("/methodology", { headers }, env);
+    await app.request("/methodology", { headers: { ...headers, "user-agent": "Mozilla/5.0 (compatible; bingbot/2.0)" } }, env);
+    await app.request("/methodology", { headers: { ...headers, "user-agent": IPHONE } }, env);
+    expect(points).toHaveLength(3);
+    const [person, bot, phone] = points.map((p) => p.blobs ?? []);
+    expect(person.slice(6)).toEqual(["", "human", "desktop", await visitorHash("test-secret", utcDay(), IP, UA)]);
+    expect(person[9]).toMatch(/^[0-9a-f]{16}$/);
+    expect(bot.slice(6)).toEqual(["", "bot", "", ""]);
+    expect(phone.slice(7, 9)).toEqual(["human", "mobile"]);
+    expect(phone[9]).toMatch(/^[0-9a-f]{16}$/);
+    expect(phone[9]).not.toBe(person[9]);
+    const raw = JSON.stringify(points);
+    for (const secret of [IP, UA, IPHONE, "bingbot", "test-secret", await dailySalt("test-secret", utcDay())]) {
+      expect(raw, secret).not.toContain(secret);
+    }
+  });
+
+  it("writes the point with an empty code when no secret is set", async () => {
+    const { points, dataset } = recorder();
+    const res = await app.request("/methodology", { headers: { "user-agent": UA } }, { ...testEnv(), VIEWS: dataset });
+    expect(res.status).toBe(200);
+    expect(points[0].blobs?.slice(7)).toEqual(["human", "desktop", ""]);
   });
 });

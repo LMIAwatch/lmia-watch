@@ -12,10 +12,13 @@ them adds a cookie or a script to the pages:
 3. The Worker's own counts in Workers Analytics Engine (`site/src/views.ts`):
    one data point per response, holding the route template, the page
    language, the country code Cloudflare's edge attaches, the referring
-   site's host name and the status code, plus, for an Atom feed, the file
-   and the subscriber count a feed reader states. No IP address, user agent,
+   site's host name, the status code, whether the request came from a bot
+   or a person, and for a person the device class and a daily visitor code
+   (a hash that changes every UTC day), plus, for an Atom feed, the file and
+   the subscriber count a feed reader states. No IP address, user agent,
    cookie, full referrer or raw path is written. The Data page says so in
-   both languages. The nightly run keeps a daily roll-up in R2 (section 6).
+   both languages. The nightly run keeps a daily roll-up, Search Console's
+   daily figures and a monthly report in R2 (section 6).
 
 Before any of that, two fixes in the zone, both missing on 2026-10-18: plain
 HTTP is served without a redirect, and `www.lmiawatch.ca` serves a full copy
@@ -227,6 +230,12 @@ on the other.
 
 ## 6. Reading the counts
 
+The counts are read day to day and kept as a lasting record of the site's
+audience. Cloudflare's dashboards show a window and keep nothing, so the
+nightly run keeps three files in R2: the daily roll-up of the Worker's own
+counts, Search Console's daily figures, and a report per month. Since
+2026-10-30 every count separates people from crawlers.
+
 ### What one data point holds
 
 | Column | Holds | Example |
@@ -238,13 +247,50 @@ on the other.
 | `blob4` | the country code from Cloudflare's edge, empty when absent (`T1` is Tor) | `CA` |
 | `blob5` | the referring site's host name, empty when none | `news.google.com` |
 | `blob6` | the request method | `GET` |
-| `blob7` | feeds only: the feed file, empty when no file was served | `feeds/canada/pending.xml` |
+| `blob7` | feeds only: the feed file, empty when no file was served (empty on every other point) | `feeds/canada/pending.xml` |
+| `blob8` | `bot` or `human` (from 2026-10-30) | `human` |
+| `blob9` | people only: `desktop`, `mobile` or `tablet`, read from the user agent; empty for a bot | `mobile` |
+| `blob10` | people only: the daily visitor code, 16 hex characters; empty for a bot and while `VIEWS_SALT_KEY` is not set | `79b509108f501ba3` |
 | `double1` | the status code | `200` |
 | `double2` | feeds only: the subscriber count the feed reader stated, 0 when none | `12` |
+
+The positions never move: the roll-up reads older days with the same
+columns, and a point written before 2026-10-30 reads back with empty strings
+in `blob7` to `blob10`.
 
 A path that matches no route is stored as `other`, never as written, since a
 mistyped or pasted address could hold anything. Downloads keep their file
 name (the list is fixed). The dataset is `lmia_watch_views`.
+
+**Bot or human** (`site/src/views.ts`, `agentClass`). A request is a bot when
+Cloudflare's edge gives it a verified-bot category (`request.cf.verifiedBotCategory`,
+any value: search engines, monitors, feed fetchers), when the user agent is
+missing or not shaped like a browser's (every browser starts `Mozilla/` or,
+for old Opera, `Opera/`), when the user agent holds one of the crawler words
+(bot, crawl, spider, slurp, fetch, python-requests, curl, wget, headless,
+the site's own `LMIAWatch`, and a few more listed in the code), and always
+for a feed poll or the payment hook. Everything else is human: a person's
+browser, or a crawler that disguises itself as one, which no header can tell
+apart. "bot" is not matched inside "Cubot", a phone maker whose model names
+appear in ordinary Android user agents.
+
+**Device** (`deviceClass`): tablet for iPad, Kindle, Silk, PlayBook,
+"Tablet", or Android without "Mobile"; mobile for "Mobi", iPhone, iPod,
+Windows Phone, BlackBerry, Opera Mini, or the client hint
+`Sec-CH-UA-Mobile: ?1`; desktop otherwise. iPadOS asks for desktop pages and
+says "Macintosh", so most iPads count as desktop.
+
+**The visitor code** (`visitorHash`): SHA-256 of the day's salt, the client
+address (`cf-connecting-ip`) and the user agent, separated by newlines, cut
+to 16 hex characters. The day's salt is HMAC-SHA-256 of the UTC date
+(`YYYY-MM-DD`) under the Worker secret `VIEWS_SALT_KEY`. The address and the
+user agent are hashed and dropped; the code changes at midnight UTC; without
+the secret no one can compute a code from an address. Whoever holds the
+secret could recompute a past day's salt and test a known address against
+the codes still in Analytics Engine (three months), so the secret lives only
+in the Worker. The roll-up only ever asks for how many distinct codes there
+are (`count(DISTINCT blob10)`), so no code reaches R2. The Data page says
+all this in both languages.
 
 The Atom feeds are the one static file counted. `site/wrangler.jsonc` runs
 the Worker first for `/data/feeds/*` (`run_worker_first`), and the Worker
@@ -265,6 +311,23 @@ feed service polling many feeds from one address is not refused.
 
 Limits: data points written match the Worker's requests; 10,000 read queries
 a day; data kept for three months.
+
+### The visitor code's secret
+
+Without `VIEWS_SALT_KEY` the Worker writes an empty code and the roll-up
+leaves the visitor columns blank; everything else is counted. To set it,
+from `site/` on the project account's machine:
+
+```
+openssl rand -hex 32
+npx wrangler secret put VIEWS_SALT_KEY
+```
+
+Paste the 64 hex characters when Wrangler asks. The secret survives every
+deploy. Keep no copy: nothing ever needs it outside the Worker, and a lost
+secret only means a new one (that day's visitors are then counted under two
+salts, so set or change it close to midnight UTC; the roll-up blanks the
+visitor columns of any day on which a person's request carried no code).
 
 ### The token
 
@@ -293,23 +356,29 @@ The workflow step "Roll up the audience counts" runs
 It asks the SQL API for every finished UTC day after the newest one in the
 summary (normally only yesterday; on the first night, the last 90 days), so
 a night that fails is caught up by the next. A day with no data points at all
-is not written and is asked again the next night. Files in the
-`lmia-watch-data` bucket:
+is not written and is asked again the next night. Each day costs one query,
+and six more when it has data points (counts, feeds, page views by bot flag,
+people's page views by route, distinct visitor codes, distinct codes with a
+page view). Files in the `lmia-watch-data` bucket:
 
 | Key | What it is |
 |---|---|
 | `views/YYYY-MM-DD.csv` | one file per day, written once and replaced only if that day is rolled up again |
 | `views/summary.csv` | one row per day, every day kept so far |
+| `views/search_console.csv` | one row per day of Search Console figures (below) |
+| `views/report-YYYY-MM.md` | the monthly report (below) |
 
 The summary is downloaded, extended and uploaded again each night. A download
 that fails for any reason other than "does not exist" stops the step, and a
 summary that cannot be read (empty, an unknown column, a row without a date)
 fails the roll-up, so a shorter file never replaces it. It can always be
-rebuilt from the day files.
+rebuilt from the day files. A summary written before a column existed reads
+with that column blank.
 
 A day file, header
-`date,section,route,kind,lang,country,referrer,status,feed,responses,subscribers`,
-has four kinds of row, named by `section`:
+`date,section,route,kind,lang,country,referrer,status,feed,responses,subscribers,agent,device`
+(files written before 2026-10-30 lack the last two), has five kinds of row,
+named by `section`:
 
 | `section` | Columns filled | Meaning |
 |---|---|---|
@@ -317,33 +386,56 @@ has four kinds of row, named by `section`:
 | `kind` | `kind`, `responses` | the day's responses of one kind |
 | `count` | `route` to `status`, `responses` | responses for one combination of route template, kind, language, country, referring host and status |
 | `feed` | `feed`, `responses`, `subscribers` | one feed file: the day's polls, and the largest subscriber count any reader stated (0 when none did); `feed` is empty for polls of a feed path with no file |
+| `audience` | `agent`, `country`, `device`, `lang`, `responses` | page views below status 400 for one combination of bot flag, country, device and language; `agent` is empty for points written before the flag |
 
 `status` is the HTTP status code; `country` and `referrer` are empty when the
 request carried none. Counts come from `SUM(_sample_interval)`, so they are
-exact while Analytics Engine does not sample and estimates when it does.
+exact while Analytics Engine does not sample and estimates when it does; the
+distinct counts of visitor codes would undercount if it ever sampled (this
+site's volume is far below where it starts).
 
 The summary, header
-`date,responses,pages,api,downloads,forms,feeds,other,feed_subscribers,bluesky_followers,top_routes`:
+`date,responses,pages,api,downloads,forms,feeds,other,feed_subscribers,bluesky_followers,top_routes,human_pages,bot_pages,unique_visitors,human_visits,human_by_country,human_by_device,human_by_lang,human_by_route,x_followers,employers,records`:
 
 | Column | Meaning |
 |---|---|
 | `date` | the UTC day |
-| `responses` | every response counted |
+| `responses` | every response counted, people and bots |
 | `pages`, `api`, `downloads`, `forms`, `feeds` | responses of kind `page`, `api`, `download`, `form`, `feed` |
 | `other` | everything else: the payment hook, `robots.txt`, the sitemaps, the feed index, paths that match no route |
 | `feed_subscribers` | the sum over feed files of each file's largest stated subscriber count; a person who follows two feeds counts twice, and a feed read through two services counts only the larger figure |
 | `bluesky_followers` | the Bluesky account's follower count when the roll-up ran, on the row for the day before; empty for days caught up later and when the profile could not be read |
-| `top_routes` | the five route templates with the most responses below status 400, as `route count` pairs separated by semicolons |
+| `top_routes` | the five route templates with the most responses below status 400, people and bots together, as `route count` pairs separated by semicolons |
+| `human_pages` | page views (kind `page`, status below 400) marked human |
+| `bot_pages` | page views marked bot |
+| `unique_visitors` | distinct visitor codes among people's requests of any kind |
+| `human_visits` | distinct visitor codes with at least one page view (any status); approximate, since a code lasts the whole day |
+| `human_by_country` | people's page views by country as compact JSON, largest first: the top ten, then `other` for the rest; `unknown` when the edge gave none |
+| `human_by_device` | people's page views by `desktop`, `mobile`, `tablet` |
+| `human_by_lang` | people's page views by `en`, `fr` |
+| `human_by_route` | people's page views by route template, every route |
+| `x_followers` | the X account's follower count, read once a month on the night that rolls up the month's last day, only when X posting is enabled (`X_POST_ENABLED` and the four X secrets); one read, billed per use |
+| `employers`, `records` | the site's counts from tonight's `stats.json` (employers; rows on ESDC's positive and negative lists), on the row for the day before |
 
-Nothing in either file identifies a visitor: the query can read only what
-the Worker writes, and the roll-up blanks any value that does not have the
-shape the Worker writes before it is stored.
+Blanks are deliberate and never mean zero. The eight people and bot columns
+are blank on any day on which a page view carries no bot flag (every day
+before 2026-10-30, and the day itself, which mixes points from before and
+after the deploy). `unique_visitors` and `human_visits` are also blank on any
+day on which a person's request carried no visitor code (no `VIEWS_SALT_KEY`,
+or the secret set part way through the day). The follower, employer and
+record readings are taken on the night, so a day rolled up again keeps the
+reading it had.
+
+Nothing in either file identifies a visitor: the queries can read only what
+the Worker writes, never ask for a visitor code itself, and the roll-up
+blanks any value that does not have the shape the Worker writes before it
+is stored.
 
 Bluesky's follower count comes from its public profile endpoint
 (`public.api.bsky.app`, `app.bsky.actor.getProfile`), which needs no token;
 the handle is the `BSKY_HANDLE` secret, or the site's domain when that is not
-set. X is left out: under its pay-per-use API, reading the account's profile
-costs credits.
+set. X's comes from `GET /2/users/me?user.fields=public_metrics` with the
+posting credentials, once a month.
 
 Outcomes in the run status, as `views_rollup`: `rolled up`, `no data` (no
 day had a data point), `no token`, or `failed` (the SQL API failed, the
@@ -353,12 +445,106 @@ is an attention item. The step never stops the run.
 To read the files: Cloudflare dashboard, R2, `lmia-watch-data`, folder
 `views`, or from `site/` on the project account's machine,
 `npx wrangler r2 object get --remote lmia-watch-data/views/summary.csv --file summary.csv`
-(without `--remote`, Wrangler reads a local simulated bucket).
+(without `--remote`, Wrangler reads a local simulated bucket). The weekly
+backup pull on the operator's PC keeps `views/summary.csv`; add
+`views/search_console.csv` and the reports to it if a copy off the account is
+wanted.
 
 Nothing needs doing by hand. To look at one day from a machine anyway (within
 the 90 days, with `CLOUDFLARE_ANALYTICS_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`
 set in the shell), `python -m lmia_pipeline rollup-views --day YYYY-MM-DD`
 writes its file to `data/out/views/`.
+
+### Search Console's figures
+
+Search Console keeps 16 months. The workflow step "Import the Search Console
+figures" runs `python -m lmia_pipeline import-search-console`
+(`pipeline/lmia_pipeline/search_console.py`) and appends to
+`views/search_console.csv` one row per day after the newest one it holds
+(on the first night, everything Search Console still has), header
+`date,clicks,impressions,ctr,position,top_queries`:
+
+| Column | Meaning |
+|---|---|
+| `date` | the day (Search Console's days are Pacific time, as in its own reports) |
+| `clicks`, `impressions` | web search totals for the property |
+| `ctr` | clicks over impressions, as Search Console gives it |
+| `position` | the average position, weighted by impressions |
+| `top_queries` | the day's 50 queries with the most clicks, as JSON: `[[query, clicks, impressions, position], ...]` |
+
+Only final data is asked for (`dataState: final`), so a stored day never
+changes; the newest two or three days arrive on later nights. A day with no
+impressions has no row. At most 120 days are fetched a night, and the next
+night goes on. Google leaves out queries made by very few people, and the
+file is not published.
+
+Signing in: Google exchanges a JWT signed with the service account's RSA key
+for a read-only access token (scope `webmasters.readonly`). The pipeline has
+no cryptography package, so `search_console.rs256` computes the
+RSASSA-PKCS1-v1_5 signature with the standard library (RFC 8017; the tests
+check it byte for byte against OpenSSL). The key is read from the secret and
+never written or logged.
+
+Outcomes, as `search_console` in the run status and "Search Console:" in
+LAST_RUN.md: `imported <n> days`, `up to date`, `no credentials` (the secret
+is not set; nothing is asked), or `failed` (an attention item and a watchdog
+email; the next night catches up, and the file is never replaced by a shorter
+one).
+
+#### Setting up the service account
+
+Use the project's Google account (section 3), in the project's browser
+profile.
+
+1. Open `console.cloud.google.com` and create a project, for example
+   `lmia-watch-audience`. No billing account is needed.
+2. APIs & Services, Library: find "Google Search Console API" and Enable it.
+3. IAM & Admin, Service Accounts, Create service account: name
+   `search-console-reader`. Skip the optional role and user steps; the
+   account needs no Cloud permissions.
+4. Open the new account, Keys, Add key, Create new key, JSON. A file
+   downloads.
+5. Search Console, the `lmiawatch.ca` property, Settings, Users and
+   permissions, Add user: the service account's address (it ends in
+   `.iam.gserviceaccount.com`), permission Restricted. Restricted can read
+   every report and change nothing.
+6. GitHub, the repository, Settings, Secrets and variables, Actions, New
+   repository secret: name `GSC_SERVICE_ACCOUNT_JSON`, the whole content of
+   the downloaded file as the value. Then delete the file.
+7. Only if the property is a URL-prefix property rather than the domain
+   property: a repository variable `GSC_SITE` with its address, for example
+   `https://lmiawatch.ca/`. The default is `sc-domain:lmiawatch.ca`.
+
+The next run imports the 16 months Search Console holds. A key does not
+expire; to replace one, add a new key, update the secret, and delete the old
+key in the Cloud console. An answer of 403 means the account is not a user
+of the property (step 5).
+
+### The monthly report
+
+The workflow step "Write the monthly audience report" runs
+`python -m lmia_pipeline views-report` (`pipeline/lmia_pipeline/views_report.py`)
+on the first run of each UTC month: every night it asks R2 whether
+`views/report-<last month>.md` exists, and writes it when it does not, from
+the summary and the Search Console file as R2 holds them. It waits up to a
+week for the month's last day to be rolled up (outcome `waiting`), then
+writes with the days there are.
+
+The report is plain markdown: a table of the month and the three before it
+(days counted, page views by people, unique visitors summed by day, visits,
+Canada's share, the device split, search clicks, impressions and position,
+feed subscribers, Bluesky and X followers, employers and records), the
+month's top ten pages by people, and the definitions of each figure. A
+figure that was not counted reads `n/a`. Unique visitors are summed over the
+month's days ("visitor-days"), since the code changes daily: a person who
+came on three days counts three times.
+
+Its one line goes to LAST_RUN.md as "Audience report: ..." on the run that
+wrote it. Outcomes, as `views_report`: `written`, `not due` (the report
+exists), `waiting`, `no data` (the summary holds no day of the month), or
+`failed` (an attention item and a watchdog email; the next run tries again).
+To write one by hand from downloaded files:
+`python -m lmia_pipeline views-report --month 2026-11 --summary summary.csv --search search_console.csv --out .`
 
 ### The dashboard
 
@@ -389,6 +575,19 @@ FROM lmia_watch_views
 WHERE blob2 = 'page' AND double1 < 400 AND timestamp > NOW() - INTERVAL '30' DAY
 GROUP BY day ORDER BY day
 ```
+
+People and bots a day, with distinct visitors, last 7 days (from 2026-10-30):
+
+```
+SELECT toStartOfInterval(timestamp, INTERVAL '1' DAY) AS day, blob8 AS agent,
+  SUM(_sample_interval) AS views, count(DISTINCT blob10) AS codes
+FROM lmia_watch_views
+WHERE blob2 = 'page' AND double1 < 400 AND timestamp > NOW() - INTERVAL '7' DAY
+GROUP BY day, agent ORDER BY day, agent
+```
+
+(A row of bots shows `codes` 1: every bot point carries the same empty
+code.)
 
 Most viewed routes and the language split, last 7 days:
 

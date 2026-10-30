@@ -1,5 +1,6 @@
 """Command line: `python -m lmia_pipeline run`, `post-digest`, `post-bluesky`, `deposit-zenodo`,
-the search database's `search-sync`, `search-check` and `search-synced`, and `rollup-views`."""
+the search database's `search-sync`, `search-check` and `search-synced`, and the audience
+record's `rollup-views`, `import-search-console` and `views-report`."""
 
 from __future__ import annotations
 
@@ -8,11 +9,12 @@ import csv
 import logging
 import sqlite3
 import sys
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
-from . import bluesky, config, export, export_static, indicators, migrate, search_db, social, status, views_rollup, zenodo
+from . import bluesky, config, export, export_static, indicators, migrate, search_console, search_db, social, status
+from . import views_report, views_rollup, zenodo
 from .db import connect, hours_since, log_run
 from .http import PoliteClient
 from .sources import esdc, geography, ircc, jobbank, lfs, program, registry_bc, registry_federal, registry_quebec
@@ -115,6 +117,23 @@ def build_parser() -> argparse.ArgumentParser:
                     help="folder holding summary.csv; the day files go beside it (default data/out/views)")
     rv.add_argument("--day", default=None,
                     help="roll up this UTC day only (YYYY-MM-DD, within the last 90 days); default: every day due")
+    rv.add_argument("--stats", default=None,
+                    help="tonight's stats.json, for the employer and record counts (default data/out/static/stats.json)")
+
+    # Search Console's figures (search_console.py, docs/search-engines.md
+    # section 6): every final day after the newest in search_console.csv.
+    # Needs GSC_SERVICE_ACCOUNT_JSON; without it the outcome is "no credentials".
+    gs = sub.add_parser("import-search-console", help="append Search Console's daily figures to search_console.csv")
+    gs.add_argument("--out", default=None,
+                    help="folder holding search_console.csv; outcome.txt goes beside it (default data/out/search_console)")
+
+    # The monthly audience report (views_report.py), from the files in R2.
+    vp = sub.add_parser("views-report", help="write the audience report of a finished UTC month")
+    vp.add_argument("--month", default=None, help="YYYY-MM (default: the month before today, UTC)")
+    vp.add_argument("--summary", required=True, help="views/summary.csv as downloaded from R2")
+    vp.add_argument("--search", default=None, help="views/search_console.csv as downloaded from R2, when it exists")
+    vp.add_argument("--out", required=True, help="folder for report-<month>.md, summary_line.txt and outcome.txt")
+    vp.add_argument("--today", default=None, help="YYYY-MM-DD (default: today, UTC)")
     return parser
 
 
@@ -144,6 +163,10 @@ def _main(args: argparse.Namespace) -> int:
     # Reads only the API and its own files.
     if args.command == "rollup-views":
         return _rollup_views(args)
+    if args.command == "import-search-console":
+        return _import_search_console(args)
+    if args.command == "views-report":
+        return _views_report(args)
     conn = connect(args.db)
     try:
         return _command(conn, args)
@@ -342,9 +365,35 @@ def _rollup_views(args: argparse.Namespace) -> int:
     for the run status itself, after the uploads, because a night counts as
     rolled up only once its files are in R2."""
     day = date.fromisoformat(args.day) if args.day else None
-    outcome = views_rollup.run(Path(args.out) if args.out else None, day=day)
+    outcome = views_rollup.run(Path(args.out) if args.out else None, day=day,
+                               stats_path=Path(args.stats) if args.stats else None)
     log.info("rollup-views: %s", outcome)
     print(f"rollup-views: {outcome}")
+    return 1 if outcome == "failed" else 0
+
+
+def _import_search_console(args: argparse.Namespace) -> int:
+    """Exit 1 only when the import failed. outcome.txt holds the outcome for the
+    workflow, which reports it once the file is in R2."""
+    folder = Path(args.out) if args.out else config.OUT_DIR / "search_console"
+    outcome = search_console.run(folder)
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "outcome.txt").write_text(outcome + "\n", encoding="utf-8")
+    log.info("import-search-console: %s", outcome)
+    print(f"import-search-console: {outcome}")
+    return 1 if outcome == "failed" else 0
+
+
+def _views_report(args: argparse.Namespace) -> int:
+    """Exit 1 only when the report failed; "waiting" and "no data" are not failures."""
+    today = date.fromisoformat(args.today) if args.today else datetime.now(timezone.utc).date()
+    month = args.month or views_report.report_month(today)
+    out = Path(args.out)
+    outcome = views_report.run(out, month, today, Path(args.summary), Path(args.search) if args.search else None)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "outcome.txt").write_text(outcome + "\n", encoding="utf-8")
+    log.info("views-report %s: %s", month, outcome)
+    print(f"views-report {month}: {outcome}")
     return 1 if outcome == "failed" else 0
 
 

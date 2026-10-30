@@ -34,7 +34,8 @@ rules.
 
 7. Reading through the API is billed too, so the nightly audience roll-up
    (`docs/search-engines.md`, section 6) records the Bluesky follower count
-   and leaves the X one out.
+   every night and the X one once a month (one read, on the night that rolls
+   up the month's last day, and only while `X_POST_ENABLED` is `true`).
 
 This is the one part of the project that is not free. Decide on it before
 step 2.

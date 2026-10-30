@@ -69,6 +69,24 @@ describe("daily check", () => {
     expect(with_({ search_sync: "failed", views_rollup: "failed", deploy_rolled_back: true })).toHaveLength(3);
   });
 
+  it("flags a failed Search Console import and an unwritten monthly report, and nothing else they report", () => {
+    const with_ = (extra: object) => collectAlerts({ ...healthy, status: { ...healthy.status, ...extra } });
+    expect(with_({ search_console: "failed" })).toEqual([
+      "The Search Console import failed. The next run catches up; check the GSC_SERVICE_ACCOUNT_JSON secret and the run log.",
+    ]);
+    expect(with_({ views_report: "failed" })).toEqual([
+      "The monthly audience report was not written. The next run tries again; check the run log.",
+    ]);
+    for (const quiet of ["imported 3 days", "up to date", "no credentials", "not run"]) {
+      expect(with_({ search_console: quiet }), quiet).toEqual([]);
+    }
+    for (const quiet of ["written", "not due", "waiting", "no data", "not run"]) {
+      expect(with_({ views_report: quiet }), quiet).toEqual([]);
+    }
+    const read = readStatus({ ...healthy.status, search_console: "failed", views_report: 3 });
+    expect(read.status).toEqual({ ...healthy.status, search_console: "failed" });
+  });
+
   it("reads the resilience fields from status.json and drops them when they have the wrong type", () => {
     const fields = { search_sync: "failed", views_rollup: "rolled up", deploy_rolled_back: true };
     const read = readStatus({ ...healthy.status, ...fields, smoke: "broken", checks: { due: false } });

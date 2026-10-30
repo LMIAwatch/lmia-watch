@@ -13,14 +13,16 @@ Every day at 06:00 UTC (after the nightly run's window) a cron trigger runs
 - the upload time of `lmia.sqlite.gz` in R2 (the backup),
 - `status.json` in R2 (when the run finished, which stages succeeded, and
   the outcomes of the X post, the Bluesky post, the Zenodo deposit, the
-  search database sync, the audience roll-up and any rollback).
+  search database sync, the audience roll-up, the Search Console import, the
+  monthly audience report and any rollback).
 
 It emails when the data is more than two and a half days old, the backup or
 the status is missing or older than 36 hours, a stage or a workflow step
 (restore, deploy, save) failed, the checks held back the night's data, the
 status file cannot be read, X or Bluesky refused the post, the Zenodo
-deposit, the search database sync or the audience roll-up failed, or the run
-rolled back a deploy. One email a day at most, repeated while an item
+deposit, the search database sync, the audience roll-up, the Search Console
+import or the monthly audience report failed, or the run rolled back a
+deploy. One email a day at most, repeated while an item
 remains. Nothing is sent on a healthy day.
 
 Notices are not alerts. A government notice first listed that night, IRCC's
@@ -135,6 +137,8 @@ also given read access to the account's registrar domains.
 | Zenodo deposit failed | Token revoked or expired, Zenodo down, or a field refused | The run log quotes Zenodo's answer; the next night tries again (`docs/zenodo.md`) |
 | Search database sync failed | Wrangler could not apply a batch, or the count read back disagreed | Nothing, usually: the next run sends the changes again (`docs/hosted-search.md`) |
 | Audience roll-up failed | The analytics token was revoked, or the SQL API or R2 failed | Check the `CLOUDFLARE_ANALYTICS_TOKEN` secret; the next run catches up |
+| Search Console import failed | The service account key was deleted, the account was removed from the property (HTTP 403), or Google or R2 failed | Check the `GSC_SERVICE_ACCOUNT_JSON` secret and the property's users (`docs/search-engines.md`, section 6); the next run catches up |
+| Monthly audience report failed | R2 could not be read or written, or the summary could not be read | The run log says which; the next run writes the report |
 | IndexNow: rejected; check the key file | The key file at the site's root is missing, refused at the edge, or holds another key than `INDEXNOW_KEY`; or the URLs name another host | Open `https://lmiawatch.ca/<key>.txt`: it must answer 200 with the key as its entire content (`docs/search-engines.md`, section 5). The issue and GitHub's email carry this item; the Worker's daily check does not read it |
 | Deploy rolled back | The new Worker answered with server errors | The step "Check the live site" names the pages and codes; the Worker's logs (Workers & Pages, `lmia-watch`, Logs) say why. A code fault needs a fix on `main`; a passing fault clears at the next retry |
 | Deploy broken, not rolled back | As above, and no version was recorded before the deploy or the rollback failed | Roll back from the dashboard (Workers & Pages, `lmia-watch`, Deployments) or with `npx wrangler rollback` from `site/` |

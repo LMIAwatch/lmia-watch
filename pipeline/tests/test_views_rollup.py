@@ -64,16 +64,30 @@ FEEDS = [
 ]
 
 
+# What Analytics Engine answers for a day counted before the bot flag: every
+# page point has an empty blob8, and no point is a person's.
+UNFLAGGED = {
+    "audience": [{"agent": "", "country": "CA", "device": "", "lang": "en", "pages": "120"}],
+    "routes": [],
+    "visitors": [{"visitors": "0", "uncoded": "0"}],
+    "visits": [{"visits": "0"}],
+}
+
+
 class FakeHttp:
     """Stands in for requests.Session. Answers the SQL API per day from `days`
-    (day -> (kinds, counts, feeds); a day not listed has no data points) and
-    the Bluesky profile from `profile`. `fail` replaces every SQL answer."""
+    (day -> (kinds, counts, feeds) or (kinds, counts, feeds, audience answers);
+    a day not listed has no data points; three answers stand for a day before
+    the bot flag), the Bluesky profile from `profile` and the X profile from
+    `x_profile`. `fail` replaces every SQL answer."""
 
     def __init__(self, days: dict | None = None, *, fail: FakeResponse | Exception | None = None,
-                 profile: FakeResponse | Exception | None = None) -> None:
+                 profile: FakeResponse | Exception | None = None,
+                 x_profile: FakeResponse | Exception | None = None) -> None:
         self.days = {YESTERDAY: (KINDS, COUNTS, FEEDS)} if days is None else days
         self.fail = fail
         self.profile = profile or FakeResponse(200, {"did": "did:plc:x", "handle": "lmiawatch.ca", "followersCount": 57})
+        self.x_profile = x_profile or FakeResponse(200, {"data": {"id": "1", "public_metrics": {"followers_count": 31}}})
         self.posts: list[dict] = []
         self.gets: list[dict] = []
         self.closed = False
@@ -87,18 +101,35 @@ class FakeHttp:
             return self.fail
         # The start bound names the day (its end bound is the next day's start).
         day = next((d for d in self.days if f">= toDateTime({vr.day_bounds(d)[0]})" in sql), None)
-        kinds, counts, feeds = self.days.get(day, ([], [], []))
+        held = self.days.get(day)
+        if held is None:
+            # No point at all: grouped queries answer no rows, aggregates one row of zeros.
+            kinds, counts, feeds, extra = [], [], [], {"audience": [], "routes": [],
+                                                       "visitors": [{"visitors": "0", "uncoded": "0"}],
+                                                       "visits": [{"visits": "0"}]}
+        else:
+            kinds, counts, feeds = held[:3]
+            extra = held[3] if len(held) > 3 else UNFLAGGED
         if "blob7 AS feed" in sql:
             return answer(feeds)
         if "GROUP BY kind " in sql:
             return answer(kinds)
+        if "blob8 AS agent" in sql:
+            return answer(extra["audience"])
+        if "SUM(_sample_interval) AS pages" in sql:
+            return answer(extra["routes"])
+        if "AS uncoded" in sql:
+            return answer(extra["visitors"])
+        if "AS visits" in sql:
+            return answer(extra["visits"])
         return answer(counts)
 
-    def get(self, url, headers=None, timeout=None):
-        self.gets.append({"url": url, "headers": headers or {}})
-        if isinstance(self.profile, Exception):
-            raise self.profile
-        return self.profile
+    def get(self, url, headers=None, timeout=None, params=None, auth=None):
+        self.gets.append({"url": url, "headers": headers or {}, "params": params, "auth": auth})
+        reply = self.x_profile if url == vr.X_ME_URL else self.profile
+        if isinstance(reply, Exception):
+            raise reply
+        return reply
 
     def close(self):
         self.closed = True
@@ -110,6 +141,7 @@ def read_csv(path) -> tuple[list[str], list[dict]]:
 
 
 def roll(tmp_path, http: FakeHttp | None = None, **kw) -> str:
+    kw.setdefault("stats_path", tmp_path / "no-stats.json")
     return vr.run(tmp_path, env=kw.pop("env", ENV), session=http if http is not None else FakeHttp(), now=NOW, **kw)
 
 
@@ -145,7 +177,9 @@ def test_the_sql_for_a_day_covers_exactly_that_utc_day():
 def test_each_query_is_a_post_with_the_sql_as_body_and_the_token_only_in_the_header(tmp_path):
     http = FakeHttp()
     assert roll(tmp_path, http, day=YESTERDAY) == "rolled up"
-    assert [p["sql"] for p in http.posts] == [vr.kinds_sql(YESTERDAY), vr.counts_sql(YESTERDAY), vr.feeds_sql(YESTERDAY)]
+    assert [p["sql"] for p in http.posts] == [
+        vr.kinds_sql(YESTERDAY), vr.counts_sql(YESTERDAY), vr.feeds_sql(YESTERDAY), vr.audience_sql(YESTERDAY),
+        vr.human_routes_sql(YESTERDAY), vr.visitors_sql(YESTERDAY), vr.visits_sql(YESTERDAY)]
     for p in http.posts:
         assert p["url"] == f"https://api.cloudflare.com/client/v4/accounts/{ACCOUNT}/analytics_engine/sql"
         assert p["headers"]["Authorization"] == f"Bearer {TOKEN}"
@@ -161,10 +195,14 @@ def test_the_day_file_holds_the_total_the_kinds_every_count_and_every_feed(tmp_p
     assert roll(tmp_path) == "rolled up"
     header, rows = read_csv(tmp_path / "2026-10-21.csv")
     assert header == vr.DAY_HEADER == ["date", "section", "route", "kind", "lang", "country", "referrer", "status",
-                                       "feed", "responses", "subscribers"]
+                                       "feed", "responses", "subscribers", "agent", "device"]
     assert {r["date"] for r in rows} == {"2026-10-21"}
     sections = [r["section"] for r in rows]
-    assert sections == ["total"] + ["kind"] * 7 + ["count"] * 9 + ["feed"] * 3
+    assert sections == ["total"] + ["kind"] * 7 + ["count"] * 9 + ["feed"] * 3 + ["audience"]
+    # A day before the bot flag: its page views are kept, with the agent left empty.
+    audience = rows[-1]
+    assert (audience["agent"], audience["country"], audience["device"], audience["lang"], audience["responses"]) == (
+        "", "CA", "", "en", "120")
     assert rows[0]["responses"] == "206" and rows[0]["route"] == "" and rows[0]["subscribers"] == ""
     assert {r["kind"]: r["responses"] for r in rows if r["section"] == "kind"} == {
         "api": "30", "download": "4", "feed": "40", "form": "1", "hook": "2", "other": "9", "page": "120"}
@@ -211,7 +249,10 @@ def test_the_summary_gets_one_row_per_day_and_a_re_run_replaces_it_in_place(tmp_
     assert roll(tmp_path) == "rolled up"
     header, rows = read_csv(summary)
     assert header == vr.SUMMARY_HEADER == ["date", "responses", "pages", "api", "downloads", "forms", "feeds", "other",
-                                           "feed_subscribers", "bluesky_followers", "top_routes"]
+                                           "feed_subscribers", "bluesky_followers", "top_routes",
+                                           "human_pages", "bot_pages", "unique_visitors", "human_visits",
+                                           "human_by_country", "human_by_device", "human_by_lang", "human_by_route",
+                                           "x_followers", "employers", "records"]
     assert [r["date"] for r in rows] == ["2026-10-19", "2026-10-20", "2026-10-21"]
     assert rows[0]["top_routes"] == "/ 60"  # earlier rows are kept as they were
     new = rows[-1]
@@ -219,7 +260,12 @@ def test_the_summary_gets_one_row_per_day_and_a_re_run_replaces_it_in_place(tmp_
         "date": "2026-10-21", "responses": "206", "pages": "120", "api": "30", "downloads": "4", "forms": "1",
         "feeds": "40", "other": "11", "feed_subscribers": "15", "bluesky_followers": "57",
         "top_routes": "/employers/:id 70; / 50; /data/feeds/:file 36; /api/stats 30; /downloads/employers.csv 4",
+        # A day before the bot flag: blank, never 0.
+        **dict.fromkeys(vr.AUDIENCE_COLUMNS, ""),
+        # Not the last day of a month (no X reading), and no stats.json in this test.
+        "x_followers": "", "employers": "", "records": "",
     }
+    assert rows[0]["human_pages"] == "" and rows[0]["unique_visitors"] == ""  # older rows read with blanks
 
     # The same night again (a manual re-run): still one row for the day, and a
     # follower count that could not be read this time keeps the one it had.
@@ -237,7 +283,7 @@ def test_a_summary_that_cannot_be_read_safely_is_never_replaced(tmp_path):
         "date,responses,visitors_ip\n2026-10-20,5,x\n",  # a column this code does not know
         ",".join(vr.SUMMARY_HEADER) + "\nnot-a-date,1,1,0,0,0,0,0,0,,\n",
         ",".join(vr.SUMMARY_HEADER) + "\n2026-13-45,1,1,0,0,0,0,0,0,,\n",
-        ",".join(vr.SUMMARY_HEADER) + "\n2026-10-20,1,1,0,0,0,0,0,0,,,extra\n",
+        ",".join(vr.SUMMARY_HEADER) + "\n2026-10-20" + ",1" * (len(vr.SUMMARY_HEADER) - 1) + ",extra\n",  # one field too many
     ]
     for text in bad:
         summary.write_text(text, encoding="utf-8")
@@ -308,8 +354,8 @@ def test_missing_days_are_caught_up_and_empty_days_are_not_written(tmp_path):
     assert roll(tmp_path, http) == "rolled up"
     asked = [p["sql"] for p in http.posts if "GROUP BY kind " in p["sql"]]
     assert asked == [vr.kinds_sql(date(2026, 10, d)) for d in (18, 19, 20, 21)]
-    # An empty day costs one question, not three.
-    assert len(http.posts) == 4 + 2 * 2
+    # An empty day costs one question, not seven.
+    assert len(http.posts) == 4 + 2 * 6
     assert sorted(p.name for p in tmp_path.glob("2026-*.csv")) == ["2026-10-18.csv", "2026-10-21.csv"]
     assert (tmp_path / vr.ROLLED_UP).read_text(encoding="utf-8") == "2026-10-18\n2026-10-21\n"
     _, rows = read_csv(summary)
@@ -434,3 +480,182 @@ def test_the_run_status_carries_the_roll_up(tmp_path):
     assert nightly.main(["status", "--db", str(db), "--views-outcome", str(tmp_path / "views.txt"),
                          "--out", str(out)]) == 0
     assert json.loads(out.read_text(encoding="utf-8"))["views_rollup"] == "no token"
+
+
+# -- people and bots (the bot flag and the visitor code, since 2026-10-30) -----
+
+AUDIENCE = [
+    {"agent": "human", "country": "CA", "device": "desktop", "lang": "en", "pages": "60"},
+    {"agent": "human", "country": "CA", "device": "mobile", "lang": "fr", "pages": "20"},
+    {"agent": "human", "country": "US", "device": "mobile", "lang": "en", "pages": "10"},
+    {"agent": "human", "country": "", "device": "tablet", "lang": "en", "pages": "2"},
+    {"agent": "bot", "country": "US", "device": "", "lang": "en", "pages": "300"},
+]
+ROUTES = [{"route": "/employers/:id", "pages": "70"}, {"route": "/", "pages": "22"}]
+FLAGGED = {"audience": AUDIENCE, "routes": ROUTES, "visitors": [{"visitors": "41", "uncoded": "0"}],
+           "visits": [{"visits": "37"}]}
+
+
+def flagged_day(**changes) -> dict:
+    return {date(2026, 10, 21): (KINDS, COUNTS, FEEDS, {**FLAGGED, **changes})}
+
+
+def summary_last(folder) -> dict:
+    _, rows = read_csv(folder / vr.SUMMARY)
+    return rows[-1]
+
+
+def test_the_people_and_bot_queries_read_page_views_below_400_and_only_count_codes():
+    where = f"timestamp >= toDateTime({START}) AND timestamp < toDateTime({START + 86_400})"
+    assert vr.audience_sql(YESTERDAY) == (
+        "SELECT blob8 AS agent, blob4 AS country, blob9 AS device, blob3 AS lang, SUM(_sample_interval) AS pages "
+        f"FROM lmia_watch_views WHERE blob2 = 'page' AND double1 < 400 AND {where} "
+        "GROUP BY agent, country, device, lang ORDER BY pages DESC LIMIT 10000 FORMAT JSON")
+    assert vr.human_routes_sql(YESTERDAY) == (
+        "SELECT blob1 AS route, SUM(_sample_interval) AS pages FROM lmia_watch_views "
+        f"WHERE blob2 = 'page' AND double1 < 400 AND blob8 = 'human' AND {where} "
+        "GROUP BY route ORDER BY pages DESC LIMIT 10000 FORMAT JSON")
+    assert vr.visitors_sql(YESTERDAY) == (
+        "SELECT count(DISTINCT blob10) AS visitors, sumIf(_sample_interval, blob10 = '') AS uncoded "
+        f"FROM lmia_watch_views WHERE blob8 = 'human' AND {where} FORMAT JSON")
+    assert vr.visits_sql(YESTERDAY) == (
+        "SELECT count(DISTINCT blob10) AS visits FROM lmia_watch_views "
+        f"WHERE blob8 = 'human' AND blob2 = 'page' AND blob10 != '' AND {where} FORMAT JSON")
+    # No query ever reads a visitor code back: blob10 appears only inside a
+    # distinct count or a comparison with the empty string.
+    for sql in (vr.kinds_sql(YESTERDAY), vr.counts_sql(YESTERDAY), vr.feeds_sql(YESTERDAY), vr.audience_sql(YESTERDAY),
+                vr.human_routes_sql(YESTERDAY), vr.visitors_sql(YESTERDAY), vr.visits_sql(YESTERDAY)):
+        rest = sql.replace("count(DISTINCT blob10)", "").replace("blob10 = ''", "").replace("blob10 != ''", "")
+        assert "blob10" not in rest, sql
+
+
+def test_a_flagged_day_fills_the_people_and_bot_columns(tmp_path):
+    assert roll(tmp_path, FakeHttp(flagged_day())) == "rolled up"
+    row = summary_last(tmp_path)
+    assert {k: row[k] for k in vr.AUDIENCE_COLUMNS} == {
+        "human_pages": "92", "bot_pages": "300", "unique_visitors": "41", "human_visits": "37",
+        "human_by_country": '{"CA":80,"US":10,"unknown":2}',
+        "human_by_device": '{"desktop":60,"mobile":30,"tablet":2}',
+        "human_by_lang": '{"en":72,"fr":20}',
+        "human_by_route": '{"/employers/:id":70,"/":22}',
+    }
+    # The existing columns are unchanged by the flag.
+    assert (row["responses"], row["pages"]) == ("206", "120")
+    _, rows = read_csv(tmp_path / "2026-10-21.csv")
+    audience = [(r["agent"], r["country"], r["device"], r["lang"], r["responses"]) for r in rows if r["section"] == "audience"]
+    assert audience == [("bot", "US", "", "en", "300"), ("human", "CA", "desktop", "en", "60"),
+                        ("human", "CA", "mobile", "fr", "20"), ("human", "US", "mobile", "en", "10"),
+                        ("human", "", "tablet", "en", "2")]
+
+
+def test_the_country_column_keeps_the_top_ten_and_sums_the_rest():
+    rows = [{"agent": "human", "country": f"A{chr(65 + i)}", "device": "desktop", "lang": "en", "pages": str(100 - i)}
+            for i in range(12)]
+    d = vr.build_day(YESTERDAY, KINDS, COUNTS, FEEDS, audience=rows, human_routes=[],
+                     visitors=[{"visitors": 5, "uncoded": 0}], visits=[{"visits": 5}])
+    columns = vr.audience_columns(d)
+    by_country = json.loads(columns["human_by_country"])
+    assert list(by_country) == [f"A{chr(65 + i)}" for i in range(10)] + ["other"]
+    assert by_country["other"] == 90 + 89
+    assert sum(by_country.values()) == columns["human_pages"]
+
+
+def test_a_day_with_any_page_view_lacking_the_flag_is_blank_never_zero(tmp_path):
+    # The day the flag was deployed: points from before it carry no agent.
+    mixed = AUDIENCE + [{"agent": "", "country": "CA", "device": "", "lang": "en", "pages": "5"}]
+    assert roll(tmp_path, FakeHttp(flagged_day(audience=mixed))) == "rolled up"
+    assert all(summary_last(tmp_path)[k] == "" for k in vr.AUDIENCE_COLUMNS)
+    # A value the Worker would never write is no flag either.
+    odd = [dict(AUDIENCE[0], agent="robot")] + AUDIENCE[1:]
+    assert roll(tmp_path, FakeHttp(flagged_day(audience=odd))) == "rolled up"
+    assert all(summary_last(tmp_path)[k] == "" for k in vr.AUDIENCE_COLUMNS)
+
+
+def test_a_day_with_a_person_without_a_code_has_blank_visitor_columns(tmp_path):
+    # VIEWS_SALT_KEY not set (every request uncoded), or set part way through the
+    # day, or an answer that cannot be read.
+    for visitors in ([{"visitors": "1", "uncoded": "92"}], [{"visitors": "30", "uncoded": "4"}],
+                     [], [{"visitors": None, "uncoded": "0"}], [{"visitors": "x", "uncoded": "0"}],
+                     [{"visitors": "3"}]):
+        assert roll(tmp_path, FakeHttp(flagged_day(visitors=visitors))) == "rolled up", visitors
+        row = summary_last(tmp_path)
+        assert (row["unique_visitors"], row["human_visits"]) == ("", ""), visitors
+        assert (row["human_pages"], row["bot_pages"]) == ("92", "300"), visitors
+
+
+def test_values_the_worker_would_never_write_are_cleaned_before_they_are_stored(tmp_path):
+    odd = [{"agent": "human", "country": "Canada", "device": "Mozilla/5.0 (X11)", "lang": "de", "pages": "4"},
+           {"agent": "human", "country": "CA", "device": "desktop", "lang": "en", "pages": "6"}]
+    routes = [{"route": "/someone@example.com", "pages": "4"}, {"route": "/", "pages": "6"}]
+    assert roll(tmp_path, FakeHttp(flagged_day(audience=odd, routes=routes))) == "rolled up"
+    row = summary_last(tmp_path)
+    assert row["human_by_country"] == '{"CA":6,"unknown":4}'
+    assert row["human_by_device"] == '{"desktop":6,"unknown":4}'
+    assert row["human_by_lang"] == '{"en":6,"unknown":4}'
+    assert row["human_by_route"] == '{"/":6,"other":4}'
+    text = (tmp_path / "2026-10-21.csv").read_text(encoding="utf-8") + (tmp_path / vr.SUMMARY).read_text(encoding="utf-8")
+    for leaked in ("Canada", "Mozilla", "someone@example.com", ",de,"):
+        assert leaked not in text, leaked
+
+
+# -- readings taken on the night -----------------------------------------------
+
+X_ENV = {**ENV, "X_POST_ENABLED": "true", "X_API_KEY": "k", "X_API_SECRET": "s", "X_ACCESS_TOKEN": "t",
+         "X_ACCESS_TOKEN_SECRET": "ts"}
+MONTH_END_NOW = datetime(2026, 11, 1, 0, 40, tzinfo=timezone.utc)
+OCT31 = date(2026, 10, 31)
+
+
+def test_x_followers_are_read_once_a_month_for_the_last_day_when_x_posting_is_enabled(tmp_path):
+    http = FakeHttp({OCT31: (KINDS, COUNTS, FEEDS, FLAGGED)})
+    assert vr.run(tmp_path, env=X_ENV, session=http, now=MONTH_END_NOW, stats_path=tmp_path / "none") == "rolled up"
+    row = summary_last(tmp_path)
+    assert (row["date"], row["x_followers"], row["bluesky_followers"]) == ("2026-10-31", "31", "57")
+    (x_get,) = [g for g in http.gets if g["url"] == vr.X_ME_URL]
+    assert x_get["params"] == {"user.fields": "public_metrics"} and x_get["auth"] is not None
+
+    # Not the last day of a month, X not enabled, or no credentials: no read at all.
+    for env, now, day in ((X_ENV, NOW, YESTERDAY), ({**X_ENV, "X_POST_ENABLED": "false"}, MONTH_END_NOW, OCT31),
+                          ({**ENV, "X_POST_ENABLED": "true"}, MONTH_END_NOW, OCT31)):
+        http = FakeHttp({day: (KINDS, COUNTS, FEEDS, FLAGGED)})
+        assert vr.run(tmp_path / "other", env=env, session=http, now=now, stats_path=tmp_path / "none") == "rolled up"
+        assert not [g for g in http.gets if g["url"] == vr.X_ME_URL]
+
+
+def test_an_x_failure_leaves_the_reading_blank_and_never_fails_the_roll_up(tmp_path):
+    for n, reply in enumerate((FakeResponse(429, {"title": "Too Many Requests"}), requests.Timeout("slow"),
+                               FakeResponse(200, {"data": {"id": "1"}}))):
+        http = FakeHttp({OCT31: (KINDS, COUNTS, FEEDS, FLAGGED)}, x_profile=reply)
+        folder = tmp_path / str(n)
+        assert vr.run(folder, env=X_ENV, session=http, now=MONTH_END_NOW, stats_path=tmp_path / "none") == "rolled up"
+        assert summary_last(folder)["x_followers"] == ""
+    assert vr.parse_x_followers({"data": {"public_metrics": {"followers_count": 12}}}) == 12
+    for odd in ({"data": {"public_metrics": {"followers_count": "12"}}}, {"data": {}}, {"errors": []}, None,
+                {"data": {"public_metrics": {"followers_count": -1}}},
+                {"data": {"public_metrics": {"followers_count": True}}}):
+        assert vr.parse_x_followers(odd) is None, odd
+
+
+def test_the_site_counts_come_from_tonights_stats_and_go_on_yesterdays_row_only(tmp_path):
+    stats = tmp_path / "stats.json"
+    stats.write_text(json.dumps({"counts": {"employers": 166497, "approved_records": 433083, "refused_records": 41319,
+                                            "pending": 4000}}), encoding="utf-8")
+    days = {date(2026, 10, 20): (KINDS, COUNTS, FEEDS, FLAGGED), YESTERDAY: (KINDS, COUNTS, FEEDS, FLAGGED)}
+    summary = tmp_path / vr.SUMMARY
+    # A summary written before the newer columns.
+    summary.write_text(",".join(vr.SUMMARY_HEADER[:11]) + "\n2026-10-19,1,1,0,0,0,0,0,0,,/ 1\n", encoding="utf-8")
+    assert roll(tmp_path, FakeHttp(days), stats_path=stats) == "rolled up"
+    _, rows = read_csv(summary)
+    assert [(r["date"], r["employers"], r["records"]) for r in rows] == [
+        ("2026-10-19", "", ""), ("2026-10-20", "", ""), ("2026-10-21", "166497", "474402")]
+
+    # Rolled up again without a readable stats file: the readings stay.
+    assert roll(tmp_path, FakeHttp(days), stats_path=tmp_path / "gone.json") == "rolled up"
+    row = summary_last(tmp_path)
+    assert (row["employers"], row["records"]) == ("166497", "474402")
+
+    assert vr.site_counts(tmp_path / "gone.json") == {}
+    for bad in ('{"counts": {"employers": "1", "approved_records": 1, "refused_records": 1}}', "[]", "not json",
+                '{"counts": {"employers": 1}}'):
+        stats.write_text(bad, encoding="utf-8")
+        assert vr.site_counts(stats) == {}, bad
