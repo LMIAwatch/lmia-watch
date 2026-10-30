@@ -120,3 +120,42 @@ export async function occupationLinks(env: Env): Promise<OccupationLinks> {
     return NO_OCCUPATIONS;
   }
 }
+
+// The employer directory (pages/directory.tsx): one A to Z list per province
+// and territory with a place page, and one for employers with a head office
+// outside Canada (XX) or no province.
+export const OTHER = "other";
+export const DIRECTORY_CODES: readonly string[] = [...[...PLACE_PROVINCES].map((p) => p.toLowerCase()), OTHER];
+
+export function directoryPath(code: string, n = 1): string {
+  return n === 1 ? `/places/${code}/employers` : `/places/${code}/employers/${n}`;
+}
+
+// The directory a profile's province puts it in.
+export function directoryCode(province: string | null | undefined): string {
+  return province && PLACE_PROVINCES.has(province) ? province.toLowerCase() : OTHER;
+}
+
+export interface DirectorySummary { code: string; employers: number; pages: number }
+
+const isCount = (v: unknown): v is number => isNum(v) && Number.isInteger(v) && v >= 0;
+
+// Each directory's counts (directory/index.json), for the links on the place
+// pages and the profiles; null when the file is missing or unreadable, and
+// then no page shows a link.
+export async function loadDirectories(env: Env): Promise<ReadonlyMap<string, DirectorySummary> | null> {
+  try {
+    const doc = await loadJson<unknown>(env, "directory/index.json");
+    if (!isObj(doc) || !Array.isArray(doc.directories)) return null;
+    const out = new Map<string, DirectorySummary>();
+    for (const d of doc.directories as unknown[]) {
+      if (isObj(d) && isStr(d.code) && DIRECTORY_CODES.includes(d.code) && isCount(d.employers) && isCount(d.pages)) {
+        out.set(d.code, { code: d.code, employers: d.employers, pages: d.pages });
+      }
+    }
+    return out;
+  } catch (e) {
+    console.error(`directory links: ${String(e).slice(0, 200)}`);
+    return null;
+  }
+}

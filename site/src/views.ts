@@ -47,6 +47,8 @@ export function routeTemplate(method: string, path: string): { route: string; ki
   if (/^\/trends\/[^/]+$/.test(path)) return { route: "/trends/:view", kind: "page" };
   if (/^\/occupations\/[^/]+$/.test(path)) return { route: "/occupations/:noc", kind: "page" };
   if (/^\/places\/[^/]+$/.test(path)) return { route: "/places/:prov", kind: "page" };
+  if (/^\/places\/[^/]+\/employers$/.test(path)) return { route: "/places/:prov/employers", kind: "page" };
+  if (/^\/places\/[^/]+\/employers\/[^/]+$/.test(path)) return { route: "/places/:prov/employers/:page", kind: "page" };
   if (/^\/places\/[^/]+\/[^/]+$/.test(path)) return { route: "/places/:prov/:slug", kind: "page" };
   if (path.startsWith("/api/")) {
     if (API_FIXED.has(path)) return { route: path, kind: "api" };

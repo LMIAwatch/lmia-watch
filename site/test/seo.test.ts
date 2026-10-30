@@ -374,6 +374,8 @@ describe("crawler files", () => {
     const open = [
       "/", "/search", "/search?lang=fr", "/employers/x", "/employers/x?lang=fr", "/places/bc",
       "/corrections", "/corrections?lang=fr", "/map", "/map?lang=fr",
+      // The employer directory, which links every profile.
+      "/places/bc/employers", "/places/bc/employers/2", "/places/bc/employers/2?lang=fr", "/places/other/employers",
     ];
     const shut = [
       "/search?q=a", "/search?lang=fr&q=a", "/search?cursor=abc", "/search?status=pending&province=BC", "/employers/x/respond",

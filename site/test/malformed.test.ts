@@ -7,6 +7,9 @@ import { describe, expect, it } from "vitest";
 import { app } from "../src/index";
 import { fakeAssets, testEnv } from "./assets";
 import aliases from "./fixtures/aliases-a00.json";
+import dirIndex from "./fixtures/directory-index.json";
+import dirMb2 from "./fixtures/directory-mb-2.json";
+import dirMbIndex from "./fixtures/directory-mb-index.json";
 import facets from "./fixtures/facets.json";
 import feedIndex from "./fixtures/feeds-index.json";
 import occIndex from "./fixtures/occupations-index.json";
@@ -52,6 +55,11 @@ const CASES: { file: string; data: unknown; paths: string[] }[] = [
   { file: "places/mb.json", data: mb, paths: ["/places/mb"] },
   { file: "places/mb/winnipeg.json", data: winnipeg, paths: ["/places/mb/winnipeg"] },
   { file: "places/mb/winnipeg-cma.json", data: winnipegCma, paths: ["/places/mb/winnipeg-cma"] },
+  // The employer directory: its summary (links on the place pages and the
+  // profiles), one directory's index and one of its pages.
+  { file: "directory/index.json", data: dirIndex, paths: ["/places", "/places/mb", "/employers/emp-a000000005"] },
+  { file: "directory/mb/index.json", data: dirMbIndex, paths: ["/places/mb/employers", "/places/mb/employers/2"] },
+  { file: "directory/mb/2.json", data: dirMb2, paths: ["/places/mb/employers/2"] },
   { file: "feeds/index.json", data: feedIndex, paths: ["/feeds"] },
   { file: "program/index.json", data: program, paths: ["/program"] },
   { file: "stats.json", data: WITH_CITATION, paths: ["/data", "/methodology", "/", "/search", "/cite"] },

@@ -3255,6 +3255,69 @@ const STRINGS = {
     fr: "Nouvelle page Avis du gouvernement : les nouvelles officielles d'IRCC et d'EDSC sur Canada.ca dont le titre ou le résumé nomme les programmes dont relèvent ces dossiers, lues chaque nuit dans les fils de nouvelles des ministères en français et en anglais et listées telles que publiées, avec les trois plus récentes sur la page d'accueil. L'élément de menu Données et à propos s'appelle maintenant À propos.",
   },
   "data.recomputed_notices": { en: "Nothing recomputed; new file notices.json", fr: "Aucun recalcul; nouveau fichier notices.json" },
+
+  // --- employer directory (/places/<pp>/employers) and related employers ---
+  "directory.heading": { en: "Employers in {province}, A to Z", fr: "Employeurs de A à Z : {province}" },
+  "directory.heading_other": {
+    en: "Employers With a Head Office Outside Canada or No Province, A to Z",
+    fr: "Employeurs de A à Z : siège social à l'extérieur du Canada ou sans province",
+  },
+  "directory.title": { en: "{heading}, page {n} of {pages}", fr: "{heading}, page {n} sur {pages}" },
+  "directory.crumb": { en: "Employers, A to Z", fr: "Employeurs de A à Z" },
+  "directory.other_name": { en: "Head office outside Canada or no province", fr: "Siège social à l'extérieur du Canada ou sans province" },
+  "directory.no_province": { en: "No province", fr: "Aucune province" },
+  "directory.lead": {
+    en: "Every employer with a profile on this site whose records place it in {province}, sorted by name: {n} in all, {size} to a page.",
+    fr: "Tous les employeurs ayant un profil sur ce site dont les dossiers indiquent la province ou le territoire suivant : {province}. Ils sont triés par nom : {n} au total, {size} par page.",
+  },
+  "directory.lead_other": {
+    en: "Every employer with a profile on this site whose head office is outside Canada, or whose records give no province, sorted by name: {n} in all, {size} to a page.",
+    fr: "Tous les employeurs ayant un profil sur ce site dont le siège social est à l'extérieur du Canada, ou dont les dossiers n'indiquent aucune province, triés par nom : {n} au total, {size} par page.",
+  },
+  "directory.records_note": {
+    en: "Records counts what the profile lists: Job Bank postings flagged for an LMIA and rows of ESDC's quarterly lists, each linked to its source there.",
+    fr: "La colonne Dossiers compte ce que liste le profil : les offres du Guichet-Emplois portant une mention EIMT et les lignes des listes trimestrielles d'EDSC, chacune liée à sa source.",
+  },
+  "directory.range": { en: "This page: {first} to {last}.", fr: "Cette page : de {first} à {last}." },
+  "directory.letters": { en: "Jump to a letter", fr: "Aller à une lettre" },
+  "directory.pages": { en: "All pages", fr: "Toutes les pages" },
+  "directory.none": {
+    en: "No employer with a profile on this site has its records in {province} yet.",
+    fr: "Aucun employeur ayant un profil sur ce site n'a encore de dossiers pour la province ou le territoire suivant : {province}.",
+  },
+  "directory.none_other": {
+    en: "No employer with a profile on this site has a head office outside Canada or records without a province yet.",
+    fr: "Aucun employeur ayant un profil sur ce site n'a encore de siège social à l'extérieur du Canada ni de dossiers sans province.",
+  },
+  "directory.not_found": { en: "Directory Page Not Found", fr: "Page du répertoire introuvable" },
+  "directory.back": { en: "See the first page of the list", fr: "Voir la première page de la liste" },
+  "directory.description": {
+    en: "Employers with LMIA records in {province}, A to Z, page {n} of {pages}: {first} to {last}. Each name links to the employer's records and their sources.",
+    fr: "Employeurs ayant des dossiers EIMT, de A à Z : {province}, page {n} sur {pages}, de {first} à {last}. Chaque nom mène aux dossiers de l'employeur et à leurs sources.",
+  },
+  "directory.description_other": {
+    en: "Employers with LMIA records and a head office outside Canada or no province, A to Z, page {n} of {pages}: {first} to {last}.",
+    fr: "Employeurs ayant des dossiers EIMT et un siège social à l'extérieur du Canada ou sans province, de A à Z, page {n} sur {pages} : de {first} à {last}.",
+  },
+  "directory.link": { en: "All employers in {province}, A to Z", fr: "Tous les employeurs de A à Z : {province}" },
+  "directory.index_h": { en: "Employers, A to Z", fr: "Employeurs de A à Z" },
+  "directory.index_note": {
+    en: "Every employer with a profile on this site, listed by name in each province or territory.",
+    fr: "Tous les employeurs ayant un profil sur ce site, listés par nom dans chaque province ou territoire.",
+  },
+  "employer.related_h": { en: "Related Employers", fr: "Employeurs comparables" },
+  "employer.related_note": {
+    en: "Employers with records in the same city and a similar number of records, then employers in the same province whose most common occupation code is the same. The list implies no connection between these employers.",
+    fr: "Employeurs ayant des dossiers dans la même ville et un nombre de dossiers semblable, puis employeurs de la même province dont le code de profession le plus fréquent est le même. La liste n'implique aucun lien entre ces employeurs.",
+  },
+  "data.change_directory": {
+    en: "Each province and territory has an A to Z list of every employer with a profile there, 200 to a page, linked from its province page and the Places page; employers with a head office outside Canada or no province have a list of their own. Each employer profile lists up to five related employers: employers in the same city with a similar number of records, then employers in the same province with the same most common occupation code.",
+    fr: "Chaque province et territoire a une liste de A à Z de tous les employeurs qui y ont un profil, 200 par page, reliée à sa page de province et à la page Lieux. Les employeurs dont le siège social est à l'extérieur du Canada ou sans province ont leur propre liste. Chaque profil d'employeur présente jusqu'à cinq employeurs comparables : ceux de la même ville ayant un nombre de dossiers semblable, puis ceux de la même province ayant le même code de profession le plus fréquent.",
+  },
+  "data.recomputed_directory": {
+    en: "Employer profiles: related employers; new files under directory/",
+    fr: "Profils d'employeurs : employeurs comparables. Nouveaux fichiers sous directory/",
+  },
 } as const satisfies Record<string, Entry>;
 
 export type Key = keyof typeof STRINGS;

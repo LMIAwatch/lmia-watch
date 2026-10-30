@@ -7,6 +7,7 @@
 // marked noindex and is left out of the sitemap.
 
 import type { Context } from "hono";
+import { DIRECTORY_CODES, OTHER, directoryPath, loadDirectories, type DirectorySummary } from "../crosslinks";
 import { loadJson, loadStats } from "../data";
 import type { AppEnv } from "../env";
 import { decimal, fmtInt, periodLabel, provinceName, streamLabel, t, tj, tn, type Key, type Lang } from "../i18n";
@@ -534,7 +535,7 @@ export function notFound(c: Context<AppEnv>, lang: Lang, dataAsOf: string | null
 }
 
 // The canonical form of a place path is lower case; anything else is sent there.
-function lowerRedirect(c: Context<AppEnv>, path: string): Response | null {
+export function lowerRedirect(c: Context<AppEnv>, path: string): Response | null {
   const url = new URL(c.req.url);
   if (url.pathname === path) return null;
   return c.redirect(`${path}${url.search}`, 301);
@@ -548,8 +549,11 @@ export async function placesIndex(c: Context<AppEnv>): Promise<Response> {
   if (!stats) return noDataPage(c, "places.index_title");
   // An unreadable index reads like a missing one: "not published", as the
   // release, ranking and trend indexes answer.
-  const idx = await loadJson<unknown>(c.env, "places/index.json");
+  const [idx, directories] = await Promise.all([loadJson<unknown>(c.env, "places/index.json"), loadDirectories(c.env)]);
   if (!isPlacesIndex(idx)) return noDataPage(c, "places.index_title");
+  // Every employer A to Z, by province (pages/directory.tsx), for the
+  // directories that list anyone.
+  const listed = DIRECTORY_CODES.map((code) => directories?.get(code)).filter((d): d is DirectorySummary => !!d && d.pages > 0);
   const n = (v: number) => fmtInt(v, lang);
   const provinces = idx.provinces;
   const title = t(lang, "places.index_title");
@@ -591,6 +595,20 @@ export async function placesIndex(c: Context<AppEnv>): Promise<Response> {
               </tbody>
             </table>
           </div>
+          {listed.length ? (
+            <section id="employers">
+              <h2>{t(lang, "directory.index_h")}</h2>
+              <p class="muted small">{t(lang, "directory.index_note")}</p>
+              <ul class="quick-links">
+                {listed.map((d) => (
+                  <li>
+                    <a href={directoryPath(d.code)}>{d.code === OTHER ? t(lang, "directory.other_name") : provinceName(lang, d.code.toUpperCase())}</a>{" "}
+                    <span class="muted mono">{n(d.employers)}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
           <h2>{t(lang, "places.cmas")}</h2>
           <p class="muted small">{t(lang, "places.cmas_note")}</p>
           <ul class="quick-links">
@@ -645,6 +663,8 @@ async function renderPlace(c: Context<AppEnv>, file: string): Promise<Response> 
   if (!stats) return noDataPage(c, "places.index_title");
   const p = await loadJson<unknown>(c.env, file);
   if (!isPlaceFile(p)) return notFound(c, lang, stats.data_as_of, "places.not_found", "/places", "places.back_index");
+  // A province page links to the province's list of every employer, A to Z.
+  const directory = p.kind === "province" ? (await loadDirectories(c.env))?.get(p.prov.toLowerCase()) : undefined;
   const n = (v: number) => fmtInt(v, lang);
   const provName = provinceName(lang, p.prov);
   const name = p.kind === "province" ? provName : placeName(lang, p.name);
@@ -761,6 +781,12 @@ async function renderPlace(c: Context<AppEnv>, file: string): Promise<Response> 
       </section>
 
       <EmployerSection lang={lang} employers={p.employers} showOccupation={true} />
+      {directory && directory.pages > 0 ? (
+        <p>
+          <a href={directoryPath(directory.code)}>{t(lang, "directory.link", { province: provName })}</a>{" "}
+          <span class="muted mono">{n(directory.employers)}</span>
+        </p>
+      ) : null}
 
       {p.kind === "province" && (p.cmas?.length || p.cities?.length) ? (
         <section id="cities">

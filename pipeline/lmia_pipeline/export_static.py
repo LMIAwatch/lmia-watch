@@ -29,6 +29,8 @@ Output tree (under data/out/static):
   areas/<FSA>.json                   rows for one postal area, latest scope, capped
   profiles/<abc>.json                employer profiles keyed by id, sharded on id characters 5 to 7, with the
                                      public records matched to each (grants, Alberta accounts, US carrier records)
+                                     and up to five related employers (directory.py)
+  directory/...                      every employer A to Z by province, 200 to a page (directory.py)
   aliases/<abc>.json                 retired employer id -> the live id that took its records,
                                      sharded on the retired id's characters 5 to 7 like the profiles
   trends/*.json                      the series behind /trends (trends.py)
@@ -37,7 +39,7 @@ Output tree (under data/out/static):
   program/index.json                 the program conditions behind /program (conditions.py)
   notices.json                       IRCC and ESDC news items that name the programs, both languages, with
                                      each feed's state, behind /notices and the home page (sources/notices.py)
-  sitemaps/sitemap-<n>.xml           the fixed pages and every profile URL, at most 50,000 per file
+  sitemaps/sitemap-<n>.xml           the fixed pages, every profile URL and the section pages, at most 50,000 per file
   sitemaps/index.xml                 the sitemap index; the site serves it at /sitemap.xml and the
                                      parts at /sitemap-<n>.xml, since a sitemap may list only URLs
                                      at or below its own directory
@@ -58,7 +60,7 @@ from collections.abc import Collection, Sequence
 from pathlib import Path
 from xml.sax.saxutils import escape
 
-from . import conditions, config, intl, places, releases, trends
+from . import conditions, config, directory, intl, places, releases, trends
 from .db import get_meta, log_run
 from .sources import high_wage, notices, registers
 from .feeds import write_feeds
@@ -537,8 +539,14 @@ def profile_carriers(conn: sqlite3.Connection, ids: list[str]) -> dict[str, list
     return out
 
 
-def write_profiles(conn: sqlite3.Connection, out: Path) -> int:
-    """One JSON file per shard, keyed by employer id, with the full history."""
+def write_profiles(conn: sqlite3.Connection, out: Path, related: dict[str, list[dict]] | None = None) -> int:
+    """One JSON file per shard, keyed by employer id, with the full history.
+
+    `related` holds each employer's related employers (directory.related),
+    computed once for the whole export; an employer without any, or a night
+    the related section failed, writes the profile without the key.
+    """
+    related = related or {}
     published = {r["resource_id"]: r["published"] for r in conn.execute("SELECT resource_id, published FROM esdc_resources")}
     employers = conn.execute("SELECT * FROM employers ORDER BY id").fetchall()
     shards: dict[str, list[sqlite3.Row]] = defaultdict(list)
@@ -607,6 +615,8 @@ def write_profiles(conn: sqlite3.Connection, out: Path) -> int:
                 shard[eid]["intl"] = intl_rows[eid]
             if designated.get(eid):
                 shard[eid]["designated"] = designated[eid]
+            if related.get(eid):
+                shard[eid]["related"] = related[eid]
         _dump(out / "profiles" / f"{key}.json", shard)
         written += 1
     return written
@@ -700,6 +710,10 @@ def sitemap_entries(conn: sqlite3.Connection, data_as_of: str | None,
     # by its newest record, and their two index pages (places.py).
     if "places" not in skip:
         entries += [(path, _lastmod(mod)) for path, mod in places.sitemap_entries(conn)]
+    # The employer directory's pages, each dated by the night its rows last
+    # changed (the ledger directory.write_all keeps).
+    if "directory" not in skip:
+        entries += directory.sitemap_entries(conn)
     return entries
 
 
@@ -782,7 +796,8 @@ def _write_static(conn: sqlite3.Connection, out: Path) -> dict[str, int]:
         areas += 1
     counts["areas"] = areas
     # The feeds, the release pages, the trends, the program conditions, the
-    # place pages and the alias map each come from their own aggregation, and
+    # place pages, the alias map, the employer directory and the related
+    # employers each come from their own aggregation, and
     # the site answers "not published" for a section whose files are missing
     # (a retired id without its alias file is a plain 404, as before the map
     # existed). So one bad value in one of them must not hold back the
@@ -793,6 +808,22 @@ def _write_static(conn: sqlite3.Connection, out: Path) -> dict[str, int]:
     # fail the export. The search counts only spare the search API a count (it
     # counts in D1 without them), so they are a section too.
     failed: set[str] = set()
+    # The directory and the related employers read one model of every
+    # employer, built on first use; if it fails, both sections fail and the
+    # profiles are written without related employers.
+    model: list[directory.Model] = []
+
+    def employer_model() -> directory.Model:
+        if not model:
+            model.append(directory.Model(conn))
+        return model[0]
+
+    related: dict[str, list[dict]] = {}
+
+    def write_related() -> dict[str, int]:
+        related.update(directory.related(employer_model()))
+        return {"related_profiles": len(related)}
+
     sections = (
         ("search_counts", lambda: write_search_counts(conn, out, meta.get("data_as_of"), latest)),
         ("feeds", lambda: write_feeds(conn, out)),
@@ -803,6 +834,8 @@ def _write_static(conn: sqlite3.Connection, out: Path) -> dict[str, int]:
         ("aliases", lambda: write_aliases(conn, out)),
         ("international", lambda: intl.write_all(conn, out, meta.get("data_as_of"), registers.export_rows(conn))),
         ("notices", lambda: notices.write_all(conn, out, meta.get("data_as_of"))),
+        ("directory", lambda: directory.write_all(conn, out, meta.get("data_as_of"), employer_model())),
+        ("related", write_related),
     )
     for name, write in sections:
         try:
@@ -811,7 +844,7 @@ def _write_static(conn: sqlite3.Connection, out: Path) -> dict[str, int]:
             log.exception("export: the %s section failed", name)
             failed.add(name)
             log_run(conn, f"export_{name}", detail=f"{type(exc).__name__}: {exc}"[:900], ok=False)
-    counts["profile_shards"] = write_profiles(conn, out)
+    counts["profile_shards"] = write_profiles(conn, out, related)
     counts.update(write_sitemaps(conn, out, config.SITE_URL, stats["data_as_of"], skip=failed))
     counts["employers"] = stats["counts"]["employers"]
     return counts

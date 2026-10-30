@@ -16,6 +16,7 @@ import { citePage } from "./pages/cite";
 import { DOWNLOADS, dataPage } from "./pages/data";
 import { employerPage } from "./pages/employer";
 import { feedsPage } from "./pages/feeds";
+import { directoryPage } from "./pages/directory";
 import { correctionsForm, correctionsSubmit, respondForm, respondSubmit } from "./pages/forms";
 import { homePage } from "./pages/home";
 import { internationalPage } from "./pages/international";
@@ -108,6 +109,10 @@ app.get("/occupations", occupationsIndex);
 app.get("/occupations/:noc", occupationPage);
 app.get("/places", placesIndex);
 app.get("/places/:prov", provincePage);
+// Every employer A to Z by province, 200 to a page; registered before the
+// city route, which would read "employers" as a city's slug.
+app.get("/places/:prov/employers", directoryPage);
+app.get("/places/:prov/employers/:page", directoryPage);
 app.get("/places/:prov/:slug", placePage);
 app.get("/employers/:id", employerPage);
 app.get("/employers/:id/respond", (c) => respondForm(c));

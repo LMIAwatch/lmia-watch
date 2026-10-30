@@ -104,6 +104,7 @@ marking, because a capped run has not seen the whole feed.
 | `export.py` | CSV files and the raw-file mirror with checksums |
 | `export_static.py` | the JSON files the site serves |
 | `places.py` | the occupation and place pages: one JSON file per page, and their sitemap entries |
+| `directory.py` | every employer A to Z by province and territory, 200 to a page (`directory/`), with each page's lastmod kept in the `directory_pages` ledger; the related employers on each profile (same city, then same most common NOC in the province, nearest in record count) |
 | `offered.py` | what LMIA-flagged postings offered, for the occupation pages: quartiles of the hourly posted minimum and maximum, other units counted, a monthly series, nationally and by economic region, withheld under 10 postings (`docs/occupations.md`) |
 | `conditions.py` | the program conditions page: `program/index.json`, what is in force on the export date and every edition read |
 | `search_db.py` | the hosted search database (`../pipeline/search_schema.sql`): its rows, the content-hash ledger, the nightly batches and manifest, the ledger record after the apply (separate `search-sync`, `search-check` and `search-synced` commands) |
@@ -125,6 +126,7 @@ data/out/static/        the JSON the site serves as static assets (see export_st
                           clusters/*.json, areas/<FSA>.json, profiles/<abc>.json,
                           aliases/<abc>.json (retired employer id to live id),
                           occupations/*.json, places/**/*.json (places.py),
+                          directory/**/*.json (directory.py, every employer A to Z by province),
                           program/index.json (conditions.py),
                           international/index.json (intl.py, with the designated-employer lists)
                           notices.json (sources/notices.py, the last 12 months, each feed's state)

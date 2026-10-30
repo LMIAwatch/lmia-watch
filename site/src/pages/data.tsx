@@ -30,6 +30,7 @@ export const CHANGELOG: readonly ChangeRow[] = [
   { date: "2026-10-26", change: "data.change_notices", recomputed: "data.recomputed_notices" },
   { date: "2026-10-25", change: "data.change_intl", recomputed: "data.recomputed_intl" },
   { date: "2026-10-25", change: "data.change_card_links", recomputed: "data.recomputed_none" },
+  { date: "2026-10-30", change: "data.change_directory", recomputed: "data.recomputed_directory" },
 ];
 // Numbers in an entry are formatted for the page's language; the drafted entry names the latest period.
 export function changelog(latestPeriod: string, lang: Lang): { date: string; change: Key; recomputed: Key; vars: Record<string, string> }[] {

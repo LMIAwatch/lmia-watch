@@ -134,7 +134,15 @@ export interface Profile {
   // is something; loadProfile fills them in empty.
   intl: IntlPostingRow[];
   designated: DesignatedRow[];
+  // Up to five other employers in the same city, then with the same most
+  // common occupation code in the province, nearest in record count
+  // (pipeline/lmia_pipeline/directory.py). Written only when there are any;
+  // loadProfile fills in an empty list.
+  related: RelatedRow[];
 }
+
+// A related employer: its id and name, and its city when that is not the profile's.
+export interface RelatedRow { id: string; name: string; city?: string }
 
 // One posting open to international candidates; grade null with an LMIA requested or before its page is read.
 export interface IntlPostingRow {
@@ -485,6 +493,10 @@ const isDesignated = (v: unknown): boolean => isObj(v) && isMatch(v) && isStr(v.
   isStrOrNull(v.designated_on) && isStr(v.first_seen) && isStr(v.last_seen) && typeof v.current === "boolean" &&
   isStr(v.url) && HTTPS_URL.test(v.url);
 
+// Each is rendered as a link, so the id must be an employer id.
+const isRelated = (v: unknown): boolean => isObj(v) && isStr(v.id) && EMPLOYER_ID_RE.test(v.id) && isStr(v.name) &&
+  optional(v.city, isStr);
+
 // Rows of one list with no LMIA count (from ESDC files that carry positions
 // only, 2014 through 2021 Q3). Each such row is at least one LMIA, so the
 // employer page and its description show the sum plus these rows as a floor.
@@ -514,6 +526,9 @@ export async function loadProfile(env: Env, id: string): Promise<Profile | null>
     us_carrier: profile.us_carrier ?? [],
     intl: profile.intl ?? [],
     designated: profile.designated ?? [],
+    // Links to other profiles, not records of this one: a list that does not
+    // read is left off rather than taking the profile down with it.
+    related: isListOf(profile.related, isRelated) ? profile.related : [],
     // The count of agreements is never below the agreements listed.
     grants_total: Math.max(profile.grants_total ?? 0, grants.length),
   } as unknown as Profile;

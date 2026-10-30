@@ -277,7 +277,12 @@
     "grants": [],
     "grants_total": 0,
     "alberta": [],
-    "us_carrier": []
+    "us_carrier": [],
+    "related": [
+      { "id": "emp-a000000003", "name": "Kelowna Packers Ltd" },
+      { "id": "emp-a000000009", "name": "Valley Orchard Growers Ltd.", "city": "Oliver" },
+      { "id": "emp-a000000002", "name": "Edsa Mini Mart", "city": "Penticton" }
+    ]
   },
   "emp-a000000008": {
     "employer": {
