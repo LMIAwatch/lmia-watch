@@ -446,8 +446,9 @@ pins 4.105 for its test pool.
 
 About 160,000 employer pages share each engine's crawl allowance. The site
 keeps crawlers off URLs that repeat another page, links every profile to the
-place and occupation pages that cover it, and lets a crawler that already
-has a page skip it when nothing changed.
+place and occupation pages that cover it, links every profile from an A to Z
+directory of its province and from the related lists of other profiles, and
+lets a crawler that already has a page skip it when nothing changed.
 
 ### robots.txt
 
@@ -490,6 +491,45 @@ Each profile links (`site/src/crosslinks.ts`):
 
 A missing or unreadable file leaves the text unlinked. Both files go through
 the Worker's parsed-file cache, so an isolate parses each once per deploy.
+
+### Links to employer pages
+
+Until 2026-10-30 a profile's only inbound links were its sitemap entry and,
+for a few hundred employers, a place page's list of the 20 with the newest
+records, and Google had crawled a few thousand of the profiles. Two kinds of
+link, both written by the nightly export (`pipeline/lmia_pipeline/directory.py`),
+now reach every profile:
+
+- The directory. Each of the thirteen provinces and territories has an A to Z
+  list of every employer with a profile there, 200 to a page, at
+  `/places/<pp>/employers` (page 1) and `/places/<pp>/employers/<n>`.
+  Employers with a head office outside Canada (province `XX`) or no province
+  share `/places/other/employers`. Rows sort by the normalized name, which is
+  part of the employer id and does not change, so a page's rows move only
+  when an employer is added or leaves. Each page links the previous and next
+  page (in the pager and as `<link rel="prev">` and `<link rel="next">` in the
+  head), every page of the directory, and the page on which each initial
+  starts, so any page is one click from any other. The province page, the
+  `/places` index and every profile link the directory. The pages are
+  indexable, carry their own canonical URL and language alternates, and are
+  in the sitemap; robots.txt does not touch them (the robots test lists
+  them among the open paths). A directory with no employer answers with a
+  short noindex page and has no sitemap entry. On the data of 2026-10-17:
+  849 pages, from 1 (Yukon, Nunavut, the Northwest Territories) to 244
+  (Ontario), 15 MB in all.
+- Related employers. Each profile lists up to five other employers: first
+  those in the same city (folded as the place pages fold it), then those in
+  the same province whose most common NOC code is the same. Within each group
+  the list takes the employers nearest in record count, one with more and one
+  with fewer in turn. Ranking the busiest employers of a city instead would
+  send every profile's links to the same few: on the data of 2026-10-17 that
+  linked 21,370 of 168,440 profiles (one profile received 10,892 links),
+  against 165,593 (at most 14 each) for the nearest. The list adds about
+  50 MB to the profile shards in all, about 12 KB a shard.
+
+The sitemap dates each directory page by the night its rows last changed:
+the database's `directory_pages` table keeps each page's hash and that date,
+so a night that leaves a page as it was keeps its lastmod.
 
 ### ETag and 304
 

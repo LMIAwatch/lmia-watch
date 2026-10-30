@@ -12,7 +12,9 @@ import { sourceLabel } from "./search";
 import { WATCH_MAX } from "./watchlist";
 import { MiniMap } from "../minimap";
 import { profileSeo } from "../seo";
-import { cityPath, occupationLinks, provincePath, type OccupationLinks } from "../crosslinks";
+import {
+  OTHER, cityPath, directoryCode, directoryPath, loadDirectories, occupationLinks, provincePath, type OccupationLinks,
+} from "../crosslinks";
 import { GradeBadge, Reasons, programName, registerPlace } from "./international";
 
 const REPORT_URL = "https://www.canada.ca/en/employment-social-development/services/foreign-workers/report-abuse.html";
@@ -382,19 +384,28 @@ export async function employerPage(c: Context<AppEnv>): Promise<Response> {
       404,
     );
   }
-  const { employer, postings, esdc, registry, indicators, findings, names, grants, alberta, us_carrier, intl, designated } = profile;
+  const { employer, postings, esdc, registry, indicators, findings, names, grants, alberta, us_carrier, intl, designated, related } = profile;
   const best = registry[0];
   // The area file holds the postal area's centroid for the location card's map; a
   // missing file (no record in the latest scope) means no map, not an error.
   // The city and occupation links read their index files alongside; a missing
   // file means plain text.
   const fsa = employer.postal_code ? employer.postal_code.slice(0, 3).toUpperCase() : "";
-  const [{ responses, corrections }, area, cityHref, occupations] = await Promise.all([
+  const [{ responses, corrections }, area, cityHref, occupations, directories] = await Promise.all([
     siteRows(c, id),
     /^[A-Z][0-9][A-Z]$/.test(fsa) ? loadJson<Area>(c.env, `areas/${fsa}.json`).catch(() => null) : Promise.resolve(null),
     cityPath(c.env, employer.province, employer.city),
     occupationLinks(c.env),
+    loadDirectories(c.env),
   ]);
+  // The A to Z list of the employer's province (or of employers with a head
+  // office outside Canada or no province), linked when it is published.
+  const dirCode = directoryCode(employer.province);
+  const dirLink = directories?.get(dirCode)?.pages ? (
+    <a href={directoryPath(dirCode)}>
+      {dirCode === OTHER ? t(lang, "directory.heading_other") : t(lang, "directory.link", { province: provinceName(lang, employer.province ?? "") })}
+    </a>
+  ) : null;
   const provinceHref = provincePath(employer.province);
   const provinceCrumb = employer.province ? provinceName(lang, employer.province) : t(lang, "employer.all_provinces");
   const pendingPosting = postings.find((p) => p.flag_current === "requested");
@@ -723,6 +734,19 @@ export async function employerPage(c: Context<AppEnv>): Promise<Response> {
           </details>
         ) : null}
       </section>
+
+      {related.length ? (
+        <section id="related">
+          <h2>{t(lang, "employer.related_h")}</h2>
+          <p class="muted small">{t(lang, "employer.related_note")}</p>
+          <ul class="quick-links">
+            {related.map((r) => (
+              <li><a href={`/employers/${r.id}`}>{r.name}</a>{r.city ? <span class="muted"> {r.city}</span> : null}</li>
+            ))}
+          </ul>
+          {dirLink ? <p class="small top-gap">{dirLink}</p> : null}
+        </section>
+      ) : dirLink ? <p class="small top-gap">{dirLink}</p> : null}
 
       <section class="cards two">
         <div class="card panel">

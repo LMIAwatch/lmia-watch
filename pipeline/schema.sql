@@ -226,6 +226,18 @@ CREATE TABLE IF NOT EXISTS search_sync (
 -- High-water marks of a D1 copy of the whole database that was never used.
 DROP TABLE IF EXISTS d1_sync;
 
+-- The employer directory's pages (directory.py) as last exported, by path,
+-- each with a hash of its rows and the data date on which that hash last
+-- changed. The sitemap gives that date as the page's lastmod, so a page whose
+-- rows stayed the same keeps its date; a page no longer written is deleted.
+CREATE TABLE IF NOT EXISTS directory_pages (
+  path TEXT PRIMARY KEY,                         -- '/places/bc/employers' (page 1), '/places/bc/employers/2'
+  code TEXT NOT NULL,                            -- the directory: 'bc', ..., 'yt', or 'other' (XX and no province)
+  page INTEGER NOT NULL,                         -- from 1
+  hash TEXT NOT NULL,                            -- directory.page_hash of the page's rows
+  changed_on TEXT NOT NULL                       -- ISO date: the data date of the export that first wrote this hash
+);
+
 -- Employer ids retired by a normalization change (migrate.py) or by an ESDC
 -- file read again under a newer parser (sources/esdc.py), each with the id
 -- that took over its records, so a link to an old profile can be sent on.

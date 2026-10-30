@@ -83,11 +83,13 @@ def test_static_export_writes_the_sitemaps(conn, tmp_path, monkeypatch):
     monkeypatch.setattr(config, "SITE_URL", BASE)
     ids = seed(conn, 3)
     counts = export_static.export_static(conn, tmp_path / "static")
-    assert counts["sitemap_files"] == 1 and counts["sitemap_urls"] == 13
+    assert counts["sitemap_files"] == 1 and counts["sitemap_urls"] == 14
     part = parse(tmp_path / "static" / "sitemaps" / "sitemap-1.xml")
     assert part.tag == f"{{{export_static.SITEMAP_NS}}}urlset"
     urls = [u for u, _ in locs(part, "url")]
-    assert urls == [BASE + p for p in export_static.SITEMAP_PAGES + ["/feeds", "/watchlist"]] + [f"{BASE}/employers/{i}" for i in ids]
+    # The three British Columbia employers fill one page of the province's directory.
+    assert urls == [BASE + p for p in export_static.SITEMAP_PAGES + ["/feeds", "/watchlist"]] +         [f"{BASE}/employers/{i}" for i in ids] + [BASE + "/places/bc/employers"]
+    assert dict(locs(part, "url"))[BASE + "/places/bc/employers"] == "2026-10-12"
     text = (tmp_path / "static" / "sitemaps" / "index.xml").read_text(encoding="utf-8")
     assert text.startswith('<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex ')
     assert f"<loc>{BASE}/sitemap-1.xml</loc>" in text

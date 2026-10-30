@@ -52,6 +52,7 @@ PROVINCES = ["AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "
 PROVINCE_PRUID = {v: k for k, v in PRUID_PROVINCE.items()}
 STREAM_ALIASES = {"Talent mondial": "Global Talent Stream", "Global Talent": "Global Talent Stream"}
 SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+RESERVED_SLUG = "employers"
 
 
 # -- names and slugs -------------------------------------------------------------
@@ -576,7 +577,8 @@ class Catalog:
         taken = {(p, s) for p, s, _ in self.cmas.values()}
         self.cities: dict[tuple[str, str], str] = {}               # (prov, slug) -> name
         for (prov, slug), agg in m.city.items():
-            if agg.records >= THRESHOLD and SLUG_RE.match(slug) and (prov, slug) not in taken:
+            # /places/<pp>/employers is the province's employer directory (directory.py).
+            if agg.records >= THRESHOLD and SLUG_RE.match(slug) and (prov, slug) not in taken and slug != RESERVED_SLUG:
                 self.cities[(prov, slug)] = display_name(agg.spellings) or slug
 
     def entries(self) -> list[tuple[str, str | None]]:
