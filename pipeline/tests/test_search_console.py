@@ -1,16 +1,13 @@
 """The Search Console import, against a stub session: nothing here reaches the network.
 
-The RSA key below was made for these tests with `openssl genpkey -algorithm RSA
--pkeyopt rsa_keygen_bits:2048` and is used nowhere else. SIGNATURE is what
-`openssl dgst -sha256 -sign` gave for MESSAGE with it, so the standard-library
-signer is checked against an independent implementation.
+The RSA keys are made by the tests themselves with the cryptography package,
+so no key is kept in the repository.
 """
 
 from __future__ import annotations
 
 import base64
 import csv
-import hashlib
 import io
 import json
 from datetime import date, datetime, timedelta, timezone
@@ -18,40 +15,22 @@ from urllib.parse import unquote
 
 import pytest
 import requests
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
 
 from lmia_pipeline import cli, config, nightly, resilience, search_console as sc
 
-# The armour is assembled here so the file holds no literal key header for scanners to flag.
-KEY_PEM = "\n".join(["-----BEGIN " + "PRIVATE KEY-----",
-                    "MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDP5HEbWNB+t0mm",
-                    "yJ3Xsc/vy3623A6VL4AeUyk07Mn7yECMWUgdXBB6wBND8o7jSQ6Dzzhbr8cSsAV7",
-                    "Fi7IbjPrPwrBUVhSqG4xsuyauNf6Pj9IqjfUggXO4ruRSu3tToKGiaFJox8BG+Cx",
-                    "atdIQGI9Pc+LrLSRzDmA/QN/L7Joxv+Bg6HdKLUkH1cRZHlPIMqlUu6h8l/6xlwX",
-                    "jgQTl/XNwZczemVbNBi1y59qZc6FSxGNxemmz2bXTGTD8fez+tn9isQ7umgUo32S",
-                    "07UXE1PlxVoRc7h9re6Wn5pyT1K+BbgclCWgbPuqQ1vzxjfOjxxzSFDTcoZuonzE",
-                    "RUkEGNOtAgMBAAECggEADx/M9L2HiY3MZL8Cm18QbsnCAbaiXvXHidfopF+NAELH",
-                    "eLkZbH1hUN9+vKToV/Oy2SGvCsiPyzXAEv4q+szoUmHR5qeELUXwolqkfksaogDQ",
-                    "+iMxZZtB+z+hKrGl++uIG8E72STDYYFwMtLAL72eCAY3qQSFrHe26pc9n7f4xZ4s",
-                    "UVvkyzUGKgBywul9Yni0fopXKSO4bdUeQqDrFVGBcpp3vIknBfVgh5vfkb2YiHPm",
-                    "4FolIxv+jaAtbuiHe0hfo40cOqgopPzaZt7cJ1fqm/lAiQl+sf2Q5pEsGhUXyRAa",
-                    "LqonYROtfeppTC3HVlG1ee8MMTqs0Kwq2wVqL9NyUQKBgQDySL/ZHDxBhbxHBTPi",
-                    "MwD0B3mgkWCZ6OcgTciwkPyRX101aeDN70dl5wkDMwn/odvDoQKdzGEr8L0X3rAB",
-                    "qgy187ntYtqJpbXJiWrv5MZal9ev9HkCvEgXE3EVGojnOSO/ovpiO6JNFMTJqj/B",
-                    "Re1/7LaN1cmJUPyJ4GzBu/8JBQKBgQDbqUbAYYngv6cdE2FRmyzqGlz6AljdPpiK",
-                    "odu2vYWBy6cYamYmeNojoG2fTnJfFnSqPJFRR84wXILgTjPz/ZtCul9RHnU31WAM",
-                    "e/Vfm2kDXmtsHi1GxcKBEXk+ZD+PEISMm+kQ0NiclTIC7jvdTlzglUDP/yA62mzj",
-                    "rQBrlLkAiQKBgQDXjUWxoN8y5ApnnQdV3U6hzOy2n+AzzfOi19EO1U7+/rrsRHBO",
-                    "hu0cifmIsSXaGmRsnZi4Txa8gweYbvRj5qg8UMQ/oE0RXS5oSSuslfqqqqCn2Ha4",
-                    "qk3wyck3n03heQKHAjaEos14iluxlxf1mYL85tpbQbJ1ymmDOPlJOzphCQKBgEMS",
-                    "NetKHRqGCpXjNAUB973nnNot20p68YLrFzZ+OgS+1V+sJVK79geI1dAd2OhV5/uP",
-                    "EOQbo8a6iK/K0SxAFKdUVwRi43HP8kr9kpfF0VPZAb36nOKOQey9FCNL4uhhJ8fz",
-                    "Vz/uNSXinGmuqpLReaSNjkO0Z/fwd+0xBv7SY4bZAoGBAOFhckZb18k/DXPG8TCE",
-                    "PNcrCKw9ZExwBwEBBCZyEj5UxFle83/cXFE824+8x2YJ6HAg4di7GxnSisakM0M9",
-                    "uiId3LgFXR7FxHxPg54xQrj7NF7VCJANF/sZXdy0gEGMKuHDBwxqKOvcahR51z84",
-                    "QVupB4C1RxOZqKuySbSxk9s5",
-                     "-----END " + "PRIVATE KEY-----"]) + "\n"
+
+def pem_of(key) -> str:
+    return key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+                             serialization.NoEncryption()).decode("ascii")
+
+
+# One 2048-bit key for the module: making one takes a moment.
+KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+KEY_PEM = pem_of(KEY)
 MESSAGE = b"eyJhbGciOiJSUzI1NiJ9.eyJ0ZXN0Ijp0cnVlfQ"
-SIGNATURE = "mvppD5vfHOwPCTfg6ONKbvibjNeNfoGqyH1zWvQ9GmUfmdfM2M8Ku_NceiAQLk_zujyNWkwl0wwbxC-HsdVPNH7Z-zIHv89dusZ-hvhvWFrQ7efBqoqRwqx7LP83LvNBog1gkNZt01ep7Gz7Zme7cSsCfcmQRGsWMw0sRMDfR6zIK5y8UxM6Inb54psa-Gp-x9ovCukFqSExBCdBwsHEuB69RZSjWemPidrmgSZE3MiYRFq080twCfZqxGto0rbfDTDVyOWGggN5cSetoURLxw_zXBMIi19XPAvwGWJpb_9KLXw3PVDrfqy47sWcX7VfCbtt5B9pmzHh9At1JEqHvw"
 
 ACCOUNT_JSON = json.dumps({
     "type": "service_account", "project_id": "lmia-watch-test", "private_key_id": "abc123",
@@ -142,10 +121,18 @@ def site(monkeypatch):
 # -- signing -------------------------------------------------------------------
 
 
-def test_the_signature_matches_openssl_byte_for_byte():
-    n, d = sc.rsa_private_key(KEY_PEM)
-    assert n.bit_length() == 2048
-    assert sc.b64url(sc.rs256(MESSAGE, n, d)) == SIGNATURE
+def verify(public_key, signature: bytes, message: bytes) -> None:
+    public_key.verify(signature, message, padding.PKCS1v15(), hashes.SHA256())
+
+
+def test_a_signature_verifies_with_the_public_half_and_fails_for_any_other_message():
+    signature = sc.rs256(MESSAGE, sc.load_key(KEY_PEM))
+    assert len(signature) == 256
+    verify(KEY.public_key(), signature, MESSAGE)
+    with pytest.raises(InvalidSignature):
+        verify(KEY.public_key(), signature, MESSAGE + b"x")
+    with pytest.raises(InvalidSignature):
+        verify(rsa.generate_private_key(public_exponent=65537, key_size=2048).public_key(), signature, MESSAGE)
 
 
 def test_the_assertion_is_a_jwt_google_can_verify():
@@ -157,20 +144,18 @@ def test_the_assertion_is_a_jwt_google_can_verify():
         "iss": "reader@lmia-watch-test.iam.gserviceaccount.com",
         "scope": "https://www.googleapis.com/auth/webmasters.readonly",
         "aud": "https://oauth2.googleapis.com/token", "iat": 1_800_000_000, "exp": 1_800_003_600}
-    # Verify with the public exponent, as Google does: the padded SHA-256 digest of the signing input comes back.
-    n = account.n
-    em = pow(int.from_bytes(b64decode(signature), "big"), 65537, n).to_bytes(256, "big")
-    digest = hashlib.sha256(f"{head}.{claims}".encode()).digest()
-    assert em == b"\x00\x01" + b"\xff" * (256 - 3 - 19 - 32) + b"\x00" + sc.SHA256_PREFIX + digest
+    # As Google checks it: the signature over "header.claims" with the account's public key.
+    verify(KEY.public_key(), b64decode(signature), f"{head}.{claims}".encode("ascii"))
 
 
-def test_a_key_that_is_not_a_pkcs8_rsa_key_is_refused_without_echoing_it():
-    body = KEY_PEM.splitlines()[1:-1]
-    for pem in ("", "not a key", KEY_PEM.replace("PRIVATE KEY", "RSA PRIVATE KEY"),
-                "\n".join([KEY_PEM.splitlines()[0], "!!!!", KEY_PEM.splitlines()[-1]]),
-                "\n".join([KEY_PEM.splitlines()[0]] + body[:5] + [KEY_PEM.splitlines()[-1]])):
+def test_a_key_that_is_not_a_usable_rsa_key_is_refused_without_echoing_it():
+    lines = KEY_PEM.splitlines()
+    damaged = "\n".join(lines[:5] + [lines[5][:-8] + "AAAAAAAA"] + lines[6:]) + "\n"
+    for pem in ("", "not a key", "\n".join([lines[0], "!!!!", lines[-1]]), "\n".join(lines[:6] + [lines[-1]]),
+                damaged, pem_of(ec.generate_private_key(ec.SECP256R1())),
+                pem_of(rsa.generate_private_key(public_exponent=65537, key_size=1024))):
         with pytest.raises(ValueError) as err:
-            sc.rsa_private_key(pem)
+            sc.load_key(pem)
         assert KEY_FRAGMENT not in str(err.value)
     for text in ("not json", "[]", json.dumps({"type": "authorized_user"}),
                  json.dumps({"type": "service_account", "client_email": "x@y"}),

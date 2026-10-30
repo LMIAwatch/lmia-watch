@@ -15,13 +15,10 @@ says how). The property defaults to the domain property of the site's host
 secret nothing is asked and the outcome is "no credentials".
 
 Signing: the API takes an OAuth access token, which Google exchanges for a
-JWT signed with the service account's RSA key (RS256). The pipeline has no
-cryptography package, so the signature is computed here with the standard
-library: RSASSA-PKCS1-v1_5 over SHA-256 is a fixed padding and one modular
-exponentiation (RFC 8017, section 8.2). It is deterministic, so the tests
-check it byte for byte against a signature made by OpenSSL. Only signing is
-done here (no encryption, no verification of anything received), and the
-key is read from the secret, used, and never written or logged.
+JWT signed with the service account's RSA key (RS256). The key is loaded and
+the JWT signed with the `cryptography` package (PKCS #1 v1.5 padding over
+SHA-256). The key is read from the secret, used, and never written or
+logged.
 
 Only data marked final is asked for (Search Console's dataState "final"), so
 a stored day never changes later; the newest two or three days arrive on
@@ -38,7 +35,6 @@ from __future__ import annotations
 
 import base64
 import csv
-import hashlib
 import io
 import json
 import logging
@@ -84,83 +80,35 @@ class FileError(Exception):
     """The stored file exists but cannot be read safely, so it is never replaced."""
 
 
-# -- RS256 with the standard library -------------------------------------------
-
-# rsaEncryption, 1.2.840.113549.1.1.1
-RSA_OID = bytes.fromhex("2a864886f70d010101")
-# The DER prefix of a DigestInfo for SHA-256 (RFC 8017, section 9.2, note 1).
-SHA256_PREFIX = bytes.fromhex("3031300d060960864801650304020105000420")
+# -- RS256 -------------------------------------------------------------------
 
 
-def _der(data: bytes, pos: int) -> tuple[int, bytes, int]:
-    """(tag, contents, position after) of the DER element at pos."""
-    if pos + 2 > len(data):
-        raise ValueError("truncated key")
-    tag, length = data[pos], data[pos + 1]
-    pos += 2
-    if length & 0x80:
-        size = length & 0x7F
-        if size == 0 or size > 4 or pos + size > len(data):
-            raise ValueError("bad length in key")
-        length = int.from_bytes(data[pos:pos + size], "big")
-        pos += size
-    if pos + length > len(data):
-        raise ValueError("truncated key")
-    return tag, data[pos:pos + length], pos + length
-
-
-def _sequence(data: bytes) -> list[tuple[int, bytes]]:
-    items, pos = [], 0
-    while pos < len(data):
-        tag, value, pos = _der(data, pos)
-        items.append((tag, value))
-    return items
-
-
-def rsa_private_key(pem: str) -> tuple[int, int]:
-    """(modulus, private exponent) from a PKCS #8 PEM key, the form Google issues.
-
-    Raises ValueError for anything else, never echoing the key."""
-    lines = [ln.strip() for ln in pem.strip().splitlines()]
-    begin, end = "-----BEGIN " + "PRIVATE KEY-----", "-----END " + "PRIVATE KEY-----"
-    if len(lines) < 3 or lines[0] != begin or lines[-1] != end:
-        raise ValueError("the key is not a PKCS #8 PEM private key")
+def load_key(pem: str) -> Any:
+    """The RSA private key from a PEM string (Google issues PKCS #8). Raises
+    ValueError, never echoing the key."""
     try:
-        der = base64.b64decode("".join(lines[1:-1]), validate=True)
-    except ValueError:
-        raise ValueError("the key's base64 does not decode") from None
-    tag, body, rest = _der(der, 0)
-    if tag != 0x30 or rest != len(der):
-        raise ValueError("the key is not a DER sequence")
-    outer = _sequence(body)
-    if len(outer) < 3 or outer[0][0] != 0x02 or outer[1][0] != 0x30 or outer[2][0] != 0x04:
-        raise ValueError("the key is not PKCS #8")
-    algorithm = _sequence(outer[1][1])
-    if not algorithm or algorithm[0] != (0x06, RSA_OID):
+        from cryptography.exceptions import UnsupportedAlgorithm
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric import rsa
+    except ImportError:
+        raise ValueError("the cryptography package is not installed (pip install -e ./pipeline)") from None
+    try:
+        key = serialization.load_pem_private_key(pem.encode("utf-8"), password=None)
+    except (ValueError, TypeError, UnsupportedAlgorithm):
+        raise ValueError("the key is not a readable, unencrypted PEM private key") from None
+    if not isinstance(key, rsa.RSAPrivateKey):
         raise ValueError("the key is not an RSA key")
-    tag, inner, rest = _der(outer[2][1], 0)
-    fields = _sequence(inner) if tag == 0x30 else []
-    if len(fields) < 4 or any(t != 0x02 for t, _v in fields[:4]):
-        raise ValueError("the RSA key is malformed")
-    n = int.from_bytes(fields[1][1], "big")
-    e = int.from_bytes(fields[2][1], "big")
-    d = int.from_bytes(fields[3][1], "big")
-    if n.bit_length() < 2048 or not 0 < d < n or e < 3:
-        raise ValueError("the RSA key is malformed or shorter than 2048 bits")
-    # A damaged key would only show as a refusal from Google; a round trip catches it here.
-    if pow(pow(2, e, n), d, n) != 2:
-        raise ValueError("the RSA key's numbers do not belong together (a damaged key?)")
-    return n, d
+    if key.key_size < 2048:
+        raise ValueError("the RSA key is shorter than 2048 bits")
+    return key
 
 
-def rs256(message: bytes, n: int, d: int) -> bytes:
-    """RSASSA-PKCS1-v1_5 signature with SHA-256 (RFC 8017, 8.2.1 and 9.2)."""
-    k = (n.bit_length() + 7) // 8
-    t = SHA256_PREFIX + hashlib.sha256(message).digest()
-    if k < len(t) + 11:
-        raise ValueError("the RSA key is too short")
-    em = b"\x00\x01" + b"\xff" * (k - len(t) - 3) + b"\x00" + t
-    return pow(int.from_bytes(em, "big"), d, n).to_bytes(k, "big")
+def rs256(message: bytes, key: Any) -> bytes:
+    """RSASSA-PKCS1-v1_5 signature with SHA-256, the JWT algorithm RS256."""
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import padding
+
+    return key.sign(message, padding.PKCS1v15(), hashes.SHA256())
 
 
 def b64url(data: bytes) -> str:
@@ -174,8 +122,7 @@ def b64url(data: bytes) -> str:
 class Account:
     email: str
     key_id: str
-    n: int
-    d: int
+    key: Any  # cryptography's RSAPrivateKey
 
     def __repr__(self) -> str:  # keeps the key out of any log line or traceback
         return f"Account({self.email})"
@@ -193,8 +140,7 @@ def parse_account(text: str) -> Account:
     if not isinstance(email, str) or "@" not in email or not isinstance(key, str):
         raise ValueError(f"{SECRET_ENV} lacks client_email or private_key")
     key_id = data.get("private_key_id")
-    n, d = rsa_private_key(key)
-    return Account(email.strip(), key_id if isinstance(key_id, str) else "", n, d)
+    return Account(email.strip(), key_id if isinstance(key_id, str) else "", load_key(key))
 
 
 def assertion(account: Account, now: int) -> str:
@@ -205,7 +151,7 @@ def assertion(account: Account, now: int) -> str:
     claims = {"iss": account.email, "scope": SCOPE, "aud": TOKEN_URL, "iat": now, "exp": now + 3600}
     signing_input = (b64url(json.dumps(header, separators=(",", ":")).encode()) + "."
                      + b64url(json.dumps(claims, separators=(",", ":")).encode()))
-    return signing_input + "." + b64url(rs256(signing_input.encode("ascii"), account.n, account.d))
+    return signing_input + "." + b64url(rs256(signing_input.encode("ascii"), account.key))
 
 
 def _status(resp: Any) -> int:

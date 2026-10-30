@@ -479,11 +479,11 @@ night goes on. Google leaves out queries made by very few people, and the
 file is not published.
 
 Signing in: Google exchanges a JWT signed with the service account's RSA key
-for a read-only access token (scope `webmasters.readonly`). The pipeline has
-no cryptography package, so `search_console.rs256` computes the
-RSASSA-PKCS1-v1_5 signature with the standard library (RFC 8017; the tests
-check it byte for byte against OpenSSL). The key is read from the secret and
-never written or logged.
+for a read-only access token (scope `webmasters.readonly`). The key is loaded
+and the JWT signed with the `cryptography` package (a pipeline dependency,
+installed by the workflow's `pip install -e ./pipeline`): PKCS #1 v1.5
+padding over SHA-256. The key is read from the secret and never written or
+logged.
 
 Outcomes, as `search_console` in the run status and "Search Console:" in
 LAST_RUN.md: `imported <n> days`, `up to date`, `no credentials` (the secret

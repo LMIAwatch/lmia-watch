@@ -17,6 +17,8 @@ dependencies = [
   "tzdata>=2024.1",
   # Pure Python, no binary dependency: reads the designated-employer lists published as PDF (sources/registers.py).
   "pypdf==6.14.2",
+  # Signs the Search Console service account's JWT (RS256, search_console.py).
+  "cryptography>=44",
 ]
 
 [project.optional-dependencies]
