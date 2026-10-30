@@ -147,8 +147,8 @@ describe("the international-candidates page", () => {
     expect(section).toContain("Francophone Community Immigration Pilot");
     expect(section).toContain("Kelowna, BC");
     expect(section).toContain("Read 2026-10-12");
-    expect(section).toContain("PDF, not yet readable");
-    expect(section).toContain("Not read lately; last good read 2026-10-10");
+    expect(section).toContain("PDF, not readable");
+    expect(section).toContain("Last read 2026-10-10");
     expect(section).toContain("2,160 employers listed on the lists read; 55 of them matched");
   });
 
@@ -162,14 +162,15 @@ describe("the international-candidates page", () => {
   it("shows a list loaded by hand, a blocked site and a list never read for what they are", async () => {
     const html = await (await get("/international")).text();
     const ns = regRow(html, "Nova Scotia");
-    expect(ns).toContain("List dated 2026-07-01, loaded by hand 2026-10-30");
+    expect(ns).toContain("By hand, list of 2026-07-01");
     expect(countCell(ns)).toBe("1,522");
     const pe = regRow(html, "Prince Edward Island");
-    expect(pe).toContain("The province&#39;s site blocks automated readers");
-    expect(pe).not.toContain("not yet readable");
+    expect(pe).toContain("Blocked by the site");
+    expect(pe).not.toContain("not readable");
+    expect(html).toContain("answers every automated reader with a bot challenge");
     expect(countCell(pe)).toBe("");                 // blank, never 0
     const nb = regRow(html, "New Brunswick");
-    expect(nb).toContain("PDF, not yet readable");
+    expect(nb).toContain("PDF, not readable");
     expect(countCell(nb)).toBe('<span aria-hidden="true">–</span><span class="visually-hidden">Never read</span>');
     expect(countCell(regRow(html, "Kelowna, BC"))).toBe("52");   // failing, its last good rows kept
     const section = html.slice(html.indexOf('id="registers"'));
@@ -182,8 +183,8 @@ describe("the international-candidates page", () => {
 
   it("says so in French", async () => {
     const html = nbsp(await (await get("/international?lang=fr")).text());
-    expect(regRow(html, "Nouvelle-Écosse")).toContain("Liste datée du 2026-07-01, chargée à la main le 2026-10-30");
-    expect(regRow(html, "Île-du-Prince-Édouard")).toContain("Le site de la province bloque les lecteurs automatisés");
+    expect(regRow(html, "Nouvelle-Écosse")).toContain("À la main, liste du 2026-07-01");
+    expect(regRow(html, "Île-du-Prince-Édouard")).toContain("Bloquée par le site");
     expect(regRow(html, "Nouveau-Brunswick")).toContain("Jamais lue");
     expect(html).toContain(
       "Programme d’immigration au Canada atlantique (Nouvelle-Écosse) : les employeurs inscrits proviennent de la liste " +

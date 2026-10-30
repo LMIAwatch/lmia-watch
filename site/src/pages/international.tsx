@@ -388,6 +388,11 @@ export function blockedText(lang: Lang, r: RegisterRow): string {
   return t(lang, r.community ? "intl.reg_state_blocked_community" : "intl.reg_state_blocked");
 }
 
+// The reason as a clause ("the province's site blocks automated readers"), for sentences.
+export function blockedReason(lang: Lang, r: RegisterRow): string {
+  return t(lang, r.community ? "intl.reg_blocked_reason_community" : "intl.reg_blocked_reason");
+}
+
 function registerState(lang: Lang, r: RegisterRow): string {
   if (r.state === "ok") return t(lang, "intl.reg_state_ok", { date: r.last_ok ?? "" });
   if (r.state === "snapshot" && r.snapshot) {
@@ -432,6 +437,9 @@ const RegistersSection: FC<{ lang: Lang; rows: RegisterRow[] }> = ({ lang, rows 
       <p>{t(lang, "intl.reg_text")}</p>
       <p class="muted small">{t(lang, "intl.reg_totals", { rows: fmtInt(listed, lang), matched: fmtInt(matched, lang) })}</p>
       {copies.map((r) => <p class="small">{snapshotSentence(lang, r)} {t(lang, "intl.reg_snapshot_check")}</p>)}
+      {rows.filter((r) => r.state === "blocked").map((r) => (
+        <p class="small">{t(lang, r.community ? "intl.reg_blocked_community" : "intl.reg_blocked", { program: programName(lang, r.program), where: registerPlace(lang, r) })}</p>
+      ))}
       <div class="table-wrap bordered">
         <table class="restack">
           <thead>
@@ -450,7 +458,7 @@ const RegistersSection: FC<{ lang: Lang; rows: RegisterRow[] }> = ({ lang, rows 
                 <td data-label={t(lang, "intl.reg_col_where")}><a href={r.page_url} rel="nofollow noopener">{registerPlace(lang, r)}</a></td>
                 <td class="mono num" data-label={t(lang, "intl.reg_col_rows")}><RegisterCount lang={lang} r={r} /></td>
                 <td class="mono num" data-label={t(lang, "intl.reg_col_matched")}>{fmtInt(r.matched, lang)}</td>
-                <td data-label={t(lang, "intl.reg_col_state")}>{registerState(lang, r)}</td>
+                <td data-label={t(lang, "intl.reg_col_state")} class="nw">{registerState(lang, r)}</td>
               </tr>
             ))}
           </tbody>

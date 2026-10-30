@@ -2959,14 +2959,27 @@ const STRINGS = {
   "intl.reg_col_matched": { en: "Matched to a profile", fr: "Jumelés à un profil" },
   "intl.reg_col_state": { en: "Status", fr: "État" },
   "intl.reg_state_ok": { en: "Read {date}", fr: "Lue le {date}" },
-  "intl.reg_state_unreadable": { en: "PDF, not yet readable", fr: "PDF, pas encore lisible" },
-  "intl.reg_state_failing": { en: "Not read lately; last good read {date}", fr: "Non lue récemment; dernière lecture réussie le {date}" },
+  "intl.reg_state_unreadable": { en: "PDF, not readable", fr: "PDF, illisible" },
+  "intl.reg_state_failing": { en: "Last read {date}", fr: "Dernière lecture le {date}" },
   "intl.reg_state_never": { en: "Could not be read yet", fr: "N'a pas encore pu être lue" },
   "intl.reg_state_not_read": { en: "Not read yet", fr: "Pas encore lue" },
-  "intl.reg_state_blocked": { en: "The province's site blocks automated readers", fr: "Le site de la province bloque les lecteurs automatisés" },
-  "intl.reg_state_blocked_community": { en: "The community's site blocks automated readers", fr: "Le site de la collectivité bloque les lecteurs automatisés" },
-  "intl.reg_state_kept": { en: "{state}; last good read {date}", fr: "{state}; dernière lecture réussie le {date}" },
-  "intl.reg_state_snapshot": { en: "List dated {date}, loaded by hand {loaded}", fr: "Liste datée du {date}, chargée à la main le {loaded}" },
+  // The status column stays on one line; the sentences that explain a blocked
+  // site or a copy loaded by hand sit above the table (intl.reg_blocked, intl.reg_snapshot).
+  "intl.reg_state_blocked": { en: "Blocked by the site", fr: "Bloquée par le site" },
+  // The reason in a sentence, for the methodology's limits.
+  "intl.reg_blocked_reason": { en: "the province's site blocks automated readers", fr: "le site de la province bloque les lecteurs automatisés" },
+  "intl.reg_blocked_reason_community": { en: "the community's site blocks automated readers", fr: "le site de la collectivité bloque les lecteurs automatisés" },
+  "intl.reg_state_blocked_community": { en: "Blocked by the site", fr: "Bloquée par le site" },
+  "intl.reg_state_kept": { en: "{state}, last read {date}", fr: "{state}, dernière lecture le {date}" },
+  "intl.reg_state_snapshot": { en: "By hand, list of {date}", fr: "À la main, liste du {date}" },
+  "intl.reg_blocked": {
+    en: "{program} ({where}): the province's site answers every automated reader with a bot challenge, so the list cannot be read; the run tries once a night in case that changes.",
+    fr: "{program} ({where}) : le site de la province répond à tout lecteur automatisé par un test anti-robot, si bien que la liste ne peut pas être lue; le relevé essaie une fois par nuit au cas où cela changerait.",
+  },
+  "intl.reg_blocked_community": {
+    en: "{program} ({where}): the community's site answers every automated reader with a bot challenge, so the list cannot be read; the run tries once a night in case that changes.",
+    fr: "{program} ({where}) : le site de la collectivité répond à tout lecteur automatisé par un test anti-robot, si bien que la liste ne peut pas être lue; le relevé essaie une fois par nuit au cas où cela changerait.",
+  },
   "intl.reg_never_read": { en: "Never read", fr: "Jamais lue" },
   "intl.reg_snapshot": {
     en: "{program} ({where}): the employers listed come from the province's list dated {date}, loaded by hand on {loaded} because the province's server does not answer the nightly run.",

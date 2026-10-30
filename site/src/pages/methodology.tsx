@@ -7,7 +7,7 @@ import { indicatorLabel, t, tj, type Key, type Lang } from "../i18n";
 import { Badge, Layout, page } from "../layout";
 import { pageSeo } from "../seo";
 import { isListOf, isObj, isNum, isStrOrNull } from "../valid";
-import { blockedText, isRegister, programName, registerPlace, snapshotRows, snapshotSentence, type RegisterRow } from "./international";
+import { blockedReason, isRegister, programName, registerPlace, snapshotRows, snapshotSentence, type RegisterRow } from "./international";
 
 // The high-wage list in use, as stats.json states it; anything else reads as absent.
 type ListVersion = { read_on: string | null; page_modified: string | null; count: number };
@@ -43,9 +43,8 @@ const EE_LIMITS: Key[] = [
 
 // A list whose site blocks automated readers, as a line of the limits.
 function blockedLimit(lang: Lang, r: RegisterRow): string {
-  const state = blockedText(lang, r);
   return t(lang, "methodology.ee_limit_blocked", {
-    program: programName(lang, r.program), where: registerPlace(lang, r), state: state.charAt(0).toLowerCase() + state.slice(1),
+    program: programName(lang, r.program), where: registerPlace(lang, r), state: blockedReason(lang, r),
   });
 }
 
