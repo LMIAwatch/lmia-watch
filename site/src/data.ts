@@ -155,6 +155,8 @@ export interface DesignatedRow {
   list: string; program: string; jurisdiction: string; community: string | null; name: string; location: string | null;
   designated_on: string | null; first_seen: string; last_seen: string; current: boolean; url: string; grade: string;
   basis: string;
+  // Present when the row is current only through the list's copy loaded by hand.
+  snapshot?: { list_date: string; loaded_on: string };
 }
 
 // One federal grant or contribution agreement, at its latest amendment.
@@ -488,10 +490,13 @@ const isIntlPosting = (v: unknown): boolean => isObj(v) && isNum(v.id) && isStrO
   isStrOrNull(v.city) && isStrOrNull(v.prov) && isStr(v.date) && typeof v.live === "boolean" && isStr(v.lmia) &&
   (v.grade === null || v.grade === "A" || v.grade === "B" || v.grade === "C") && isListOf(v.reasons, isStr) &&
   isStr(v.url) && JOBBANK_POSTING.test(v.url);
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 const isDesignated = (v: unknown): boolean => isObj(v) && isMatch(v) && isStr(v.list) && isStr(v.program) &&
   isStr(v.jurisdiction) && isStrOrNull(v.community) && isStr(v.name) && isStrOrNull(v.location) &&
   isStrOrNull(v.designated_on) && isStr(v.first_seen) && isStr(v.last_seen) && typeof v.current === "boolean" &&
-  isStr(v.url) && HTTPS_URL.test(v.url);
+  isStr(v.url) && HTTPS_URL.test(v.url) &&
+  (v.snapshot === undefined || (isObj(v.snapshot) && isStr(v.snapshot.list_date) && ISO_DAY.test(v.snapshot.list_date) &&
+    isStr(v.snapshot.loaded_on) && ISO_DAY.test(v.snapshot.loaded_on)));
 
 // Each is rendered as a link, so the id must be an employer id.
 const isRelated = (v: unknown): boolean => isObj(v) && isStr(v.id) && EMPLOYER_ID_RE.test(v.id) && isStr(v.name) &&

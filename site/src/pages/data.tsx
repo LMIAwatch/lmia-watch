@@ -6,7 +6,7 @@ import { t, tj, type Key, type Lang } from "../i18n";
 import { Layout, fmtInt, noDataPage, page, periodLabel } from "../layout";
 import { CANADA_TERMS_URL, type DownloadLicence, OGL_URL, datasetJsonLd, pageSeo } from "../seo";
 import { TERMS } from "./program";
-import { isRegister, programName, registerPlace } from "./international";
+import { isRegister, programName, registerPlace, snapshotRows, snapshotSentence } from "./international";
 import { EE_LINKS } from "./methodology";
 import { isListOf, isNum, isNumOrNull, isObj, isStr, isStrOrNull } from "../valid";
 
@@ -31,6 +31,7 @@ export const CHANGELOG: readonly ChangeRow[] = [
   { date: "2026-10-25", change: "data.change_intl", recomputed: "data.recomputed_intl" },
   { date: "2026-10-25", change: "data.change_card_links", recomputed: "data.recomputed_none" },
   { date: "2026-10-30", change: "data.change_directory", recomputed: "data.recomputed_directory" },
+  { date: "2026-10-30", change: "data.change_audience", recomputed: "data.recomputed_audience" },
 ];
 // Numbers in an entry are formatted for the page's language; the drafted entry names the latest period.
 export function changelog(latestPeriod: string, lang: Lang): { date: string; change: Key; recomputed: Key; vars: Record<string, string> }[] {
@@ -300,7 +301,12 @@ export async function dataPage(c: Context<AppEnv>): Promise<Response> {
               <tbody>
                 {LICENCE_ROWS.map((row) => (
                   <tr>
-                    <td data-label={t(lang, "data.col_material")}>{t(lang, row.material)}</td>
+                    <td data-label={t(lang, "data.col_material")}>
+                      {t(lang, row.material)}
+                      {row.material === "data.lic.registers"
+                        ? snapshotRows(registers).map((r) => <div class="small">{snapshotSentence(lang, r)}</div>)
+                        : null}
+                    </td>
                     <td data-label={t(lang, "data.col_terms")}>
                       {tj(lang, row.terms, {
                         ogl: <a href={OGL_URL[lang]}>{t(lang, "data.lic.ogl")}</a>,

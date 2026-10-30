@@ -221,9 +221,11 @@ const DesignatedCard = ({ rows, lang }: { rows: DesignatedRow[]; lang: Lang }) =
         {r.designated_on ? <><dt>{t(lang, "employer.designated_on")}</dt><dd class="mono">{r.designated_on}</dd></> : null}
         <dt>{t(lang, "employer.match")}</dt><dd>{matchText(lang, r.grade, r.basis)}</dd>
         <dd>
-          {r.current
-            ? t(lang, "employer.designated_current", { date: r.last_seen })
-            : t(lang, "employer.designated_gone", { date: r.last_seen })}{" "}
+          {r.current && r.snapshot
+            ? t(lang, "employer.designated_snapshot", { date: r.snapshot.list_date, loaded: r.snapshot.loaded_on })
+            : r.current
+              ? t(lang, "employer.designated_current", { date: r.last_seen })
+              : t(lang, "employer.designated_gone", { date: r.last_seen })}{" "}
           <a href={r.url} class="small" rel="nofollow noopener">{t(lang, "employer.designated_link")}</a>
         </dd>
       </dl>

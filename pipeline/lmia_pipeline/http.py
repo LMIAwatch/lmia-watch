@@ -11,6 +11,7 @@ from __future__ import annotations
 import email.utils
 import hashlib
 import json
+import ssl
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -19,6 +20,8 @@ from typing import Any, Callable
 from urllib.parse import urlsplit
 
 import requests
+import requests.certs
+from requests.adapters import HTTPAdapter
 
 from . import config
 
@@ -75,6 +78,33 @@ class AbortRun(Exception):
 
 class _SlowBody(Exception):
     """The body did not finish arriving within the request's time limit."""
+
+
+class ContextAdapter(HTTPAdapter):
+    """An adapter whose connections use one SSL context (requests 2.32.3 and later honour it)."""
+
+    def __init__(self, context: ssl.SSLContext, **kwargs: Any) -> None:
+        self.context = context
+        super().__init__(**kwargs)
+
+    def init_poolmanager(self, connections: int, maxsize: int, block: bool = False, **pool_kwargs: Any) -> None:
+        pool_kwargs["ssl_context"] = self.context
+        super().init_poolmanager(connections, maxsize, block=block, **pool_kwargs)
+
+    def proxy_manager_for(self, proxy: str, **proxy_kwargs: Any) -> Any:
+        proxy_kwargs["ssl_context"] = self.context
+        return super().proxy_manager_for(proxy, **proxy_kwargs)
+
+
+def intermediate_context(pem: str) -> ssl.SSLContext:
+    """The verifying context requests uses (certifi's roots) plus one intermediate CA certificate.
+
+    For a host that sends only its own certificate: OpenSSL then cannot build
+    the chain to a root, while a Windows client fills the gap from its own
+    store. Verification and the host name check stay on; nothing is relaxed."""
+    context = ssl.create_default_context(cafile=requests.certs.where())
+    context.load_verify_locations(cadata=pem)
+    return context
 
 
 @dataclass
@@ -269,6 +299,20 @@ class PoliteClient:
         """Drop a cached response, so a body that turned out unusable is fetched again."""
         for path in self._cache_paths(url):
             path.unlink(missing_ok=True)
+
+    def cached_headers(self, url: str) -> dict[str, str | None]:
+        """The ETag and Last-Modified the cached response for url arrived with ({} when none is cached)."""
+        entry = self._cache_entry(url)
+        if entry is None:
+            return {}
+        return {"etag": entry.meta.get("etag"), "last_modified": entry.meta.get("last_modified")}
+
+    def trust_intermediate(self, host: str, pem: str) -> None:
+        """Verify https://<host>/ against the default roots plus the intermediate in pem.
+
+        The adapter is mounted for that one host; every other host keeps the
+        session's default adapter and its default verification."""
+        self.session.mount(f"https://{host}/", ContextAdapter(intermediate_context(pem)))
 
     # -- internals ----------------------------------------------------------
 

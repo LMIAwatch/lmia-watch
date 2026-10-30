@@ -5,6 +5,8 @@ data/*.sqlite
 data/*.sqlite-journal
 data/*.sqlite-wal
 data/*.sqlite-shm
+# copies of designated-employer lists loaded by hand live in R2 only (the site does not republish the lists)
+pipeline/lmia_pipeline/data/registers/
 *.pyc
 __pycache__/
 .pytest_cache/

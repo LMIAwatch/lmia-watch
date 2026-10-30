@@ -34,6 +34,10 @@ export interface Env {
   // Aggregate response counts (src/views.ts). Absent in tests and local
   // development, in which case nothing is counted.
   VIEWS?: AnalyticsEngineDataset;
+  // The secret behind the daily visitor code (src/views.ts): the day's salt
+  // is HMAC-SHA-256 of the UTC date under it. Unset: no code is written and
+  // the roll-up counts no unique visitors. Set with `wrangler secret put`.
+  VIEWS_SALT_KEY?: string;
 }
 
 export type AppEnv = {

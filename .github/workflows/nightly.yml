@@ -27,9 +27,10 @@
 # post the daily digest to X and to Bluesky when their secrets exist, deposit
 # a new ESDC quarter on Zenodo when its token exists, save the database and the public files back to R2, keep
 # the audience counts of the finished days in R2 when the analytics token
-# exists, run the monthly expiry checks on the first of a month, write the run
-# status, and report the items needing attention (failed run, one GitHub
-# issue).
+# exists, append Search Console's daily figures when its key exists, write
+# the monthly audience report on the first run of a month, run the monthly
+# expiry checks on the first of a month, write the run status, and report the
+# items needing attention (failed run, one GitHub issue).
 #
 # What a failure does (lmia_pipeline/nightly.py and resilience.py hold the
 # checks):
@@ -55,10 +56,19 @@
 #   sent again the next night; it never stops the run.
 # - An audience roll-up that fails is reported (views_rollup: failed) and
 #   caught up the next night; it never stops the run, and a summary that
-#   could not be downloaded is never replaced.
+#   could not be downloaded is never replaced. The same holds for the Search
+#   Console import (search_console: failed) and its file, and for the monthly
+#   report (views_report: failed), which the next run writes instead.
 # - An IndexNow submission that fails is reported (indexnow in the run status)
 #   and never stops the run; only a rejection (the key file or the payload is
 #   wrong) is an item needing attention.
+# - A designated-employer list read from its copy loaded by hand (Nova Scotia;
+#   registers/aip_ns.csv and .json in this bucket, read by the registers stage
+#   with this job's token, never in the repository) whose publisher links or
+#   serves a newer edition, or whose copy does not read, is an item needing
+#   attention (registers.attention in the run status): the copy's rows stand
+#   in meanwhile, the run stays ok and no retry follows; loading the new
+#   edition by hand clears it. No copy in R2 is a failed read like any other.
 # - A fault in the retry gate, the version record, the smoke test, the expiry
 #   checks or the issue update never stops the run: the gate then runs the
 #   refresh, a missing version means no rollback tonight, and each outcome is
@@ -77,7 +87,11 @@
 # BSKY_HANDLE, BSKY_APP_PASSWORD (the Bluesky post, docs/bluesky-account.md);
 # ZENODO_TOKEN (the Zenodo deposit, docs/zenodo.md);
 # CLOUDFLARE_ANALYTICS_TOKEN (Account Analytics Read only, the audience
-# roll-up, docs/search-engines.md section 6; without it the step does nothing).
+# roll-up, docs/search-engines.md section 6; without it the step does nothing);
+# GSC_SERVICE_ACCOUNT_JSON (a Google service account's JSON key, added as a
+# user of the Search Console property; without it the import reports "no
+# credentials"). The Worker secret VIEWS_SALT_KEY (the daily visitor code) is
+# set with wrangler, not here; the roll-up counts no unique visitors without it.
 # Variables: SITE_URL, CONTACT (the scraper's user agent); X_POST_ENABLED must be
 # "true" for the X step to run at all (X posting is pay-per-use, so it is opt-in);
 # optional X_POST_LINK, set to true to put the site link in the text (X bills a
@@ -87,7 +101,8 @@
 # DOIs that never reach the site) instead of zenodo.org; optional
 # INDEXNOW_ENABLED, set to false to stop the IndexNow submission (it runs
 # unless the variable reads exactly "false"; the key is in the code, so it
-# needs no secret).
+# needs no secret); optional GSC_SITE, the Search Console property when it is
+# not the domain property sc-domain:<site host>.
 # The repository is public, so Actions minutes are unlimited; the only pace
 # limit is Job Bank's five-second crawl delay, which puts a full sweep at a
 # few hours. The job must finish before the next midnight run.
@@ -617,7 +632,10 @@ jobs:
       # up by the next, and writes the days it rolled up to rolled_up.txt for
       # the upload loop. It reads with CLOUDFLARE_ANALYTICS_TOKEN, a token of
       # its own with Account Analytics Read and nothing else (the deploy token
-      # cannot read analytics); without it the step does nothing. The summary
+      # cannot read analytics); without it the step does nothing. On the night
+      # that rolls up a month's last day it also reads the X follower count
+      # once (a billed read), only when X posting is enabled; the employer and
+      # record counts come from tonight's data/out/static/stats.json. The summary
       # is downloaded first and appended to: a download that fails for any
       # reason but "does not exist" stops the step, so a summary R2 holds is
       # never replaced by a shorter one. The outcome reads "failed" until both
@@ -631,6 +649,11 @@ jobs:
         env:
           CLOUDFLARE_ANALYTICS_TOKEN: ${{ secrets.CLOUDFLARE_ANALYTICS_TOKEN }}
           BSKY_HANDLE: ${{ secrets.BSKY_HANDLE }}
+          X_POST_ENABLED: ${{ vars.X_POST_ENABLED }}
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
         run: |
           out=data/out/views
           mkdir -p "$out"
@@ -670,6 +693,106 @@ jobs:
             echo "no data" > "$out/last_outcome.txt"
           fi
 
+      # Search Console's figures (docs/search-engines.md, section 6): clicks,
+      # impressions, position and the top 50 queries of every final day after
+      # the newest in views/search_console.csv, appended to it. Google keeps
+      # 16 months; this keeps them for good. It signs in with the service
+      # account key in GSC_SERVICE_ACCOUNT_JSON (read-only scope); without it
+      # the outcome is "no credentials" and nothing is asked. The file is
+      # downloaded first and appended to, and a download that fails for any
+      # reason but "does not exist" stops the step, so a shorter file never
+      # replaces it. The outcome reads "failed" until the file is in R2. It
+      # never stops the run.
+      - name: Import the Search Console figures (only when GSC_SERVICE_ACCOUNT_JSON is set)
+        id: gsc
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 15
+        env:
+          GSC_SERVICE_ACCOUNT_JSON: ${{ secrets.GSC_SERVICE_ACCOUNT_JSON }}
+          GSC_SITE: ${{ vars.GSC_SITE }}
+        run: |
+          out=data/out/search_console
+          mkdir -p "$out"
+          echo "failed" > "$out/last_outcome.txt"
+          if [ -z "$GSC_SERVICE_ACCOUNT_JSON" ]; then
+            echo "Search Console: no credentials"
+            echo "no credentials" > "$out/last_outcome.txt"
+            exit 0
+          fi
+          rm -f "$out/search_console.csv"
+          got=""
+          for attempt in 1 2 3; do
+            if "$WRANGLER" r2 object get --remote "$BUCKET/views/search_console.csv" --file "$out/search_console.csv" > "$out/get.log" 2>&1; then
+              got=yes
+              break
+            fi
+            if grep -qi "specified key does not exist" "$out/get.log"; then
+              got=missing
+              rm -f "$out/search_console.csv"
+              break
+            fi
+            sleep 20
+          done
+          if [ -z "$got" ]; then
+            echo "views/search_console.csv could not be downloaded; nothing imported"
+            cat "$out/get.log"
+            exit 1
+          fi
+          python -m lmia_pipeline import-search-console --out "$out"
+          outcome=$(cat "$out/outcome.txt")
+          case "$outcome" in
+            imported*)
+              "$WRANGLER" r2 object put --remote "$BUCKET/views/search_console.csv" --file "$out/search_console.csv"
+              ;;
+          esac
+          echo "$outcome" > "$out/last_outcome.txt"
+
+      # The monthly audience report (docs/search-engines.md, section 6): on
+      # the first run of a UTC month, views/report-<YYYY-MM>.md for the month
+      # just ended, from the summary and the Search Console file as R2 holds
+      # them after the two steps above, with the three months before it
+      # beside it. Every night this asks R2 whether last month's report
+      # exists ("not due" when it does), so a night that fails is made up by
+      # the next. The report waits up to a week for the month's last day to
+      # be rolled up ("waiting"). Its one-line summary goes to LAST_RUN.md.
+      # It never stops the run.
+      - name: Write the monthly audience report (the first run of a month)
+        id: report
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          out=data/out/report
+          mkdir -p "$out"
+          echo "failed" > "$out/last_outcome.txt"
+          month=$(date -u -d "$(date -u +%Y-%m-01) -1 day" +%Y-%m)
+          fetch() {
+            # 0 when downloaded, 2 when R2 says it does not exist, 1 otherwise.
+            local attempt
+            for attempt in 1 2 3; do
+              if "$WRANGLER" r2 object get --remote "$BUCKET/$1" --file "$2" > "$out/get.log" 2>&1; then return 0; fi
+              if grep -qi "specified key does not exist" "$out/get.log"; then rm -f "$2"; return 2; fi
+              sleep 20
+            done
+            cat "$out/get.log"
+            return 1
+          }
+          code=0; fetch "views/report-$month.md" "$out/existing.md" || code=$?
+          if [ "$code" = "0" ]; then echo "not due" > "$out/last_outcome.txt"; exit 0; fi
+          if [ "$code" = "1" ]; then echo "views/report-$month.md could not be checked"; exit 1; fi
+          code=0; fetch views/summary.csv "$out/summary.csv" || code=$?
+          if [ "$code" = "1" ]; then exit 1; fi
+          code=0; fetch views/search_console.csv "$out/search_console.csv" || code=$?
+          if [ "$code" = "1" ]; then exit 1; fi
+          python -m lmia_pipeline views-report --month "$month" --summary "$out/summary.csv" \
+            --search "$out/search_console.csv" --out "$out"
+          outcome=$(cat "$out/outcome.txt")
+          if [ "$outcome" = "written" ]; then
+            "$WRANGLER" r2 object put --remote "$BUCKET/views/report-$month.md" --file "$out/report-$month.md"
+          fi
+          echo "$outcome" > "$out/last_outcome.txt"
+
       - name: Save the download cache
         if: ${{ always() && steps.pipeline.outcome != 'skipped' }}
         continue-on-error: true
@@ -705,12 +828,13 @@ jobs:
       # notice first listed tonight is one of the notices), what the checks
       # found, the outcomes of the X
       # post, the Bluesky post, the Zenodo deposit, the search database sync,
-      # the audience roll-up and the IndexNow submission, where the database
+      # the audience roll-up, the Search Console import, the monthly report
+      # and the IndexNow submission, where the database
       # came from (restore), the smoke test and any rollback, and the expiry
       # checks. Written whatever happened above. The Bluesky, Zenodo,
-      # search-sync, roll-up, IndexNow and rollback steps write "failed"
-      # before they start, so a step stopped by its time limit still reads as
-      # failed.
+      # search-sync, roll-up, Search Console, report, IndexNow and rollback
+      # steps write "failed" before they start, so a step stopped by its time
+      # limit still reads as failed.
       - name: Write the run status
         if: ${{ always() }}
         run: |
@@ -722,6 +846,8 @@ jobs:
             --search-outcome data/out/search/last_outcome.txt \
             --views-outcome data/out/views/last_outcome.txt \
             --indexnow-outcome data/out/indexnow/last_outcome.txt \
+            --search-console-outcome data/out/search_console/last_outcome.txt \
+            --views-report-outcome data/out/report/last_outcome.txt \
             --restore data/out/restore.json --smoke data/out/deploy/smoke.json \
             --rollback-outcome data/out/deploy/rollback.txt --version-before data/out/deploy/version_before.txt \
             --checks data/out/checks.json \
@@ -765,6 +891,19 @@ jobs:
           if [ -f data/out/views/last_outcome.txt ]; then
             echo "" >> LAST_RUN.md
             echo "Audience roll-up: $(cat data/out/views/last_outcome.txt)" >> LAST_RUN.md
+          fi
+          if [ -f data/out/search_console/last_outcome.txt ]; then
+            echo "" >> LAST_RUN.md
+            echo "Search Console: $(cat data/out/search_console/last_outcome.txt)" >> LAST_RUN.md
+          fi
+          # The monthly report's one line, only on the run that wrote it (or tried and failed).
+          report_outcome=$(cat data/out/report/last_outcome.txt 2>/dev/null || true)
+          if [ "$report_outcome" = "written" ] && [ -f data/out/report/summary_line.txt ]; then
+            echo "" >> LAST_RUN.md
+            echo "Audience report: $(cat data/out/report/summary_line.txt)" >> LAST_RUN.md
+          elif [ "$report_outcome" = "failed" ]; then
+            echo "" >> LAST_RUN.md
+            echo "Audience report: failed" >> LAST_RUN.md
           fi
           if [ -f data/out/indexnow/last_outcome.txt ]; then
             echo "" >> LAST_RUN.md

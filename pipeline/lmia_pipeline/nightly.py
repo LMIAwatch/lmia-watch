@@ -63,6 +63,7 @@ from typing import Any
 
 from . import config, indexnow, resilience
 from .sources import notices as gov_notices
+from .sources import registers as designated
 
 log = logging.getLogger("lmia_pipeline.nightly")
 
@@ -355,7 +356,7 @@ def run_status(
     zenodo: str | None = None, search: str | None = None, views: str | None = None,
     restore_info: dict[str, Any] | None = None, smoke: dict[str, Any] | None = None,
     rollback: str | None = None, version_before: str | None = None, checks: dict[str, Any] | None = None,
-    indexnow_outcome: str | None = None,
+    indexnow_outcome: str | None = None, search_console: str | None = None, views_report: str | None = None,
 ) -> dict[str, Any]:
     """status.json for the site's daily check. Every input may be missing: the
     status then says what is missing rather than failing to be written.
@@ -365,10 +366,13 @@ def run_status(
     database sync ("synced", "nothing to send" or "failed"), the audience
     roll-up ("rolled up", "no data", "no token" or "failed") and the IndexNow
     submission ("submitted <n> URLs", "rejected (<status>)", "rate limited",
-    "failed" or "off") wrote; "not run" when the step did not run. They are
-    reported beside the stages, not as stages, so a refused post, a failed
-    deposit, sync, roll-up or submission alerts without marking the data
-    refresh failed.
+    "failed" or "off") wrote; "not run" when the step did not run. So do
+    search_console (the Search Console import: "imported <n> days", "up to
+    date", "no credentials" or "failed") and views_report (the monthly
+    audience report: "written", "not due", "waiting", "no data" or
+    "failed"). They are reported beside the stages, not as stages, so a
+    refused post, a failed deposit, sync, roll-up, import, report or
+    submission alerts without marking the data refresh failed.
 
     The resilience fields: steps (every workflow step's outcome, which the
     retry gate reads), restore (where the database came from), smoke (the
@@ -430,6 +434,8 @@ def run_status(
         "zenodo_deposit": zenodo or "not run",
         "search_sync": search or "not run",
         "views_rollup": views or "not run",
+        "search_console": search_console or "not run",
+        "views_report": views_report or "not run",
         "indexnow": indexnow_outcome or "not run",
         "restore": restored,
         "smoke": verdict,
@@ -498,6 +504,12 @@ def _source_summaries(conn: sqlite3.Connection) -> tuple[dict[str, Any], dict[st
                      "not_read": {k: v for k, v in by_state.items() if k != "ok"},
                      "matched_employers": int(conn.execute(
                          "SELECT COUNT(DISTINCT employer_id) FROM designated_matches").fetchone()[0])}
+        # The newer-edition check of each list loaded by hand, and the items
+        # needing attention it raises (a newer edition to load by hand), which
+        # resilience.attention_items reports; unlike a notice they fail the
+        # attention step and open the issue, without marking the run failed.
+        registers["editions"] = designated.edition_checks(conn)
+        registers["attention"] = designated.attention_items(conn)
     except sqlite3.Error:
         pass
     return international, registers
@@ -664,6 +676,8 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--search-outcome", default=None, help="the search database sync's outcome file")
     s.add_argument("--views-outcome", default=None, help="the audience roll-up's outcome file")
     s.add_argument("--indexnow-outcome", default=None, help="the IndexNow submission's outcome file")
+    s.add_argument("--search-console-outcome", default=None, help="the Search Console import's outcome file")
+    s.add_argument("--views-report-outcome", default=None, help="the monthly audience report's outcome file")
     s.add_argument("--restore", default=None, help="the restore record")
     s.add_argument("--smoke", default=None, help="the smoke test's result file")
     s.add_argument("--rollback-outcome", default=None, help="the rollback step's outcome file")
@@ -778,7 +792,9 @@ def main(argv: list[str] | None = None) -> int:
                         search=_read(args.search_outcome), views=_read(args.views_outcome),
                         restore_info=_read_json(args.restore), smoke=_read_json(args.smoke),
                         rollback=_read(args.rollback_outcome), version_before=_read(args.version_before),
-                        checks=_read_json(args.checks), indexnow_outcome=_read(args.indexnow_outcome))
+                        checks=_read_json(args.checks), indexnow_outcome=_read(args.indexnow_outcome),
+                        search_console=_read(args.search_console_outcome),
+                        views_report=_read(args.views_report_outcome))
     _write_json(Path(args.out), status)
     print(json.dumps(status, indent=1))
     return 0

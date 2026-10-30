@@ -9,7 +9,8 @@ description = "Collects public LMIA records and builds the LMIA Watch database."
 requires-python = ">=3.11"
 license = { text = "Source-available; see LICENSE.md at the repository root" }
 dependencies = [
-  "requests>=2.31",
+  # 2.32.3 and later honour an adapter's own SSL context (http.ContextAdapter).
+  "requests>=2.32.3",
   "openpyxl>=3.1",
   "beautifulsoup4>=4.12",
   "requests-oauthlib>=1.3",
@@ -17,6 +18,8 @@ dependencies = [
   "tzdata>=2024.1",
   # Pure Python, no binary dependency: reads the designated-employer lists published as PDF (sources/registers.py).
   "pypdf==6.14.2",
+  # Signs the Search Console service account's JWT (RS256, search_console.py).
+  "cryptography>=44",
 ]
 
 [project.optional-dependencies]
@@ -28,7 +31,7 @@ where = ["."]
 include = ["lmia_pipeline*"]
 
 [tool.setuptools.package-data]
-lmia_pipeline = ["data/*.csv", "data/*.json"]
+lmia_pipeline = ["data/*.csv", "data/*.json", "data/certs/*.pem"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

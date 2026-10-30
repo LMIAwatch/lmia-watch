@@ -29,9 +29,11 @@
   // the destination must be verified in the zone's Email Routing.
   "triggers": { "crons": ["0 6 * * *"] },
   // Aggregate counts of the responses the Worker serves (src/views.ts): route,
-  // language, edge country, referring host and status, with no address, user
-  // agent or cookie. The dataset is created by the first write. Read it with
-  // the SQL API (docs/search-engines.md).
+  // language, edge country, referring host, status, bot or human, device
+  // class, and for a human a daily visitor code hashed under the secret
+  // VIEWS_SALT_KEY (`npx wrangler secret put VIEWS_SALT_KEY`); never an
+  // address, user agent or cookie. The dataset is created by the first write.
+  // Read it with the SQL API (docs/search-engines.md).
   "analytics_engine_datasets": [{ "binding": "VIEWS", "dataset": "lmia_watch_views" }],
   "send_email": [{ "name": "ALERTS" }],
   "assets": {

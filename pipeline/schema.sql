@@ -589,9 +589,10 @@ CREATE TABLE IF NOT EXISTS designated_lists (
   source_url TEXT NOT NULL,                      -- the page or file last read (a PDF link found on its page)
   format TEXT NOT NULL,                          -- html | json | pdf
   state TEXT NOT NULL,                           -- ok | unreadable (a PDF) | failing (not fetched) | layout (fetched, not parsed)
+                                                 -- | blocked (a bot challenge page) | snapshot (the copy loaded by hand in use)
   rows INTEGER NOT NULL DEFAULT 0,               -- rows on the last good read
   list_date TEXT,                                -- the list's own date when it states one (ISO date)
-  last_ok_at TEXT,                               -- ISO datetime of the last good read
+  last_ok_at TEXT,                               -- ISO datetime of the last good read (a copy loaded by hand: its load day)
   last_attempt_at TEXT,
   fail_streak INTEGER NOT NULL DEFAULT 0,        -- nights in a row the read failed
   detail TEXT,                                   -- why the last read failed, or what it found

@@ -92,7 +92,7 @@ describe("the feed route", () => {
     expect(points).toEqual([
       {
         indexes: ["/data/feeds/:file"],
-        blobs: ["/data/feeds/:file", "feed", "en", "", "", "GET", "feeds/canada/pending.xml"],
+        blobs: ["/data/feeds/:file", "feed", "en", "", "", "GET", "feeds/canada/pending.xml", "bot", "", ""],
         doubles: [200, 12],
       },
     ]);
@@ -126,8 +126,8 @@ describe("the feed route", () => {
     }
     expect(points.map((p) => [p.blobs?.[0], p.blobs?.[1], p.blobs?.[6], p.doubles?.[0]])).toEqual([
       ["/data/feeds/:file", "feed", "", 404],
-      ["other", "other", undefined, 404],
-      ["other", "other", undefined, 404],
+      ["other", "other", "", 404],
+      ["other", "other", "", 404],
     ]);
     expect(JSON.stringify(points)).not.toContain("someone@example.com");
     expect(JSON.stringify(points)).not.toContain("ZZ");
@@ -140,7 +140,7 @@ describe("the feed route", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ feeds: [] });
     expect(points).toEqual([
-      { indexes: ["/data/feeds/index.json"], blobs: ["/data/feeds/index.json", "file", "en", "", "", "GET"], doubles: [200] },
+      { indexes: ["/data/feeds/index.json"], blobs: ["/data/feeds/index.json", "file", "en", "", "", "GET", "", "bot", "", ""], doubles: [200] },
     ]);
   });
 

@@ -1503,8 +1503,8 @@ const STRINGS = {
   "limits.too_many": { en: "Too many requests from this address. Try again in a minute.", fr: "Trop de requêtes depuis cette adresse. Réessayez dans une minute." },
   // --- measurement, citation and bluesky ---
   "data.views_note": {
-    en: "The site counts the pages it serves in aggregate, on its own server: for each response it keeps the kind of page, the language, the country reported by Cloudflare's network, the name of the referring website and the response status. When a feed reader fetches a feed and states how many people it fetches it for, that number is kept as well. It sets no cookie for this, runs no tracking script in the browser, and keeps no IP address or other personal data.",
-    fr: "Le site compte de façon agrégée les pages qu'il sert, sur son propre serveur : pour chaque réponse, il conserve le type de page, la langue, le pays indiqué par le réseau de Cloudflare, le nom du site d'où vient le visiteur et le statut de la réponse. Lorsqu'un lecteur de fils télécharge un fil et indique pour combien de personnes il le fait, ce nombre est aussi conservé. Il ne dépose aucun témoin à cette fin, n'exécute aucun script de suivi dans le navigateur et ne conserve aucune adresse IP ni autre donnée personnelle.",
+    en: "The site counts the pages it serves in aggregate, on its own server: for each response it keeps the kind of page, the language, the country reported by Cloudflare's network, the name of the referring website, the response status, whether the request came from a crawler or from a person's browser, and the type of device (computer, phone or tablet) the browser reports. When a feed reader fetches a feed and states how many people it fetches it for, that number is kept as well. To count how many people visit each day without keeping their addresses, a request from a browser also gets a visitor code: the IP address and the browser's identification are hashed (SHA-256) with a key that changes every day (UTC) and is derived from a secret only the site's server holds, and the result is cut to 16 characters. The address and the browser's identification are then dropped. The same browser gets a different code the next day, and without the site's secret no one can work out a code from an address. The codes are deleted after three months with the rest of the raw counts; the daily record keeps only how many there were. The site sets no cookie for this, runs no tracking script in the browser, and keeps no IP address.",
+    fr: "Le site compte de façon agrégée les pages qu'il sert, sur son propre serveur : pour chaque réponse, il conserve le type de page, la langue, le pays indiqué par le réseau de Cloudflare, le nom du site d'où vient le visiteur, le statut de la réponse, si la requête vient d'un robot d'indexation ou du navigateur d'une personne, et le type d'appareil (ordinateur, téléphone ou tablette) qu'indique le navigateur. Lorsqu'un lecteur de fils télécharge un fil et indique pour combien de personnes il le fait, ce nombre est aussi conservé. Pour compter combien de personnes viennent chaque jour sans conserver leur adresse, une requête venant d'un navigateur reçoit aussi un code de visiteur : l'adresse IP et l'identification du navigateur sont hachées (SHA-256) avec une clé qui change chaque jour (UTC) et qui est dérivée d'un secret que seul le serveur du site détient, puis le résultat est réduit à 16 caractères. L'adresse et l'identification du navigateur sont ensuite écartées. Le même navigateur reçoit un code différent le lendemain, et sans le secret du site personne ne peut retrouver un code à partir d'une adresse. Les codes sont supprimés après trois mois avec les autres comptes bruts; le relevé quotidien ne garde que leur nombre. Le site ne dépose aucun témoin à cette fin, n'exécute aucun script de suivi dans le navigateur et ne conserve aucune adresse IP.",
   },
   "cite.title": { en: "How to Cite", fr: "Comment citer" },
   "cite.text": {
@@ -2963,6 +2963,23 @@ const STRINGS = {
   "intl.reg_state_failing": { en: "Not read lately; last good read {date}", fr: "Non lue récemment; dernière lecture réussie le {date}" },
   "intl.reg_state_never": { en: "Could not be read yet", fr: "N'a pas encore pu être lue" },
   "intl.reg_state_not_read": { en: "Not read yet", fr: "Pas encore lue" },
+  "intl.reg_state_blocked": { en: "The province's site blocks automated readers", fr: "Le site de la province bloque les lecteurs automatisés" },
+  "intl.reg_state_blocked_community": { en: "The community's site blocks automated readers", fr: "Le site de la collectivité bloque les lecteurs automatisés" },
+  "intl.reg_state_kept": { en: "{state}; last good read {date}", fr: "{state}; dernière lecture réussie le {date}" },
+  "intl.reg_state_snapshot": { en: "List dated {date}, loaded by hand {loaded}", fr: "Liste datée du {date}, chargée à la main le {loaded}" },
+  "intl.reg_never_read": { en: "Never read", fr: "Jamais lue" },
+  "intl.reg_snapshot": {
+    en: "{program} ({where}): the employers listed come from the province's list dated {date}, loaded by hand on {loaded} because the province's server does not answer the nightly run.",
+    fr: "{program} ({where}) : les employeurs inscrits proviennent de la liste de la province datée du {date}, chargée à la main le {loaded} parce que le serveur de la province ne répond pas au relevé de nuit.",
+  },
+  "intl.reg_snapshot_community": {
+    en: "{program} ({where}): the employers listed come from the community's list dated {date}, loaded by hand on {loaded} because the community's server does not answer the nightly run.",
+    fr: "{program} ({where}) : les employeurs inscrits proviennent de la liste de la collectivité datée du {date}, chargée à la main le {loaded} parce que le serveur de la collectivité ne répond pas au relevé de nuit.",
+  },
+  "intl.reg_snapshot_check": {
+    en: "The run checks every night for a newer edition.",
+    fr: "Le relevé vérifie chaque nuit si une édition plus récente est publiée.",
+  },
   "intl.reg_list": { en: "list", fr: "liste" },
   "intl.not_published": {
     en: "The first pass over these postings has not run yet. This page fills after the next nightly refresh.",
@@ -3004,6 +3021,10 @@ const STRINGS = {
   "employer.designated_on": { en: "Designation date given", fr: "Date de désignation indiquée" },
   "employer.designated_current": { en: "Still listed as read {date}", fr: "Toujours inscrit à la lecture du {date}" },
   "employer.designated_gone": { en: "Not on the list as last read; last listed {date}", fr: "Absent de la dernière lecture de la liste; dernière inscription le {date}" },
+  "employer.designated_snapshot": {
+    en: "Listed on the list dated {date}, loaded by hand on {loaded}",
+    fr: "Inscrit sur la liste datée du {date}, chargée à la main le {loaded}",
+  },
   "employer.designated_link": { en: "View the list", fr: "Voir la liste" },
 
   // -- methodology: the November 3 change (anchor express-entry) --
@@ -3055,6 +3076,10 @@ const STRINGS = {
     fr: "Dans le cadre du Programme d'immigration au Canada atlantique (Nouveau-Brunswick, Nouvelle-Écosse, Île-du-Prince-Édouard, Terre-Neuve-et-Labrador) et des projets pilotes d'immigration dans les communautés rurales et francophones, un employeur désigné ou recommandé peut appuyer une demande de résidence permanente sans EIMT. Les provinces et les collectivités publient leurs listes selon les conditions de leurs propres sites. Le site lit chaque liste chaque nuit, garde la dernière lecture réussie quand une liste ne peut pas être obtenue, jumelle les noms inscrits aux profils d'employeurs par le nom et le lieu dans la province de la liste, et montre une correspondance dans le profil comme dossier public. Les listes publiées en PDF sont lues avec un lecteur de PDF; une liste qu'il ne peut pas lire est notée comme pas encore lisible. Chaque liste, ses conditions et son état figurent sur la {data}.",
   },
   "methodology.ee_limits_h": { en: "Limits", fr: "Limites" },
+  "methodology.ee_limit_blocked": {
+    en: "{program} ({where}): {state}, so its list is not read. The run tries once a night and reads the list again when the block is lifted.",
+    fr: "{program} ({where}) : {state}, donc sa liste n'est pas lue. Le relevé essaie une fois par nuit et relira la liste quand le blocage sera levé.",
+  },
   "methodology.ee_limit_advertise": {
     en: "No rule requires an employer to advertise a job offer used for Express Entry, so many never appear on Job Bank.",
     fr: "Aucune règle n'oblige un employeur à afficher une offre d'emploi utilisée pour Entrée express : bien des offres n'apparaissent jamais au Guichet-Emplois.",
@@ -3318,6 +3343,11 @@ const STRINGS = {
     en: "Employer profiles: related employers; new files under directory/",
     fr: "Profils d'employeurs : employeurs comparables. Nouveaux fichiers sous directory/",
   },
+  "data.change_audience": {
+    en: "The site's own audience counts now tell crawlers from people: each counted response records whether it came from a known crawler or from a person's browser, and the type of device. A daily visitor code, described under About on this page, counts how many people visit each day without keeping any address. Counts from before this date have no such split.",
+    fr: "Les comptes d'audience du site distinguent maintenant les robots des personnes : chaque réponse comptée indique si elle vient d'un robot connu ou du navigateur d'une personne, ainsi que le type d'appareil. Un code de visiteur quotidien, décrit sous À propos sur cette page, compte combien de personnes viennent chaque jour sans conserver aucune adresse. Les comptes antérieurs à cette date n'ont pas cette distinction.",
+  },
+  "data.recomputed_audience": { en: "Nothing recomputed; counting from this date", fr: "Aucun recalcul; comptage à partir de cette date" },
 } as const satisfies Record<string, Entry>;
 
 export type Key = keyof typeof STRINGS;
