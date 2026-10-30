@@ -110,6 +110,6 @@ def test_the_run_status_summarizes_the_international_candidates_and_the_lists(tm
     assert status["international"]["baseline"] == "2026-10-26"
     assert status["international"]["high_wage_state"] == "failing"
     assert status["registers"] == {"lists": 1, "states": {"unreadable": 1}, "not_read": {"unreadable": ["aip_nb"]},
-                                   "matched_employers": 0}
+                                   "matched_employers": 0, "editions": {}, "attention": []}
     assert status["notices"] == [{"source": "registers", "detail": "Designated-employer lists not yet readable"}]
     assert status["ok"] is True

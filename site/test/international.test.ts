@@ -8,6 +8,7 @@ import { routeTemplate } from "../src/views";
 import { collectAlerts, collectNotices, readStatus } from "../src/watchdog";
 import { emptyAssets, makeFakeAssets, testEnv } from "./assets";
 import international from "./fixtures/international-index.json";
+import profiles from "./fixtures/profiles-a00.json";
 
 const EM_DASH = String.fromCharCode(0x2014);
 const nbsp = (s: string) => s.replace(/[  ]/g, " ");
@@ -148,7 +149,54 @@ describe("the international-candidates page", () => {
     expect(section).toContain("Read 2026-10-12");
     expect(section).toContain("PDF, not yet readable");
     expect(section).toContain("Not read lately; last good read 2026-10-10");
-    expect(section).toContain("638 employers listed on the lists read; 43 of them matched");
+    expect(section).toContain("2,160 employers listed on the lists read; 55 of them matched");
+  });
+
+  // One row of the lists table by the place it names.
+  const regRow = (html: string, place: string) => {
+    const at = html.indexOf(place, html.indexOf("<tbody>", html.indexOf('id="registers"')));
+    return html.slice(html.lastIndexOf("<tr>", at), html.indexOf("</tr>", at));
+  };
+  const countCell = (row: string) => /<td class="mono num" data-label="[^"]+">(.*?)<\/td>/.exec(row)?.[1];
+
+  it("shows a list loaded by hand, a blocked site and a list never read for what they are", async () => {
+    const html = await (await get("/international")).text();
+    const ns = regRow(html, "Nova Scotia");
+    expect(ns).toContain("List dated 2026-07-01, loaded by hand 2026-10-30");
+    expect(countCell(ns)).toBe("1,522");
+    const pe = regRow(html, "Prince Edward Island");
+    expect(pe).toContain("The province&#39;s site blocks automated readers");
+    expect(pe).not.toContain("not yet readable");
+    expect(countCell(pe)).toBe("");                 // blank, never 0
+    const nb = regRow(html, "New Brunswick");
+    expect(nb).toContain("PDF, not yet readable");
+    expect(countCell(nb)).toBe('<span aria-hidden="true">–</span><span class="visually-hidden">Never read</span>');
+    expect(countCell(regRow(html, "Kelowna, BC"))).toBe("52");   // failing, its last good rows kept
+    const section = html.slice(html.indexOf('id="registers"'));
+    expect(section).toContain(
+      "Atlantic Immigration Program (Nova Scotia): the employers listed come from the province&#39;s list dated 2026-07-01, " +
+      "loaded by hand on 2026-10-30 because the province&#39;s server does not answer the nightly run. " +
+      "The run checks every night for a newer edition.");
+    expect(section).not.toContain(EM_DASH);
+  });
+
+  it("says so in French", async () => {
+    const html = nbsp(await (await get("/international?lang=fr")).text());
+    expect(regRow(html, "Nouvelle-Écosse")).toContain("Liste datée du 2026-07-01, chargée à la main le 2026-10-30");
+    expect(regRow(html, "Île-du-Prince-Édouard")).toContain("Le site de la province bloque les lecteurs automatisés");
+    expect(regRow(html, "Nouveau-Brunswick")).toContain("Jamais lue");
+    expect(html).toContain(
+      "Programme d’immigration au Canada atlantique (Nouvelle-Écosse) : les employeurs inscrits proviennent de la liste " +
+      "de la province datée du 2026-07-01, chargée à la main le 2026-10-30 parce que le serveur de la province ne répond " +
+      "pas au relevé de nuit. Le relevé vérifie chaque nuit si une édition plus récente est publiée.");
+  });
+
+  it("refuses a malformed record of a copy loaded by hand", () => {
+    for (const snapshot of [{ list_date: "2026-07-01", loaded_on: "yesterday" }, { loaded_on: "2026-10-30" }, "2026-10-30"]) {
+      const bad = JSON.parse(JSON.stringify(international));
+      bad.registers.find((r: { key: string }) => r.key === "aip_ns").snapshot = snapshot;
+      expect(isIntlFile(bad)).toBe(false);
+    }
   });
 
   it("says the same in French, with French typography and no English left", async () => {
@@ -245,6 +293,27 @@ describe("the employer profile", () => {
     expect(html).toContain("EIMT demandée (sans catégorie)");
   });
 
+  it("names the list's date and the hand load for a listing read from a copy loaded by hand", async () => {
+    const shard = JSON.parse(JSON.stringify(profiles)) as Record<string, { designated: Record<string, unknown>[] }>;
+    shard["emp-a000000008"].designated = [{
+      list: "aip_ns", program: "AIP", jurisdiction: "NS", community: null, name: "Haveli Restaurant Inc.", location: null,
+      designated_on: null, first_seen: "2026-10-30", last_seen: "2026-10-30", current: true,
+      url: "https://liveinnovascotia.com/atlantic-immigration-program", grade: "probable", basis: "name_province",
+      snapshot: { list_date: "2026-07-01", loaded_on: "2026-10-30" },
+    }];
+    const assets = withFiles({ "profiles/a00.json": shard });
+    const html = await (await get("/employers/emp-a000000008", assets)).text();
+    const records = html.slice(html.indexOf('id="public-records"'));
+    expect(records).toContain("Designated employer, Atlantic Immigration Program (Nova Scotia), listed since 2026-10-30");
+    expect(records).toContain("Listed on the list dated 2026-07-01, loaded by hand on 2026-10-30");
+    expect(records).not.toContain("Still listed as read");
+    const fr = nbsp(await (await get("/employers/emp-a000000008?lang=fr", assets)).text());
+    expect(fr).toContain("Inscrit sur la liste datée du 2026-07-01, chargée à la main le 2026-10-30");
+    // A malformed record makes the shard unreadable, like any other malformed row.
+    shard["emp-a000000008"].designated[0].snapshot = { list_date: "July 1", loaded_on: "2026-10-30" };
+    expect((await get("/employers/emp-a000000008", withFiles({ "profiles/a00.json": shard }))).status).toBe(404);
+  });
+
   it("shows neither section for an employer without them", async () => {
     const html = await (await get("/employers/emp-a000000001")).text();
     expect(html).not.toContain('<section id="international">');
@@ -293,6 +362,36 @@ describe("the methodology's November 3 section", () => {
     expect(section).toContain("entree-express/documents/offre-emploi.html");
     expect(section).toContain("verifier-note/salaire-eleve.html");
     expect(section).toContain("FEER 0 à 3");
+    expect(section).toContain("Programme d’immigration au Canada atlantique (Nouvelle-Écosse) : les employeurs inscrits proviennent");
+    expect(section).toContain(
+      "Programme d’immigration au Canada atlantique (Île-du-Prince-Édouard) : le site de la province bloque les lecteurs " +
+      "automatisés, donc sa liste n’est pas lue.");
+  });
+
+  it("names the list loaded by hand in the lists paragraph and the blocked site in the limits", async () => {
+    const html = await (await get("/methodology")).text();
+    const block = html.indexOf('id="express-entry"');
+    const section = html.slice(block, html.indexOf("</section>", block));
+    const lists = section.slice(section.indexOf("Designated-Employer Lists"), section.indexOf("<h3>", section.indexOf("Designated-Employer Lists")));
+    expect(lists).toContain(
+      "Atlantic Immigration Program (Nova Scotia): the employers listed come from the province&#39;s list dated 2026-07-01, " +
+      "loaded by hand on 2026-10-30 because the province&#39;s server does not answer the nightly run. " +
+      "The run checks every night for a newer edition.");
+    const limits = section.slice(section.lastIndexOf("<ul>"));
+    expect(limits).toContain(
+      "<li>Atlantic Immigration Program (Prince Edward Island): the province&#39;s site blocks automated readers, so its list " +
+      "is not read. The run tries once a night and reads the list again when the block is lifted.</li>");
+    expect(section).not.toContain(EM_DASH);
+  });
+
+  it("leaves both out when stats.json carries no lists", async () => {
+    const base = makeFakeAssets();
+    const stats = await (await base.fetch(new Request("https://assets.invalid/data/stats.json"))).json() as Record<string, unknown>;
+    delete stats.registers;
+    const html = await (await get("/methodology", withFiles({ "stats.json": stats }))).text();
+    expect(html).toContain('id="express-entry"');
+    expect(html).not.toContain("loaded by hand");
+    expect(html).not.toContain("blocks automated readers");
   });
 });
 
@@ -309,6 +408,11 @@ describe("the Data page", () => {
     const lic = html.slice(html.indexOf('<h2 id="licence">'), html.indexOf('<h2 id="changelog">'));
     expect(lic).toContain("Postings open to international candidates (Job Bank)");
     expect(lic).toContain("none is under an open licence");
+    // The lists' row says which list comes from a copy loaded by hand, in one sentence.
+    const row = lic.slice(lic.indexOf("Designated-employer lists (provincial"), lic.indexOf("</tr>", lic.indexOf("Designated-employer lists (provincial")));
+    expect(row).toContain(
+      '<div class="small">Atlantic Immigration Program (Nova Scotia): the employers listed come from the province&#39;s list ' +
+      "dated 2026-07-01, loaded by hand on 2026-10-30 because the province&#39;s server does not answer the nightly run.</div>");
   });
 
   it("leaves the lists table out when stats.json has none", async () => {

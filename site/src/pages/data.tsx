@@ -6,7 +6,7 @@ import { t, tj, type Key, type Lang } from "../i18n";
 import { Layout, fmtInt, noDataPage, page, periodLabel } from "../layout";
 import { CANADA_TERMS_URL, type DownloadLicence, OGL_URL, datasetJsonLd, pageSeo } from "../seo";
 import { TERMS } from "./program";
-import { isRegister, programName, registerPlace } from "./international";
+import { isRegister, programName, registerPlace, snapshotRows, snapshotSentence } from "./international";
 import { EE_LINKS } from "./methodology";
 import { isListOf, isNum, isNumOrNull, isObj, isStr, isStrOrNull } from "../valid";
 
@@ -300,7 +300,12 @@ export async function dataPage(c: Context<AppEnv>): Promise<Response> {
               <tbody>
                 {LICENCE_ROWS.map((row) => (
                   <tr>
-                    <td data-label={t(lang, "data.col_material")}>{t(lang, row.material)}</td>
+                    <td data-label={t(lang, "data.col_material")}>
+                      {t(lang, row.material)}
+                      {row.material === "data.lic.registers"
+                        ? snapshotRows(registers).map((r) => <div class="small">{snapshotSentence(lang, r)}</div>)
+                        : null}
+                    </td>
                     <td data-label={t(lang, "data.col_terms")}>
                       {tj(lang, row.terms, {
                         ogl: <a href={OGL_URL[lang]}>{t(lang, "data.lic.ogl")}</a>,

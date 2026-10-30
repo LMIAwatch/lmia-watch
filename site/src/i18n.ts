@@ -2963,6 +2963,23 @@ const STRINGS = {
   "intl.reg_state_failing": { en: "Not read lately; last good read {date}", fr: "Non lue récemment; dernière lecture réussie le {date}" },
   "intl.reg_state_never": { en: "Could not be read yet", fr: "N'a pas encore pu être lue" },
   "intl.reg_state_not_read": { en: "Not read yet", fr: "Pas encore lue" },
+  "intl.reg_state_blocked": { en: "The province's site blocks automated readers", fr: "Le site de la province bloque les lecteurs automatisés" },
+  "intl.reg_state_blocked_community": { en: "The community's site blocks automated readers", fr: "Le site de la collectivité bloque les lecteurs automatisés" },
+  "intl.reg_state_kept": { en: "{state}; last good read {date}", fr: "{state}; dernière lecture réussie le {date}" },
+  "intl.reg_state_snapshot": { en: "List dated {date}, loaded by hand {loaded}", fr: "Liste datée du {date}, chargée à la main le {loaded}" },
+  "intl.reg_never_read": { en: "Never read", fr: "Jamais lue" },
+  "intl.reg_snapshot": {
+    en: "{program} ({where}): the employers listed come from the province's list dated {date}, loaded by hand on {loaded} because the province's server does not answer the nightly run.",
+    fr: "{program} ({where}) : les employeurs inscrits proviennent de la liste de la province datée du {date}, chargée à la main le {loaded} parce que le serveur de la province ne répond pas au relevé de nuit.",
+  },
+  "intl.reg_snapshot_community": {
+    en: "{program} ({where}): the employers listed come from the community's list dated {date}, loaded by hand on {loaded} because the community's server does not answer the nightly run.",
+    fr: "{program} ({where}) : les employeurs inscrits proviennent de la liste de la collectivité datée du {date}, chargée à la main le {loaded} parce que le serveur de la collectivité ne répond pas au relevé de nuit.",
+  },
+  "intl.reg_snapshot_check": {
+    en: "The run checks every night for a newer edition.",
+    fr: "Le relevé vérifie chaque nuit si une édition plus récente est publiée.",
+  },
   "intl.reg_list": { en: "list", fr: "liste" },
   "intl.not_published": {
     en: "The first pass over these postings has not run yet. This page fills after the next nightly refresh.",
@@ -3004,6 +3021,10 @@ const STRINGS = {
   "employer.designated_on": { en: "Designation date given", fr: "Date de désignation indiquée" },
   "employer.designated_current": { en: "Still listed as read {date}", fr: "Toujours inscrit à la lecture du {date}" },
   "employer.designated_gone": { en: "Not on the list as last read; last listed {date}", fr: "Absent de la dernière lecture de la liste; dernière inscription le {date}" },
+  "employer.designated_snapshot": {
+    en: "Listed on the list dated {date}, loaded by hand on {loaded}",
+    fr: "Inscrit sur la liste datée du {date}, chargée à la main le {loaded}",
+  },
   "employer.designated_link": { en: "View the list", fr: "Voir la liste" },
 
   // -- methodology: the November 3 change (anchor express-entry) --
@@ -3055,6 +3076,10 @@ const STRINGS = {
     fr: "Dans le cadre du Programme d'immigration au Canada atlantique (Nouveau-Brunswick, Nouvelle-Écosse, Île-du-Prince-Édouard, Terre-Neuve-et-Labrador) et des projets pilotes d'immigration dans les communautés rurales et francophones, un employeur désigné ou recommandé peut appuyer une demande de résidence permanente sans EIMT. Les provinces et les collectivités publient leurs listes selon les conditions de leurs propres sites. Le site lit chaque liste chaque nuit, garde la dernière lecture réussie quand une liste ne peut pas être obtenue, jumelle les noms inscrits aux profils d'employeurs par le nom et le lieu dans la province de la liste, et montre une correspondance dans le profil comme dossier public. Les listes publiées en PDF sont lues avec un lecteur de PDF; une liste qu'il ne peut pas lire est notée comme pas encore lisible. Chaque liste, ses conditions et son état figurent sur la {data}.",
   },
   "methodology.ee_limits_h": { en: "Limits", fr: "Limites" },
+  "methodology.ee_limit_blocked": {
+    en: "{program} ({where}): {state}, so its list is not read. The run tries once a night and reads the list again when the block is lifted.",
+    fr: "{program} ({where}) : {state}, donc sa liste n'est pas lue. Le relevé essaie une fois par nuit et relira la liste quand le blocage sera levé.",
+  },
   "methodology.ee_limit_advertise": {
     en: "No rule requires an employer to advertise a job offer used for Express Entry, so many never appear on Job Bank.",
     fr: "Aucune règle n'oblige un employeur à afficher une offre d'emploi utilisée pour Entrée express : bien des offres n'apparaissent jamais au Guichet-Emplois.",

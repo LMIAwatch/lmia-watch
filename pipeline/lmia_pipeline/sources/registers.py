@@ -21,16 +21,38 @@ row and its name column, one name per line, or two names per line). A PDF
 whose file name changes with each revision is found on its page by
 link_pattern. A list that cannot be fetched is failing; one that reads to
 fewer than MIN_ROWS rows, or loses more than MAX_DROP of its last good read,
-is a layout problem; either way the last good rows stay. A PDF pypdf cannot
-read at all is "not yet readable". Names that read as a person are never
-stored (project rule 3).
+is a layout problem; either way the last good rows stay. A site that answers
+with a bot challenge page instead of the list is "blocked": it is tried once
+a night and read again the night the block is lifted, and nothing is done to
+get past it. A PDF pypdf cannot read at all is "not yet readable". Names that
+read as a person are never stored (project rule 3).
+
+A copy loaded by hand (Register.snapshot; objects registers/<key>.csv and
+registers/<key>.json in the site's private R2 bucket, uploaded by
+scripts/load_register_snapshot.py and never committed, since the site does
+not republish the lists): for a list whose server does not answer the
+runner, though it opens from an ordinary machine. When the live read fails,
+the copy's rows become the list's current rows (state "snapshot"), unless a
+live read made after the copy was loaded is newer; a live read that succeeds
+takes precedence. No copy in R2 (or no R2 access) leaves the list as any
+failed read leaves it; a copy that does not read is an item needing
+attention. Every night the list's page is
+read for its file's link and the file itself is asked for: a link other than
+the copy's, or a file whose ETag, Last-Modified or size differ from the
+copy's, is an item needing attention (load the new edition by hand), and the
+result is in the stage's summary and status.json's registers.
+
+A host that leaves an intermediate certificate out of its TLS handshake
+(Register.tls_intermediate) has that certificate trusted for that host only,
+in the stage's own client (make_client).
 
 Notices (information, never an item needing attention: status.json,
 LAST_RUN.md and the daily check's email; the run stays ok), on a change of
 state only: a list the night it stops being read and the night it is read
-again, and the set of lists not yet readable whenever it changes. Every
-night the lists in each state are in the stage's summary (LAST_RUN.md) and
-in status.json's registers, without a notice.
+again, a list the night its copy loaded by hand comes into use, and the set
+of lists not yet readable whenever it changes. Every night the lists in each
+state are in the stage's summary (LAST_RUN.md) and in status.json's
+registers, without a notice.
 
 Matching (every night, rules in matching.py, never across provinces): the
 list's name normalizes to an employer's in the list's province, with the
@@ -41,20 +63,25 @@ a common name; a trade name ("o/a") with the place: probable.
 
 from __future__ import annotations
 
+import csv
+import email.utils
 import hashlib
+import io
 import json
 import logging
 import re
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
-from urllib.parse import urljoin
+from typing import Protocol
+from urllib.parse import urljoin, urlsplit
 
 from bs4 import BeautifulSoup
 
+from .. import config
 from ..db import get_meta, log_run, now_iso, set_meta
 from ..http import AbortRun, FetchError, PoliteClient, decode_text
-from ..normalize import norm_name, split_trade_name
+from ..normalize import PROVINCE_NAMES, norm_name, split_trade_name
 from . import matching
 
 log = logging.getLogger(__name__)
@@ -74,7 +101,16 @@ TERMS_URLS = {
     "community_site": None,
 }
 NOTICE_SEP = " | "
-FAILED_STATES = ("failing", "layout")
+FAILED_STATES = ("failing", "layout", "blocked")
+# Copies of lists loaded by hand live in the site's private R2 bucket under this
+# prefix, never in the repository (the site does not republish the lists). The
+# intermediate certificates a host leaves out are public and ship as package data.
+SNAPSHOT_PREFIX = "registers/"
+CERT_DIR = config.PACKAGE_DATA / "certs"
+SNAPSHOT_FIELDS = ("name", "location", "designated_on")
+# The meta key of a list's latest newer-edition check (a JSON object), by list key.
+EDITION_META = "register_edition:"
+ISO_DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 # "Boyuk Towing \u2013 2591519 Ontario Inc.": a list that joins a trade name and the
 # legal name with a dash, which split_trade_name (o/a, dba) does not read.
 DASH_JOIN_RE = re.compile(r"\s+[\u2013\u2014]\s+")
@@ -138,10 +174,22 @@ class Register:
     pdf_keep_last: str | None = None    # a regex the row's last cell must match (a status, a pilot, an address)
     pdf_numbered: bool = False          # rows start with a row number, which is dropped
     pdf_join_wrapped: bool = False      # a lone cell before a row is the start of that row's wrapped name
+    # A copy loaded by hand (R2 objects registers/<key>.csv and .json), used when the live read fails.
+    snapshot: bool = False
+    # A PEM file in data/certs/: the intermediate certificate the list's host leaves out of its
+    # TLS handshake, trusted for that host only (make_client).
+    tls_intermediate: str | None = None
 
     @property
     def source_url(self) -> str:
         return self.data_url or self.page_url
+
+    @property
+    def title(self) -> str:
+        """'Nova Scotia' for a provincial list, 'Brandon (RCIP)' for a community's."""
+        if self.community:
+            return f"{self.community} ({self.program})"
+        return PROVINCE_NAMES.get(self.jurisdiction, self.jurisdiction)
 
 
 COMMUNITY = "community_site"
@@ -150,9 +198,11 @@ REGISTERS: tuple[Register, ...] = (
     Register("aip_nb", "AIP", "NB", None,
              "https://www.gnb.ca/content/dam/GNB3/t/fhc-fmc/immigration/docs/designated-employers-employeurs-designes.pdf",
              None, "pdf", "nb_disclaimer", pdf_mode="bullet"),
+    # The file's host refuses the runner's addresses (the page itself answers), so
+    # the copy loaded by hand stands in while the live read fails.
     Register("aip_ns", "AIP", "NS", None, "https://liveinnovascotia.com/atlantic-immigration-program",
              "https://liveinnovascotia.com/sites/default/files/2024-07/Designated_AIP_employers.pdf", "pdf", "ns_crown",
-             link_pattern=r"[^\"']*Designated[^\"']*employers[^\"']*\.pdf", pdf_mode="bullet"),
+             link_pattern=r"[^\"']*Designated[^\"']*employers[^\"']*\.pdf", pdf_mode="bullet", snapshot=True),
     Register("aip_pe", "AIP", "PE", None,
              "https://www.princeedwardisland.ca/en/information/office-of-immigration/atlantic-immigration-program-designated-employers",
              None, "html", "pe_policy", selector="div.field--name-body li", date_selector="div.date"),
@@ -182,9 +232,11 @@ REGISTERS: tuple[Register, ...] = (
              pdf_mode="lines"),
     Register("rcip_altona_rhineland", "RCIP", "MB", "Altona/Rhineland", "https://ared-rpga.com/immigration/rcip-employers/",
              None, "html", COMMUNITY, selector="table[id^=eael-data-table] td"),
+    # The host sends only its own certificate; OpenSSL (the runner) cannot reach a root without
+    # the intermediate, which a Windows client takes from its own store.
     Register("rcip_brandon", "RCIP", "MB", "Brandon",
              "https://economicdevelopmentbrandon.com/rcip/rcip-list-of-designated-employers", None, "html", COMMUNITY,
-             selector="table", kind="table"),
+             selector="table", kind="table", tls_intermediate="globalsign_gcc_r6_alphassl_ca_2025.pem"),
     Register("rcip_moose_jaw", "RCIP", "SK", "Moose Jaw", "https://rcip.mjchamber.com/candidates/",
              "https://rcip.mjchamber.com/wp-content/uploads/2026/08/designated-employer-list-AUG-26.pdf", "pdf", COMMUNITY,
              link_pattern=r"[^\"']*designated-employer-list[^\"']*\.pdf", pdf_mode="columns"),
@@ -233,6 +285,19 @@ class Row:
 
 class ParseProblem(ValueError):
     """The body did not read as the list."""
+
+
+class Blocked(ParseProblem):
+    """The site answered with a bot challenge page instead of the list."""
+
+
+def is_challenge(raw: bytes) -> bool:
+    """A body that is a bot challenge or block page (never a PDF)."""
+    return not is_pdf(raw) and bool(CHALLENGE_RE.search(decode_text(raw[:20000])))
+
+
+def is_pdf(raw: bytes) -> bool:
+    return b"%PDF-" in raw[:1024]
 
 
 # -- parsing ----------------------------------------------------------------------
@@ -327,7 +392,7 @@ def parse_html(reg: Register, html: str) -> tuple[list[Row], str | None]:
                 rows.append(Row(name, location or None))
     if not rows:
         if CHALLENGE_RE.search(html[:20000]):
-            raise ParseProblem("the site answered with a bot challenge page, not the list")
+            raise Blocked("the site answered with a bot challenge page, not the list")
         raise ParseProblem("no employer rows found (the page layout changed?)")
     return _dedupe(rows), list_date
 
@@ -516,6 +581,267 @@ def find_pdf_link(reg: Register, html: str) -> str | None:
     return None
 
 
+def parse_body(reg: Register, raw: bytes) -> tuple[list[Row], str | None]:
+    """(rows, the list's date) from a fetched body, by the list's format. Raises Unreadable or ParseProblem."""
+    if reg.format == "pdf":
+        return parse_pdf(reg, raw)
+    if reg.kind == "json":
+        return parse_json(decode_text(raw)), None
+    return parse_html(reg, decode_text(raw))
+
+
+# -- copies loaded by hand ---------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Snapshot:
+    """A copy of a list loaded by hand: its rows and the file they were read from."""
+
+    key: str
+    source_url: str
+    etag: str | None
+    last_modified: str | None
+    size: int | None
+    sha256: str | None
+    list_date: str
+    loaded_on: str
+    rows: tuple[Row, ...]
+
+    @property
+    def stamp(self) -> str:
+        """The read time its rows carry: the day it was loaded, at midnight UTC."""
+        return f"{self.loaded_on}T00:00:00Z"
+
+
+def snapshot_keys(key: str) -> tuple[str, str]:
+    """The copy's two objects in the site's private R2 bucket: the rows (CSV) and the record (JSON)."""
+    return f"{SNAPSHOT_PREFIX}{key}.csv", f"{SNAPSHOT_PREFIX}{key}.json"
+
+
+class SnapshotStore(Protocol):
+    """Where the copies live: resilience.R2Rest in the run, a dictionary in the tests."""
+
+    def get_bytes(self, key: str) -> bytes | None: ...
+
+
+@dataclass
+class CopyRead:
+    """The outcome of reading a list's copy: ok (snap set), missing (no object), unavailable
+    (no R2 access tonight, or R2 did not answer) or malformed (the objects do not read)."""
+
+    snap: Snapshot | None
+    outcome: str
+    detail: str = ""
+
+
+def parse_snapshot(key: str, csv_bytes: bytes, meta_bytes: bytes) -> Snapshot:
+    """A copy from its two objects. Raises ValueError saying what does not read."""
+    try:
+        meta = json.loads(meta_bytes.decode("utf-8"))
+        reader = csv.DictReader(io.StringIO(csv_bytes.decode("utf-8-sig"), newline=""))
+        rows = tuple(Row(r["name"].strip(), (r.get("location") or "").strip() or None,
+                         (r.get("designated_on") or "").strip() or None)
+                     for r in reader if (r.get("name") or "").strip())
+    except (UnicodeDecodeError, ValueError, KeyError, AttributeError, csv.Error) as exc:
+        raise ValueError(f"the copy does not read ({type(exc).__name__}: {str(exc)[:100]})") from None
+    if not isinstance(meta, dict):
+        raise ValueError("the copy's record is not a JSON object")
+    loaded_on, list_date, source_url = meta.get("loaded_on"), meta.get("list_date"), meta.get("source_url")
+    problems = [what for what, bad in (
+        ("loaded_on is not a date", not (isinstance(loaded_on, str) and ISO_DATE_RE.fullmatch(loaded_on))),
+        # The site names the list's date wherever the copy's rows are shown.
+        ("list_date is not a date", not (isinstance(list_date, str) and ISO_DATE_RE.fullmatch(list_date))),
+        ("source_url is not https", not (isinstance(source_url, str) and source_url.startswith("https://"))),
+        ("the record is for another list", meta.get("key") not in (None, key)),
+        ("no rows", not rows),
+    ) if bad]
+    if problems:
+        raise ValueError("the copy is not usable: " + "; ".join(problems))
+
+    def text(name: str) -> str | None:
+        value = meta.get(name)
+        return value if isinstance(value, str) and value else None
+
+    size = meta.get("size")
+    return Snapshot(key, str(source_url), text("etag"), text("last_modified"),
+                    size if isinstance(size, int) and not isinstance(size, bool) else None, text("sha256"),
+                    str(list_date), str(loaded_on), rows)
+
+
+def read_snapshot(reg: Register, store: SnapshotStore | None) -> CopyRead:
+    """The list's copy loaded by hand, from the store; never raises."""
+    if store is None:
+        return CopyRead(None, "unavailable", "no R2 access in this run (CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID)")
+    csv_key, meta_key = snapshot_keys(reg.key)
+    try:
+        meta_raw = store.get_bytes(meta_key)
+        csv_raw = store.get_bytes(csv_key) if meta_raw is not None else None
+    except Exception as exc:  # R2Error or a transport fault: never a reason to stop the stage
+        return CopyRead(None, "unavailable", f"R2 did not answer ({str(exc)[:160]})")
+    if meta_raw is None or csv_raw is None:
+        return CopyRead(None, "missing", f"no copy in R2 ({meta_key if meta_raw is None else csv_key} is missing)")
+    try:
+        return CopyRead(parse_snapshot(reg.key, csv_raw, meta_raw), "ok")
+    except ValueError as exc:
+        return CopyRead(None, "malformed", str(exc))
+
+
+def snapshot_objects(reg: Register, rows: list[Row], *, source_url: str, etag: str | None, last_modified: str | None,
+                     size: int, sha256: str, list_date: str, loaded_on: str) -> tuple[bytes, bytes, dict]:
+    """A copy loaded by hand as its two objects (CSV rows, JSON record) and the record itself.
+
+    Names that read as a person are left out here as well as at load, so the
+    stored copy never holds one (project rule 3)."""
+    kept = [r for r in rows if not matching.is_person_name(r.name)]
+    buf = io.StringIO()
+    writer = csv.writer(buf, lineterminator="\n")
+    writer.writerow(SNAPSHOT_FIELDS)
+    writer.writerows([r.name, r.location or "", r.designated_on or ""] for r in kept)
+    meta = {
+        "key": reg.key,
+        "source_url": source_url,
+        "etag": etag,
+        "last_modified": last_modified,
+        "size": size,
+        "sha256": sha256,
+        "list_date": list_date,
+        "loaded_on": loaded_on,
+        "loaded_by": "hand",
+        "parser": "lmia_pipeline.sources.registers.parse_body",
+        "rows_read": len(rows),
+        "rows_left_out_as_person": len(rows) - len(kept),
+        "rows": len(kept),
+    }
+    meta_bytes = (json.dumps(meta, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+    return buf.getvalue().encode("utf-8"), meta_bytes, meta
+
+
+def r2_snapshots() -> SnapshotStore | None:
+    """The site's private bucket through the run's token; None without one (a dev machine)."""
+    from ..resilience import r2_from_env
+
+    try:
+        return r2_from_env()
+    except Exception as exc:
+        log.warning("designated lists: R2 cannot be reached for the copies (%s)", type(exc).__name__)
+        return None
+
+
+@dataclass
+class Probe:
+    """What a night's live read saw of a list: its page, the file's link on it, and the file."""
+
+    page_read: bool = False
+    link: str | None = None          # the list's file as linked on its page
+    url: str | None = None           # the address fetched
+    pdf: bool = False                # the body fetched is a PDF
+    etag: str | None = None
+    last_modified: str | None = None
+    size: int | None = None
+
+
+def _http_time(value: str | None) -> datetime | None:
+    try:
+        return email.utils.parsedate_to_datetime(value) if value else None
+    except (TypeError, ValueError, IndexError):
+        return None
+
+
+def _modified_differs(theirs: str, ours: str) -> bool:
+    a, b = _http_time(theirs), _http_time(ours)
+    return a != b if a is not None and b is not None else theirs.strip() != ours.strip()
+
+
+def check_edition(reg: Register, snap: Snapshot, probe: Probe, state: str, stamp: str) -> dict:
+    """Whether the publisher has an edition other than the copy loaded by hand.
+
+    "newer": the page links another file, or the file answers with another
+    ETag, Last-Modified or size (an item needing attention: load it by hand);
+    "unchanged": the file answers as the copy, or the page links the copy's file
+    while the file itself does not answer; "unknown": neither could be read;
+    "read live": the live read succeeded, so the copy is not in use."""
+    base = {"key": reg.key, "checked_at": stamp, "list_date": snap.list_date, "loaded_on": snap.loaded_on,
+            "copy_url": snap.source_url}
+    modified = _http_time(probe.last_modified) if probe.pdf else None
+    modified_on = modified.date().isoformat() if modified is not None else None
+    if state == "ok":
+        return {**base, "result": "read live", "url": probe.url or snap.source_url, "modified": modified_on,
+                "detail": "the list was read live; the copy loaded by hand is not in use", "attention": None}
+    changes: list[str] = []
+    if probe.link and probe.link != snap.source_url:
+        changes.append(f"the page links {probe.link}")
+    if probe.pdf:
+        if probe.etag and snap.etag and probe.etag != snap.etag:
+            changes.append(f"ETag {probe.etag} (copy {snap.etag})")
+        if probe.last_modified and snap.last_modified and _modified_differs(probe.last_modified, snap.last_modified):
+            changes.append(f"Last-Modified {probe.last_modified} (copy {snap.last_modified})")
+        if probe.size is not None and snap.size is not None and probe.size != snap.size:
+            changes.append(f"size {probe.size} (copy {snap.size})")
+    url = probe.link or probe.url or snap.source_url
+    if changes:
+        result, detail = "newer", "; ".join(changes)
+    elif probe.pdf:
+        result, detail = "unchanged", "the file answers with the copy's ETag, Last-Modified and size"
+    elif probe.link:
+        result, detail = "unchanged", "the page links the copy's file; the file itself did not answer"
+    elif probe.page_read:
+        result, detail = "unknown", "the page links no file the list's pattern matches, and the file did not answer"
+    else:
+        result, detail = "unknown", "neither the page nor the file answered"
+    attention = None
+    if result == "newer":
+        when = f"modified {modified_on}" if modified_on else "modification date not known"
+        attention = (f"{reg.title} designated-employer list: a newer edition is published at {url} ({when}); "
+                     f"load it by hand")
+    return {**base, "result": result, "url": url, "modified": modified_on, "detail": detail, "attention": attention}
+
+
+def edition_summary(check: dict) -> str:
+    """One check as a clause of the stage's summary line."""
+    if check.get("result") == "no copy":
+        return f"{check.get('key')}: copy loaded by hand not used, {check.get('detail')}"
+    if check.get("result") == "read live":
+        return f"{check.get('key')}: read live, the copy loaded by hand not in use"
+    head = f"{check.get('key')} copy loaded by hand {check.get('loaded_on')}"
+    if check.get("list_date"):
+        head += f" (list dated {check['list_date']})"
+    result = check.get("result")
+    if result == "newer":
+        when = f"modified {check['modified']}" if check.get("modified") else "modification date not known"
+        tail = f"a newer edition is published at {check.get('url')} ({when}), load it by hand"
+    elif result == "unchanged":
+        tail = f"no newer edition ({check.get('detail')})"
+    elif result == "read live":
+        tail = "not in use, the list was read live"
+    else:
+        tail = f"newer edition not checked ({check.get('detail')})"
+    return f"{head}: {tail}"
+
+
+def edition_checks(conn: sqlite3.Connection, registers: tuple[Register, ...] = ()) -> dict[str, dict]:
+    """The latest newer-edition check of each list that carries a copy loaded by hand, by key.
+
+    Reads meta by position, so it works on the plain connection the run status opens."""
+    out: dict[str, dict] = {}
+    for reg in registers or REGISTERS:
+        if not reg.snapshot:
+            continue
+        row = conn.execute("SELECT value FROM meta WHERE key = ?", (EDITION_META + reg.key,)).fetchone()
+        try:
+            check = json.loads(row[0]) if row and row[0] else None
+        except ValueError:
+            continue
+        if isinstance(check, dict):
+            out[reg.key] = check
+    return out
+
+
+def attention_items(conn: sqlite3.Connection) -> list[str]:
+    """Items needing attention from the latest checks: a newer edition to load by hand, or a copy that does not read."""
+    return [c["attention"] for c in edition_checks(conn).values()
+            if c.get("result") in ("newer", "no copy") and isinstance(c.get("attention"), str)]
+
+
 # -- run ----------------------------------------------------------------------------
 
 
@@ -525,9 +851,12 @@ def _state(conn: sqlite3.Connection, key: str) -> sqlite3.Row | None:
 
 def _save_state(conn: sqlite3.Connection, reg: Register, *, state: str, stamp: str, source_url: str | None = None,
                 rows: int | None = None, list_date: str | None = None, ok: bool = False, detail: str | None = None,
-                sha256: str | None = None) -> None:
+                sha256: str | None = None, ok_at: str | None = None, streak: int | None = None) -> None:
+    """Record a list's state. ok_at sets the time its current rows carry without a good live read
+    (a copy loaded by hand); streak, when given, is kept as it stands."""
     prev = _state(conn, reg.key)
-    streak = 0 if ok or state == "unreadable" else (prev["fail_streak"] if prev else 0) + 1
+    if streak is None:
+        streak = 0 if ok or state == "unreadable" else (prev["fail_streak"] if prev else 0) + 1
     conn.execute(
         """
         INSERT INTO designated_lists (key, program, jurisdiction, community, source_url, format, state, rows, list_date,
@@ -544,7 +873,7 @@ def _save_state(conn: sqlite3.Connection, reg: Register, *, state: str, stamp: s
         """,
         {"key": reg.key, "program": reg.program, "jur": reg.jurisdiction, "community": reg.community,
          "url": source_url or (prev["source_url"] if prev else reg.source_url), "format": reg.format, "state": state, "rows": rows,
-         "list_date": list_date, "ok_at": stamp if ok else None, "stamp": stamp, "streak": streak,
+         "list_date": list_date, "ok_at": ok_at or (stamp if ok else None), "stamp": stamp, "streak": streak,
          "detail": (detail or "")[:400] or None, "sha": sha256},
     )
 
@@ -589,36 +918,50 @@ def _store_rows(conn: sqlite3.Connection, reg: Register, rows: list[Row], stamp:
     return stored, persons
 
 
-def read_one(conn: sqlite3.Connection, client: PoliteClient, reg: Register, stamp: str) -> str:
-    """Read one list and record its state; returns the state. Raises AbortRun only."""
+def read_one(conn: sqlite3.Connection, client: PoliteClient, reg: Register, stamp: str,
+             probe: Probe | None = None) -> str:
+    """Read one list and record its state; returns the state. Raises AbortRun only.
+
+    probe, when given, is filled with what the read saw of the page and the
+    file (the newer-edition check of a list with a copy loaded by hand)."""
+    probe = probe if probe is not None else Probe()
     prev = _state(conn, reg.key)
     url = reg.source_url
     if reg.format == "pdf" and reg.link_pattern:
         # The file's name changes with each revision: its current address is on its page.
         try:
-            found = find_pdf_link(reg, client.get_text(reg.page_url, cache=True, max_age_s=20 * 3600))
+            page = client.get_text(reg.page_url, cache=True, max_age_s=20 * 3600)
+            probe.page_read = True
+            found = find_pdf_link(reg, page)
         except FetchError:
             found = None
+        probe.link = found
         if found:
             url = found
         elif prev is not None:
             url = prev["source_url"]
+    probe.url = url
     try:
         raw = client.get(url, cache=True, max_age_s=20 * 3600)
     except FetchError as exc:
         _save_state(conn, reg, state="failing", stamp=stamp, source_url=url, detail=f"not fetched: {exc}")
         return "failing"
+    if is_pdf(raw):
+        headers = client.cached_headers(url)
+        probe.pdf, probe.size = True, len(raw)
+        probe.etag, probe.last_modified = headers.get("etag"), headers.get("last_modified")
     try:
-        if reg.format == "pdf":
-            rows, list_date = parse_pdf(reg, raw)
-        elif reg.kind == "json":
-            rows, list_date = parse_json(decode_text(raw)), None
-        else:
-            rows, list_date = parse_html(reg, decode_text(raw))
-    except Unreadable as exc:
-        _save_state(conn, reg, state="unreadable", stamp=stamp, source_url=url, detail=str(exc))
-        return "unreadable"
-    except ParseProblem as exc:
+        rows, list_date = parse_body(reg, raw)
+    except (Unreadable, ParseProblem) as exc:
+        # A bot challenge in place of the list: blocked, tried again tomorrow, never worked around.
+        if isinstance(exc, Blocked) or is_challenge(raw):
+            client.forget(url)
+            _save_state(conn, reg, state="blocked", stamp=stamp, source_url=url,
+                        detail="the site answered with a bot challenge page, not the list")
+            return "blocked"
+        if isinstance(exc, Unreadable):
+            _save_state(conn, reg, state="unreadable", stamp=stamp, source_url=url, detail=str(exc))
+            return "unreadable"
         client.forget(url)
         _save_state(conn, reg, state="layout", stamp=stamp, source_url=url, detail=str(exc))
         return "layout"
@@ -641,6 +984,47 @@ def read_one(conn: sqlite3.Connection, client: PoliteClient, reg: Register, stam
     _save_state(conn, reg, state="ok", stamp=stamp, source_url=url, rows=stored, list_date=list_date,
                 ok=True, detail=detail, sha256=hashlib.sha256(raw).hexdigest())
     return "ok"
+
+
+def use_snapshot(conn: sqlite3.Connection, reg: Register, snap: Snapshot, stamp: str, live_state: str) -> str:
+    """After a failed live read, the copy loaded by hand becomes the list's current rows; returns the state.
+
+    A live read made after the copy was loaded is at least as new, so its
+    rows stay and the failed state stands. The copy's rows carry the day it
+    was loaded (Snapshot.stamp), so reloading it each night changes nothing,
+    and the names that read as a person are left out as on any read."""
+    prev = _state(conn, reg.key)
+    if prev is not None and (prev["last_ok_at"] or "") > snap.stamp:
+        return live_state
+    why = (prev["detail"] if prev is not None else None) or "no detail"
+    stored, persons = _store_rows(conn, reg, list(snap.rows), snap.stamp)
+    # The copy first, so a notice cut short keeps it; the live failure after.
+    detail = (f"{stored} rows from the copy of the list dated {snap.list_date} loaded by hand on {snap.loaded_on}"
+              + (f", {persons} names read as a person left out" if persons else "")
+              + f"; live read {live_state}: {why[:200]}")
+    _save_state(conn, reg, state="snapshot", stamp=stamp, source_url=snap.source_url, rows=stored,
+                list_date=snap.list_date, ok_at=snap.stamp, detail=detail, sha256=snap.sha256,
+                streak=prev["fail_streak"] if prev is not None else 1)
+    return "snapshot"
+
+
+def make_client() -> PoliteClient:
+    """The stage's own client: fewer retries (CLIENT_ATTEMPTS) and, for a host that leaves an
+    intermediate certificate out of its handshake, that certificate trusted for that host only.
+
+    A certificate file that cannot be read is logged and skipped: that list
+    then fails to connect as it would without it, and the others are unchanged."""
+    client = PoliteClient(max_attempts=CLIENT_ATTEMPTS)
+    for reg in REGISTERS:
+        if not reg.tls_intermediate:
+            continue
+        try:
+            pem = (CERT_DIR / reg.tls_intermediate).read_text(encoding="ascii")
+            for host in sorted({urlsplit(u).hostname for u in (reg.page_url, reg.source_url)} - {None}):
+                client.trust_intermediate(str(host), pem)
+        except (OSError, ValueError) as exc:  # ssl.SSLError is an OSError
+            log.warning("designated list %s: certificate %s not loaded (%s)", reg.key, reg.tls_intermediate, exc)
+    return client
 
 
 def match(conn: sqlite3.Connection, *, now: str | None = None) -> int:
@@ -694,17 +1078,25 @@ def _notices(conn: sqlite3.Connection, before: dict[str, str], states: dict[str,
     out: list[str] = []
     details = {r[0]: r[1] for r in conn.execute("SELECT key, detail FROM designated_lists")}
     stopped = [k for k, s in states.items() if s in FAILED_STATES and before.get(k) not in FAILED_STATES]
-    recovered = [k for k, s in states.items() if s == "ok" and before.get(k) in FAILED_STATES]
+    copied = [k for k, s in states.items() if s == "snapshot" and before.get(k) != "snapshot"]
+    recovered = [k for k, s in states.items() if s == "ok" and before.get(k) in FAILED_STATES + ("snapshot",)]
     if stopped:
         out.append("Designated-employer lists not read from tonight (their last good rows are kept): "
                    + "; ".join(f"{k} ({(details.get(k) or 'no detail')[:90]})" for k in stopped))
+    if copied:
+        out.append("Designated-employer lists not read live from tonight, their copy loaded by hand in use: "
+                   + "; ".join(f"{k} ({(details.get(k) or 'no detail')[:160]})" for k in copied))
     if recovered:
         out.append("Designated-employer lists read again: " + ", ".join(recovered))
     unreadable = sorted(k for k, s in states.items() if s == "unreadable")
     signature = ",".join(unreadable)
-    if signature != (get_meta(conn, "registers_unreadable_sig") or ""):
-        out.append(f"Designated-employer lists not yet readable (pypdf could not read the PDF): {signature}"
-                   if unreadable else "Every designated-employer list is readable again")
+    old = get_meta(conn, "registers_unreadable_sig") or ""
+    if signature != old:
+        if unreadable:
+            out.append(f"Designated-employer lists not yet readable (pypdf could not read the PDF): {signature}")
+        elif all(states.get(k) == "ok" for k in old.split(",") if k in states):
+            # A list that left the set for its copy loaded by hand is not readable again.
+            out.append("Every designated-employer list is readable again")
     set_meta(conn, "registers_unreadable_sig", signature)
     return out
 
@@ -714,6 +1106,8 @@ class RegisterStats:
     states: dict[str, str]
     matched: int
     rows: int
+    # The newer-edition check of each list with a copy loaded by hand (check_edition), by key.
+    editions: dict[str, dict] = field(default_factory=dict)
 
     def by_state(self) -> dict[str, list[str]]:
         out: dict[str, list[str]] = {}
@@ -722,40 +1116,68 @@ class RegisterStats:
         return out
 
     def summary(self) -> str:
-        """The night's line for LAST_RUN.md: counts per state, and which lists are not read."""
+        """The night's line for LAST_RUN.md: counts per state, which lists are not read, and the edition checks."""
         groups = self.by_state()
         parts = ", ".join(f"{len(keys)} {s}" for s, keys in sorted(groups.items()))
         line = f"{len(self.states)} lists ({parts}), {self.rows} current rows, {self.matched} employer matches"
         not_read = [f"{s}: {', '.join(keys)}" for s, keys in sorted(groups.items()) if s != "ok"]
+        not_read += [edition_summary(c) for _, c in sorted(self.editions.items())]
         return line + (f"; {'; '.join(not_read)}" if not_read else "")
 
 
 def run(conn: sqlite3.Connection, client: PoliteClient, *, now: str | None = None,
-        registers: tuple[Register, ...] = REGISTERS) -> RegisterStats:
+        registers: tuple[Register, ...] = REGISTERS, snapshots: SnapshotStore | None = None) -> RegisterStats:
     """Read every list, match, and log one row with the notices. Never raises for a list or a site.
 
-    The command line gives this stage a client of its own with fewer retries
-    (CLIENT_ATTEMPTS), so a small site that is down costs seconds, and its
-    failures never count toward another stage's circuit breaker."""
+    The command line gives this stage a client of its own (make_client) with
+    fewer retries, so a small site that is down costs seconds, and its
+    failures never count toward another stage's circuit breaker; and the
+    site's private R2 bucket (r2_snapshots) for the copies loaded by hand,
+    read only for a list whose live read failed. Without R2 access, or with
+    no copy there, the list is as any list whose live read failed."""
     stamp = now or now_iso()
     states: dict[str, str] = {}
+    editions: dict[str, dict] = {}
     before = {r[0]: r[1] for r in conn.execute("SELECT key, state FROM designated_lists")}
     for reg in registers:
+        probe = Probe()
         try:
-            states[reg.key] = read_one(conn, client, reg, stamp)
+            state = read_one(conn, client, reg, stamp, probe)
         except AbortRun as exc:
             # The circuit breaker counts failures across hosts, and each list
             # is a host of its own: a run of small sites that are down must
             # not stop the lists after them.
             client.reset_failures()
             _save_state(conn, reg, state="failing", stamp=stamp, detail=f"not fetched: {exc}")
-            states[reg.key] = "failing"
+            state = "failing"
+        if reg.snapshot:
+            if state == "ok":
+                editions[reg.key] = {"key": reg.key, "checked_at": stamp, "result": "read live",
+                                     "url": probe.url, "attention": None,
+                                     "detail": "the list was read live; the copy loaded by hand is not in use"}
+            else:
+                copy = read_snapshot(reg, snapshots)
+                if copy.snap is not None:
+                    state = use_snapshot(conn, reg, copy.snap, stamp, state)
+                    editions[reg.key] = check_edition(reg, copy.snap, probe, state, stamp)
+                else:
+                    # A missing copy (or no R2 access) leaves the list as any failed
+                    # read leaves it; only a copy that is there and does not read
+                    # needs someone.
+                    csv_key, meta_key = snapshot_keys(reg.key)
+                    attention = (f"{reg.title} designated-employer list: the copy loaded by hand in R2 ({csv_key} "
+                                 f"and {meta_key}) does not read ({copy.detail[:160]}); load it again"
+                                 if copy.outcome == "malformed" else None)
+                    editions[reg.key] = {"key": reg.key, "checked_at": stamp, "result": "no copy",
+                                         "copy": copy.outcome, "detail": copy.detail, "attention": attention}
+            set_meta(conn, EDITION_META + reg.key, json.dumps(editions[reg.key], ensure_ascii=False))
+        states[reg.key] = state
         conn.commit()
     matched = match(conn, now=stamp)
     rows = conn.execute(
         "SELECT COUNT(*) FROM designated_employers d JOIN designated_lists l ON l.key = d.list_key "
         "WHERE d.last_seen = l.last_ok_at").fetchone()[0]
-    stats = RegisterStats(states, matched, rows)
+    stats = RegisterStats(states, matched, rows, editions)
     notices = _notices(conn, before, states)
     conn.commit()
     # One row, its notices joined by NOTICE_SEP; the run status splits them
@@ -782,6 +1204,8 @@ def export_rows(conn: sqlite3.Connection) -> list[dict]:
     out = []
     for reg in REGISTERS:
         s = states.get(reg.key)
+        # The copy in use, from the list's own record: its date, and the day it was loaded.
+        in_copy = s is not None and s["state"] == "snapshot" and s["list_date"] and s["last_ok_at"]
         out.append({
             "key": reg.key,
             "program": reg.program,
@@ -797,19 +1221,25 @@ def export_rows(conn: sqlite3.Connection) -> list[dict]:
             "list_date": s["list_date"] if s is not None else None,
             "last_ok": (s["last_ok_at"] or "")[:10] or None if s is not None else None,
             "matched": matched.get(reg.key, 0),
+            # The copy loaded by hand when its rows are the list's current rows, else null.
+            "snapshot": {"list_date": s["list_date"], "loaded_on": s["last_ok_at"][:10]} if in_copy else None,
         })
     return out
 
 
 def profile_rows(conn: sqlite3.Connection, ids: list[str]) -> dict[str, list[dict]]:
-    """Each employer's matched designated-employer listings, best grade first."""
+    """Each employer's matched designated-employer listings, best grade first.
+
+    A row that is current only through a list's copy loaded by hand carries
+    "snapshot" (the list's date and the day the copy was loaded), so the
+    profile says so; other rows have no such key."""
     marks = ",".join("?" * len(ids))
     regs = {r.key: r for r in REGISTERS}
     out: dict[str, list[dict]] = {}
     for r in conn.execute(
         f"""
         SELECT m.employer_id, m.list_key, m.employer_name, m.grade, m.basis, d.location, d.designated_on,
-               d.first_seen, d.last_seen, l.last_ok_at, l.source_url
+               d.first_seen, d.last_seen, l.last_ok_at, l.source_url, l.state, l.list_date
         FROM designated_matches m
         JOIN designated_employers d ON d.list_key = m.list_key AND d.employer_name = m.employer_name
         JOIN designated_lists l ON l.key = m.list_key
@@ -819,7 +1249,8 @@ def profile_rows(conn: sqlite3.Connection, ids: list[str]) -> dict[str, list[dic
         reg = regs.get(r["list_key"])
         if reg is None:
             continue
-        out.setdefault(r["employer_id"], []).append({
+        current = bool(r["last_ok_at"]) and r["last_seen"] == r["last_ok_at"]
+        row = {
             "list": r["list_key"],
             "program": reg.program,
             "jurisdiction": reg.jurisdiction,
@@ -829,9 +1260,12 @@ def profile_rows(conn: sqlite3.Connection, ids: list[str]) -> dict[str, list[dic
             "designated_on": r["designated_on"],
             "first_seen": (r["first_seen"] or "")[:10],
             "last_seen": (r["last_seen"] or "")[:10],
-            "current": bool(r["last_ok_at"]) and r["last_seen"] == r["last_ok_at"],
+            "current": current,
             "url": reg.page_url,
             "grade": r["grade"],
             "basis": r["basis"],
-        })
+        }
+        if current and r["state"] == "snapshot":
+            row["snapshot"] = {"list_date": r["list_date"], "loaded_on": (r["last_ok_at"] or "")[:10]}
+        out.setdefault(r["employer_id"], []).append(row)
     return out

@@ -63,6 +63,7 @@ from typing import Any
 
 from . import config, indexnow, resilience
 from .sources import notices as gov_notices
+from .sources import registers as designated
 
 log = logging.getLogger("lmia_pipeline.nightly")
 
@@ -503,6 +504,12 @@ def _source_summaries(conn: sqlite3.Connection) -> tuple[dict[str, Any], dict[st
                      "not_read": {k: v for k, v in by_state.items() if k != "ok"},
                      "matched_employers": int(conn.execute(
                          "SELECT COUNT(DISTINCT employer_id) FROM designated_matches").fetchone()[0])}
+        # The newer-edition check of each list loaded by hand, and the items
+        # needing attention it raises (a newer edition to load by hand), which
+        # resilience.attention_items reports; unlike a notice they fail the
+        # attention step and open the issue, without marking the run failed.
+        registers["editions"] = designated.edition_checks(conn)
+        registers["attention"] = designated.attention_items(conn)
     except sqlite3.Error:
         pass
     return international, registers

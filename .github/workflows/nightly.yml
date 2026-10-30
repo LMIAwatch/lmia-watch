@@ -62,6 +62,13 @@
 # - An IndexNow submission that fails is reported (indexnow in the run status)
 #   and never stops the run; only a rejection (the key file or the payload is
 #   wrong) is an item needing attention.
+# - A designated-employer list read from its copy loaded by hand (Nova Scotia;
+#   registers/aip_ns.csv and .json in this bucket, read by the registers stage
+#   with this job's token, never in the repository) whose publisher links or
+#   serves a newer edition, or whose copy does not read, is an item needing
+#   attention (registers.attention in the run status): the copy's rows stand
+#   in meanwhile, the run stays ok and no retry follows; loading the new
+#   edition by hand clears it. No copy in R2 is a failed read like any other.
 # - A fault in the retry gate, the version record, the smoke test, the expiry
 #   checks or the issue update never stops the run: the gate then runs the
 #   refresh, a missing version means no rollback tonight, and each outcome is

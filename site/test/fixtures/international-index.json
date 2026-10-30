@@ -83,6 +83,21 @@
       "rows": 0, "list_date": null, "last_ok": null, "matched": 0
     },
     {
+      "key": "aip_ns", "program": "AIP", "jurisdiction": "NS", "community": null,
+      "page_url": "https://liveinnovascotia.com/atlantic-immigration-program",
+      "source_url": "https://liveinnovascotia.com/sites/default/files/2024-07/Designated_AIP_employers.pdf",
+      "format": "pdf", "terms": "ns_crown", "terms_url": "https://liveinnovascotia.com/atlantic-immigration-program", "state": "snapshot",
+      "rows": 1522, "list_date": "2026-07-01", "last_ok": "2026-10-30", "matched": 12,
+      "snapshot": {"list_date": "2026-07-01", "loaded_on": "2026-10-30"}
+    },
+    {
+      "key": "aip_pe", "program": "AIP", "jurisdiction": "PE", "community": null,
+      "page_url": "https://www.princeedwardisland.ca/en/information/office-of-immigration/atlantic-immigration-program-designated-employers",
+      "source_url": "https://www.princeedwardisland.ca/en/information/office-of-immigration/atlantic-immigration-program-designated-employers",
+      "format": "html", "terms": "pe_policy", "terms_url": "https://www.princeedwardisland.ca/en/information/executive-council-office/website-disclaimer-and-copyright-policy", "state": "blocked",
+      "rows": 0, "list_date": null, "last_ok": null, "matched": 0, "snapshot": null
+    },
+    {
       "key": "fcip_kelowna", "program": "FCIP", "jurisdiction": "BC", "community": "Kelowna",
       "page_url": "https://www.sdecb.com/en/pilot-program/", "source_url": "https://www.sdecb.com/en/pilot-program/",
       "format": "html", "terms": "community_site", "terms_url": null, "state": "failing", "rows": 52, "list_date": null,

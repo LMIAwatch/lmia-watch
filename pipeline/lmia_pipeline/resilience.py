@@ -424,6 +424,7 @@ def bundle_check(http: Any, base_url: str, bundle: Path, saved_stats: Path | Non
 
 # -- R2 through the REST API --------------------------------------------------
 
+DATA_BUCKET = "lmia-watch-data"
 WEEKLY_PREFIX = "backups/weekly/db-slot-"
 WEEKLY_RE = re.compile(r"^backups/weekly/db-slot-\d+\.sqlite\.gz$")
 # A listing of the weekly folder is a handful of objects; the cap only bounds
@@ -533,6 +534,67 @@ class R2Rest:
                 close()
         partial.replace(dest)
         return size
+
+    def get_bytes(self, key: str, max_bytes: int = 32 << 20) -> bytes | None:
+        """A small object's bytes, or None when the bucket holds no such key.
+
+        Raises R2Error for anything else (a missing bucket included), so a read
+        that failed is never taken for an object that does not exist."""
+        url = f"{self._base()}/{quote(key, safe='/')}"
+        try:
+            resp = self.http.get(url, headers=self._headers(), timeout=self.timeout, stream=True)
+        except Exception as exc:
+            raise self._fail(f"the download of {key}", exc) from None
+        try:
+            status = _status_code(resp)
+            # 10006 is "the bucket does not exist"; 10007 (or no code) is the key.
+            if status == 404 and 10006 not in _api_codes(resp):
+                return None
+            if status != 200:
+                raise self._fail(f"the download of {key}", resp=resp)
+            parts: list[bytes] = []
+            size = 0
+            for chunk in resp.iter_content(1 << 16):
+                if chunk:
+                    parts.append(chunk)
+                    size += len(chunk)
+                    if size > max_bytes:
+                        raise R2Error(f"{key} is larger than {max_bytes} bytes")
+            return b"".join(parts)
+        except R2Error:
+            raise
+        except Exception as exc:
+            raise self._fail(f"the download of {key}", exc) from None
+        finally:
+            close = getattr(resp, "close", None)
+            if callable(close):
+                close()
+
+    def upload(self, key: str, data: bytes, content_type: str) -> None:
+        """Put one small object (the path Wrangler's own r2 object put takes)."""
+        url = f"{self._base()}/{quote(key, safe='/')}"
+        try:
+            resp = self.http.put(url, data=data, headers={**self._headers(), "Content-Type": content_type},
+                                 timeout=self.timeout)
+        except Exception as exc:
+            raise self._fail(f"the upload of {key}", exc) from None
+        if _status_code(resp) not in (200, 201):
+            raise self._fail(f"the upload of {key}", resp=resp)
+
+
+def r2_from_env(bucket: str | None = None) -> R2Rest | None:
+    """The bucket through the run's token, when CLOUDFLARE_API_TOKEN and
+    CLOUDFLARE_ACCOUNT_ID are in the environment (always in the workflow);
+    None otherwise. The bucket is BUCKET from the environment, else the site's."""
+    import os
+
+    import requests
+
+    token = (os.environ.get("CLOUDFLARE_API_TOKEN") or "").strip()
+    account = (os.environ.get("CLOUDFLARE_ACCOUNT_ID") or "").strip()
+    if not token or not account:
+        return None
+    return R2Rest(requests.Session(), account, token, bucket or (os.environ.get("BUCKET") or "").strip() or DATA_BUCKET)
 
 
 # -- monthly expiry checks ----------------------------------------------------
@@ -719,6 +781,12 @@ def attention_items(status: Any) -> list[str]:
     checks = status.get("checks")
     if isinstance(checks, dict):
         items.extend(f"Expiry check: {i}" for i in checks.get("items") or [] if isinstance(i, str))
+    # A designated-employer list loaded by hand whose publisher has a newer
+    # edition: someone has to load it by hand, so it is an item, not a notice.
+    registers = status.get("registers")
+    attention = registers.get("attention") if isinstance(registers, dict) else None
+    if isinstance(attention, list):
+        items.extend(i for i in attention if isinstance(i, str) and i)
     # The run's notices (notice_items) are not here: they never fail the step
     # or open the issue.
     return items

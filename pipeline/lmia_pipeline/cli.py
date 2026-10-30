@@ -303,12 +303,16 @@ def _command(conn: sqlite3.Connection, args: argparse.Namespace) -> int:
         ok &= _stage(conn, "fmcsa", lambda: fmcsa.run(conn, client), "matches")
     # Designated-employer lists (sources/registers.py), with a client of its
     # own: many small hosts, fewer retries, and their failures kept out of
-    # the shared client's circuit breaker. A list that fails is a notice and
-    # keeps its last rows, so this stage itself fails only on an exception.
+    # the shared client's circuit breaker (the intermediate certificate one
+    # host leaves out is trusted in that client only, for that host). A list
+    # that fails is a notice and keeps its last rows, so this stage itself
+    # fails only on an exception; a newer edition of a list loaded by hand is
+    # an item needing attention through the run status. The copies loaded by
+    # hand are read from the site's private R2 bucket with the run's token.
     if "registers" in stages:
         _outcome_file("registers", "last_outcome.txt", "failed")
         ok &= _stage(conn, "registers", lambda: _with_outcome(
-            "registers", registers.run(conn, PoliteClient(max_attempts=registers.CLIENT_ATTEMPTS))), "lists")
+            "registers", registers.run(conn, registers.make_client(), snapshots=registers.r2_snapshots())), "lists")
     # Government notices (sources/notices.py): the IRCC and ESDC news feeds on
     # Canada.ca, one request each, through a client of its own like the lists
     # above. A feed that cannot be read keeps its items and is a notice, and

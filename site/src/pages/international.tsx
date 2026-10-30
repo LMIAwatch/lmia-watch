@@ -65,7 +65,12 @@ export interface RegisterRow {
   list_date: string | null;
   last_ok: string | null;
   matched: number;
+  // The copy loaded by hand a list carries, in use when state is "snapshot"
+  // (absent from files written before copies existed).
+  snapshot?: RegisterSnapshot | null;
 }
+
+export interface RegisterSnapshot { list_date: string; loaded_on: string }
 
 export interface IntlFile {
   as_of: string;
@@ -106,11 +111,14 @@ const isRow = (v: unknown): v is IntlRow => isObj(v) && isNum(v.id) && isStrOrNu
   (GRADES as readonly string[]).includes(v.grade) && isListOf(v.reasons, isStr) && isPhrases(v.phrases) &&
   isStr(v.url) && JOBBANK_URL.test(v.url);
 
+export const isRegisterSnapshot = (v: unknown): v is RegisterSnapshot => isObj(v) && isDate(v.list_date) && isDate(v.loaded_on);
+
 export const isRegister = (v: unknown): v is RegisterRow => isObj(v) && isStr(v.key) && PROGRAMS.has(v.program) &&
   isStr(v.jurisdiction) && isStrOrNull(v.community) && isStr(v.page_url) && HTTPS.test(v.page_url) &&
   isStr(v.source_url) && HTTPS.test(v.source_url) && isStr(v.format) && isStr(v.terms) &&
   (v.terms_url === null || (isStr(v.terms_url) && HTTPS.test(v.terms_url))) && isStr(v.state) && isCount(v.rows) &&
-  (v.list_date === null || isDate(v.list_date)) && (v.last_ok === null || isDate(v.last_ok)) && isCount(v.matched);
+  (v.list_date === null || isDate(v.list_date)) && (v.last_ok === null || isDate(v.last_ok)) && isCount(v.matched) &&
+  (v.snapshot === undefined || v.snapshot === null || isRegisterSnapshot(v.snapshot));
 
 export function isIntlFile(v: unknown): v is IntlFile {
   if (!isObj(v) || !isDate(v.as_of) || !(v.baseline === null || isDate(v.baseline)) || !isDate(v.change_date)) return false;
@@ -375,21 +383,55 @@ const RecentTable: FC<{ lang: Lang; rows: IntlRow[] }> = ({ lang, rows }) => (
   </div>
 );
 
+// "The province's site blocks automated readers", or the community's.
+export function blockedText(lang: Lang, r: RegisterRow): string {
+  return t(lang, r.community ? "intl.reg_state_blocked_community" : "intl.reg_state_blocked");
+}
+
 function registerState(lang: Lang, r: RegisterRow): string {
   if (r.state === "ok") return t(lang, "intl.reg_state_ok", { date: r.last_ok ?? "" });
+  if (r.state === "snapshot" && r.snapshot) {
+    return t(lang, "intl.reg_state_snapshot", { date: r.snapshot.list_date, loaded: r.snapshot.loaded_on });
+  }
+  if (r.state === "blocked") {
+    return r.last_ok ? t(lang, "intl.reg_state_kept", { state: blockedText(lang, r), date: r.last_ok }) : blockedText(lang, r);
+  }
   if (r.state === "unreadable") return t(lang, "intl.reg_state_unreadable");
   if (r.state === "not_read") return t(lang, "intl.reg_state_not_read");
   return r.last_ok ? t(lang, "intl.reg_state_failing", { date: r.last_ok }) : t(lang, "intl.reg_state_never");
 }
 
+// The count: blank for a site that blocks automated readers and was never
+// read, a dash for any other list never read (0 would claim an empty list).
+const RegisterCount: FC<{ lang: Lang; r: RegisterRow }> = ({ lang, r }) => {
+  if (r.last_ok) return <>{fmtInt(r.rows, lang)}</>;
+  if (r.state === "blocked") return null;
+  return <><span aria-hidden="true">{"–"}</span><span class="visually-hidden">{t(lang, "intl.reg_never_read")}</span></>;
+};
+
+// Lists whose current rows come from the copy loaded by hand: the sentence
+// that says so (where the list comes from, its date, the day it was loaded,
+// why), for this page, the methodology and the Data page.
+export function snapshotRows(rows: RegisterRow[]): (RegisterRow & { snapshot: RegisterSnapshot })[] {
+  return rows.filter((r): r is RegisterRow & { snapshot: RegisterSnapshot } => r.state === "snapshot" && !!r.snapshot);
+}
+
+export function snapshotSentence(lang: Lang, r: RegisterRow & { snapshot: RegisterSnapshot }): string {
+  return t(lang, r.community ? "intl.reg_snapshot_community" : "intl.reg_snapshot", {
+    program: programName(lang, r.program), where: registerPlace(lang, r), date: r.snapshot.list_date, loaded: r.snapshot.loaded_on,
+  });
+}
+
 const RegistersSection: FC<{ lang: Lang; rows: RegisterRow[] }> = ({ lang, rows }) => {
   const listed = rows.reduce((s, r) => s + r.rows, 0);
   const matched = rows.reduce((s, r) => s + r.matched, 0);
+  const copies = snapshotRows(rows);
   return (
     <section aria-labelledby="registers">
       <h2 id="registers">{t(lang, "intl.reg_h")}</h2>
       <p>{t(lang, "intl.reg_text")}</p>
       <p class="muted small">{t(lang, "intl.reg_totals", { rows: fmtInt(listed, lang), matched: fmtInt(matched, lang) })}</p>
+      {copies.map((r) => <p class="small">{snapshotSentence(lang, r)} {t(lang, "intl.reg_snapshot_check")}</p>)}
       <div class="table-wrap bordered">
         <table class="restack">
           <thead>
@@ -406,7 +448,7 @@ const RegistersSection: FC<{ lang: Lang; rows: RegisterRow[] }> = ({ lang, rows 
               <tr>
                 <td data-label={t(lang, "intl.reg_col_program")}>{programName(lang, r.program)}</td>
                 <td data-label={t(lang, "intl.reg_col_where")}><a href={r.page_url} rel="nofollow noopener">{registerPlace(lang, r)}</a></td>
-                <td class="mono num" data-label={t(lang, "intl.reg_col_rows")}>{r.state === "unreadable" ? "" : fmtInt(r.rows, lang)}</td>
+                <td class="mono num" data-label={t(lang, "intl.reg_col_rows")}><RegisterCount lang={lang} r={r} /></td>
                 <td class="mono num" data-label={t(lang, "intl.reg_col_matched")}>{fmtInt(r.matched, lang)}</td>
                 <td data-label={t(lang, "intl.reg_col_state")}>{registerState(lang, r)}</td>
               </tr>

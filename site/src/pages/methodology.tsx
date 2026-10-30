@@ -6,7 +6,8 @@ import type { AppEnv } from "../env";
 import { indicatorLabel, t, tj, type Key, type Lang } from "../i18n";
 import { Badge, Layout, page } from "../layout";
 import { pageSeo } from "../seo";
-import { isObj, isNum, isStrOrNull } from "../valid";
+import { isListOf, isObj, isNum, isStrOrNull } from "../valid";
+import { blockedText, isRegister, programName, registerPlace, snapshotRows, snapshotSentence, type RegisterRow } from "./international";
 
 // The high-wage list in use, as stats.json states it; anything else reads as absent.
 type ListVersion = { read_on: string | null; page_modified: string | null; count: number };
@@ -40,9 +41,21 @@ const EE_LIMITS: Key[] = [
   "methodology.ee_limit_boards", "methodology.ee_limit_signal",
 ];
 
+// A list whose site blocks automated readers, as a line of the limits.
+function blockedLimit(lang: Lang, r: RegisterRow): string {
+  const state = blockedText(lang, r);
+  return t(lang, "methodology.ee_limit_blocked", {
+    program: programName(lang, r.program), where: registerPlace(lang, r), state: state.charAt(0).toLowerCase() + state.slice(1),
+  });
+}
+
 // The highlighted block at the top of the page (anchor express-entry), which
-// the notice bar and the international-candidates page link to.
-export const ExpressEntryBlock: FC<{ lang: Lang; version?: ListVersion | null }> = ({ lang, version }) => (
+// the notice bar and the international-candidates page link to. The lists'
+// states (stats.json) add the lists loaded by hand to the lists paragraph and
+// the lists whose sites block automated readers to the limits.
+export const ExpressEntryBlock: FC<{ lang: Lang; version?: ListVersion | null; registers?: RegisterRow[] }> = (
+  { lang, version, registers = [] },
+) => (
   <section class="ee-block" id="express-entry" aria-labelledby="express-entry-h">
     <h2 id="express-entry-h">{t(lang, "methodology.ee_h")}</h2>
     <p>
@@ -67,8 +80,12 @@ export const ExpressEntryBlock: FC<{ lang: Lang; version?: ListVersion | null }>
     ) : null}
     <h3>{t(lang, "methodology.ee_registers_h")}</h3>
     <p>{tj(lang, "methodology.ee_registers", { data: <a href="/data#registers">{t(lang, "places.sources_link")}</a> })}</p>
+    {snapshotRows(registers).map((r) => <p>{snapshotSentence(lang, r)} {t(lang, "intl.reg_snapshot_check")}</p>)}
     <h3>{t(lang, "methodology.ee_limits_h")}</h3>
-    <ul>{EE_LIMITS.map((k) => <li>{t(lang, k)}</li>)}</ul>
+    <ul>
+      {EE_LIMITS.map((k) => <li>{t(lang, k)}</li>)}
+      {registers.filter((r) => r.state === "blocked").map((r) => <li>{blockedLimit(lang, r)}</li>)}
+    </ul>
     <p>{tj(lang, "methodology.ee_page", { page: <a href="/international">{t(lang, "intl.crumb")}</a> })}</p>
   </section>
 );
@@ -183,6 +200,8 @@ export async function methodologyPage(c: Context<AppEnv>): Promise<Response> {
   const lang = c.get("lang");
   const stats = await loadStats(c.env);
   const rules = stats?.rules_version ?? "0.1";
+  // The lists' states, checked here as on the Data page: a list that fails leaves them out.
+  const registers: RegisterRow[] = stats && isListOf(stats.registers, isRegister) ? stats.registers : [];
   return page(
     c,
     <Layout lang={lang} title={t(lang, "nav.methodology")} dataAsOf={stats?.data_as_of ?? null} active="/methodology" seo={pageSeo("methodology", lang)}>
@@ -201,7 +220,7 @@ export async function methodologyPage(c: Context<AppEnv>): Promise<Response> {
         <div class="doc">
           <h1>{t(lang, "nav.methodology")}</h1>
           <p class="lead">{t(lang, "methodology.lead")}</p>
-          <ExpressEntryBlock lang={lang} version={listVersion(stats?.high_wage)} />
+          <ExpressEntryBlock lang={lang} version={listVersion(stats?.high_wage)} registers={registers} />
 
           <h2 id="sources">{t(lang, "methodology.toc_sources")}</h2>
           <div class="table-wrap bordered">
