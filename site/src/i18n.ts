@@ -646,6 +646,10 @@ const STRINGS = {
   "form.err_name": { en: "Enter your name and role.", fr: "Inscrivez votre nom et votre rôle." },
   "form.err_email": { en: "Enter a valid work email address.", fr: "Inscrivez une adresse de courriel professionnelle valide." },
   "form.err_statement": { en: "The statement needs at least 20 characters.", fr: "La déclaration doit compter au moins 20 caractères." },
+  "form.browser_only": {
+    en: "This form opens in a web browser from the employer's profile: {url}",
+    fr: "Ce formulaire s'ouvre dans un navigateur Web à partir du profil de l'employeur : {url}",
+  },
   "form.thanks_statement": {
     en: "Your statement was received and will appear on the profile once the sender is verified.",
     fr: "Votre déclaration a été reçue et paraîtra sur le profil une fois l'expéditeur vérifié.",

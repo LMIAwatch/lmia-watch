@@ -147,9 +147,10 @@ function assetsServing(file: string, body: string): Fetcher {
   } as unknown as Fetcher;
 }
 
-// A fresh documentation address per request, so the per-address limits never answer first.
+// A fresh documentation address per request, so the per-address limits never answer first,
+// and a browser's navigation, since the response form's GET answers browsers only.
 let address = 1;
-const visitor = () => ({ "cf-connecting-ip": `2001:db8::${(address++).toString(16)}` });
+const visitor = () => ({ "cf-connecting-ip": `2001:db8::${(address++).toString(16)}`, "sec-fetch-mode": "navigate" });
 
 describe("pages fed a broken data file", () => {
   for (const { file, data, paths } of CASES) {

@@ -118,6 +118,28 @@ api.get("/pending", async (c) => {
 
 api.get("/search/facets", (c) => passThrough(c, "search/facets.json"));
 
+const SITE_HOST = new URL(SITE_ORIGIN).host;
+
+// Whether an Origin or Referer value is an http(s) address on the site: its
+// host, the www form, or the request's own host, so a local or preview run of
+// the site counts its own pages too.
+export function isOwnAddress(value: string | null | undefined, requestUrl: string): boolean {
+  if (!value) return false;
+  const own = new Set([SITE_HOST, `www.${SITE_HOST}`]);
+  try {
+    own.add(new URL(requestUrl).host);
+  } catch {
+    // An unreadable request URL adds nothing.
+  }
+  try {
+    const url = new URL(value);
+    return (url.protocol === "https:" || url.protocol === "http:") && own.has(url.host);
+  } catch {
+    // Not a URL: not the site's page.
+    return false;
+  }
+}
+
 // The search API is not open to the public yet: the unkeyed route answers the
 // site's own search page and nothing else. A browser says where a request
 // comes from in Sec-Fetch-Site; one too old to send it still sends the
@@ -127,30 +149,10 @@ api.get("/search/facets", (c) => passThrough(c, "search/facets.json"));
 // casual reuse off the route; the per-address API limit (src/limits.ts) stays
 // the brake. A keyed route for programmatic use, when there is one, skips
 // this check rather than changing it.
-const SITE_HOST = new URL(SITE_ORIGIN).host;
-
 export function fromOwnPage(headers: Headers, requestUrl: string): boolean {
   const site = headers.get("sec-fetch-site");
   if (site !== null) return site === "same-origin" || site === "same-site";
-  // The request's own host counts too, so a local or preview run of the
-  // site can use its own search page.
-  const own = new Set([SITE_HOST, `www.${SITE_HOST}`]);
-  try {
-    own.add(new URL(requestUrl).host);
-  } catch {
-    // An unreadable request URL adds nothing.
-  }
-  for (const name of ["origin", "referer"]) {
-    const value = headers.get(name);
-    if (!value) continue;
-    try {
-      const url = new URL(value);
-      if ((url.protocol === "https:" || url.protocol === "http:") && own.has(url.host)) return true;
-    } catch {
-      // Not a URL: not the site's page.
-    }
-  }
-  return false;
+  return ["origin", "referer"].some((name) => isOwnAddress(headers.get(name), requestUrl));
 }
 
 // The refusal for anything but the site's own page, or null to go on. It

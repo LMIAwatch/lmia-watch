@@ -49,7 +49,8 @@ let address = 1;
 const req = (path: string, envOver: Record<string, unknown> = {}, init: RequestInit = {}) =>
   app.request(
     path,
-    { ...init, headers: { "cf-connecting-ip": `203.0.113.${address++ % 250}`, ...(init.headers as Record<string, string>) } },
+    // A browser's navigation unless the test says otherwise: the response form's GET answers browsers only.
+    { ...init, headers: { "cf-connecting-ip": `203.0.113.${address++ % 250}`, "sec-fetch-mode": "navigate", ...(init.headers as Record<string, string>) } },
     { ...testEnv(), ...envOver },
   );
 

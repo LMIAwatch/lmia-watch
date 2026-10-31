@@ -14,7 +14,9 @@ import { emptyAssets, testEnv } from "./assets";
 const EM_DASH = String.fromCharCode(0x2014);
 const nbsp = (s: string) => s.replace(/[  ]/g, " ");
 
-const get = (path: string, headers: Record<string, string> = {}, env: object = testEnv()) => app.request(path, { headers }, env);
+// A browser's navigation: the response form's GET answers browsers only (forms.tsx).
+const get = (path: string, headers: Record<string, string> = {}, env: object = testEnv()) =>
+  app.request(path, { headers: { "sec-fetch-mode": "navigate", ...headers } }, env);
 const post = (path: string, fields: Record<string, string>, headers: Record<string, string> = {}) =>
   app.request(
     path,

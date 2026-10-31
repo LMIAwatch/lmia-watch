@@ -17,8 +17,10 @@ const UNKNOWN = ["emp-a00dead0ff", "emp-ffffffffff"];
 // Each request from its own documentation address, so the per-address caps never answer first.
 let address = 1;
 const visitor = () => ({ "cf-connecting-ip": `2001:db8:a::${(address++).toString(16)}` });
+// A browser's navigation: the response form's GET answers browsers only (forms.tsx).
+const NAVIGATE = { "sec-fetch-mode": "navigate" };
 
-const get = (path: string, assets: Fetcher = fakeAssets) => app.request(path, { headers: visitor() }, testEnv(assets));
+const get = (path: string, assets: Fetcher = fakeAssets) => app.request(path, { headers: { ...visitor(), ...NAVIGATE } }, testEnv(assets));
 
 const post = (path: string, fields: Record<string, string>, assets: Fetcher = fakeAssets) =>
   app.request(
@@ -128,7 +130,7 @@ describe("retired employer ids", () => {
   it("counts a redirect under the route's template, with its status", async () => {
     const { points, dataset } = recorder();
     for (const path of [`/employers/${OLD}`, `/employers/${OLD}/respond`, `/api/employers/${OLD}`]) {
-      await app.request(path, { headers: visitor() }, { ...testEnv(), VIEWS: dataset });
+      await app.request(path, { headers: { ...visitor(), ...NAVIGATE } }, { ...testEnv(), VIEWS: dataset });
     }
     expect(points.map((p) => [p.blobs?.[0], p.blobs?.[1], p.doubles?.[0]])).toEqual([
       ["/employers/:id", "page", 301],

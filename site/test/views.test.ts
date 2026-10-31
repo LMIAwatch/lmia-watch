@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { app } from "../src/index";
-import { agentClass, countryCode, dailySalt, deviceClass, referrerHost, routeTemplate, utcDay, visitorHash } from "../src/views";
+import { agentClass, countryCode, dailySalt, deviceClass, hasFetchMetadata, referrerHost, routeTemplate, utcDay, visitorHash } from "../src/views";
 import { testEnv } from "./assets";
 
 // A stand-in for the Analytics Engine binding that keeps what it is given.
@@ -17,6 +17,8 @@ function recorder(fail = false) {
 
 const IP = "203.0.113.42";
 const UA = "Mozilla/5.0 (X11; Linux x86_64) ExampleBrowser/1.0";
+// The Fetch Metadata a current browser sends when a link on another site is followed.
+const NAVIGATE = { "sec-fetch-mode": "navigate", "sec-fetch-dest": "document", "sec-fetch-site": "cross-site" };
 
 function visit(path: string, dataset?: AnalyticsEngineDataset, init: RequestInit = {}) {
   const headers = {
@@ -24,6 +26,7 @@ function visit(path: string, dataset?: AnalyticsEngineDataset, init: RequestInit
     "user-agent": UA,
     cookie: "lang=fr; theme=dark",
     referer: "https://news.example.org/2026/10/story?utm_source=x#frag",
+    ...NAVIGATE,
     ...(init.headers as Record<string, string>),
   };
   return app.request(path, { ...init, headers }, { ...testEnv(), VIEWS: dataset });
@@ -203,6 +206,35 @@ describe("bot or human", () => {
     expect(agentClass(CHROME, undefined, "api")).toBe("human");
   });
 
+  it("counts a browser's user agent with no Fetch Metadata header as a bot", () => {
+    for (const ua of [CHROME, IPHONE, FIREFOX, UA]) {
+      expect(agentClass(ua, undefined, "page", false), ua).toBe("bot");
+      expect(agentClass(ua, undefined, "page", true), ua).toBe("human");
+    }
+    // The other rules hold whatever the headers say.
+    expect(agentClass("curl/8.5.0", undefined, "page", true)).toBe("bot");
+    expect(agentClass(CHROME, "Search Engine Crawler", "page", true)).toBe("bot");
+    expect(agentClass(CHROME, undefined, "feed", true)).toBe("bot");
+  });
+
+  it("takes any one of Sec-Fetch-Mode, Sec-Fetch-Dest and Sec-Fetch-Site as Fetch Metadata", () => {
+    expect(hasFetchMetadata(new Headers())).toBe(false);
+    expect(hasFetchMetadata(new Headers({ "user-agent": CHROME, referer: "https://lmiawatch.ca/", "sec-ch-ua-mobile": "?0" }))).toBe(false);
+    expect(hasFetchMetadata(new Headers({ "Sec-Fetch-Mode": "navigate" }))).toBe(true);
+    expect(hasFetchMetadata(new Headers({ "sec-fetch-dest": "document" }))).toBe(true);
+    expect(hasFetchMetadata(new Headers({ "sec-fetch-site": "none" }))).toBe(true);
+  });
+
+  it("writes a browser-shaped request with no Fetch Metadata as a bot, with no device and no code", async () => {
+    const { points, dataset } = recorder();
+    const env = { ...testEnv(), VIEWS: dataset, VIEWS_SALT_KEY: "test-secret" };
+    await app.request("/methodology", { headers: { "cf-connecting-ip": IP, "user-agent": CHROME } }, env);
+    await app.request("/methodology", { headers: { "cf-connecting-ip": IP, "user-agent": CHROME, "sec-fetch-site": "same-origin" } }, env);
+    expect(points[0].blobs?.slice(7)).toEqual(["bot", "", ""]);
+    expect(points[1].blobs?.slice(7, 9)).toEqual(["human", "desktop"]);
+    expect(points[1].blobs?.[9]).toMatch(/^[0-9a-f]{16}$/);
+  });
+
   it("records the edge's verified-bot category as a bot on the data point", async () => {
     const { points, dataset } = recorder();
     const req = new Request("http://localhost/search", { headers: { "user-agent": CHROME } });
@@ -257,7 +289,7 @@ describe("the daily visitor code", () => {
   it("is written for a person's request and never for a bot's, and the address and agent are not", async () => {
     const { points, dataset } = recorder();
     const env = { ...testEnv(), VIEWS: dataset, VIEWS_SALT_KEY: "test-secret" };
-    const headers = { "cf-connecting-ip": IP, "user-agent": UA };
+    const headers = { "cf-connecting-ip": IP, "user-agent": UA, ...NAVIGATE };
     await app.request("/methodology", { headers }, env);
     await app.request("/methodology", { headers: { ...headers, "user-agent": "Mozilla/5.0 (compatible; bingbot/2.0)" } }, env);
     await app.request("/methodology", { headers: { ...headers, "user-agent": IPHONE } }, env);
@@ -277,7 +309,7 @@ describe("the daily visitor code", () => {
 
   it("writes the point with an empty code when no secret is set", async () => {
     const { points, dataset } = recorder();
-    const res = await app.request("/methodology", { headers: { "user-agent": UA } }, { ...testEnv(), VIEWS: dataset });
+    const res = await app.request("/methodology", { headers: { "user-agent": UA, ...NAVIGATE } }, { ...testEnv(), VIEWS: dataset });
     expect(res.status).toBe(200);
     expect(points[0].blobs?.slice(7)).toEqual(["human", "desktop", ""]);
   });

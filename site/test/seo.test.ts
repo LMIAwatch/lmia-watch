@@ -258,7 +258,7 @@ describe("page metadata", () => {
   });
 
   it("the response form stays out of the index and error pages carry only the site description", async () => {
-    const form = await headOf("/employers/emp-a000000001/respond");
+    const form = await headOf("/employers/emp-a000000001/respond", { "sec-fetch-mode": "navigate" });
     expect(form).toContain('<meta name="robots" content="noindex"/>');
     expect(canonical(form)).toBeUndefined();
     expect(meta(form, "description")).toContain("PinkCloud Cleaning & Home Services");

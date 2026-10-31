@@ -17,7 +17,7 @@ import { DOWNLOADS, dataPage } from "./pages/data";
 import { employerPage } from "./pages/employer";
 import { feedsPage } from "./pages/feeds";
 import { directoryPage } from "./pages/directory";
-import { correctionsForm, correctionsSubmit, respondForm, respondSubmit } from "./pages/forms";
+import { correctionsForm, correctionsSubmit, respondPage, respondSubmit } from "./pages/forms";
 import { homePage } from "./pages/home";
 import { internationalPage } from "./pages/international";
 import { mapPage } from "./pages/map";
@@ -115,7 +115,8 @@ app.get("/places/:prov/employers", directoryPage);
 app.get("/places/:prov/employers/:page", directoryPage);
 app.get("/places/:prov/:slug", placePage);
 app.get("/employers/:id", employerPage);
-app.get("/employers/:id/respond", (c) => respondForm(c));
+// A browser only: a plain HTTP client gets a 403 naming the profile (forms.tsx).
+app.get("/employers/:id/respond", respondPage);
 app.post("/employers/:id/respond", respondSubmit);
 app.get("/corrections", (c) => correctionsForm(c));
 app.post("/corrections", correctionsSubmit);

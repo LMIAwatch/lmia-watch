@@ -268,11 +268,15 @@ any value: search engines, monitors, feed fetchers), when the user agent is
 missing or not shaped like a browser's (every browser starts `Mozilla/` or,
 for old Opera, `Opera/`), when the user agent holds one of the crawler words
 (bot, crawl, spider, slurp, fetch, python-requests, curl, wget, headless,
-the site's own `LMIAWatch`, and a few more listed in the code), and always
-for a feed poll or the payment hook. Everything else is human: a person's
-browser, or a crawler that disguises itself as one, which no header can tell
-apart. "bot" is not matched inside "Cubot", a phone maker whose model names
-appear in ordinary Android user agents.
+the site's own `LMIAWatch`, and a few more listed in the code), when a
+browser-shaped user agent comes with none of the Fetch Metadata headers
+(`Sec-Fetch-Mode`, `Sec-Fetch-Dest`, `Sec-Fetch-Site`) that every current
+browser sends, and always for a feed poll or the payment hook. Browsers
+older than Chrome 76, Firefox 90 and Safari 16.4 send none of those headers,
+so the few still in use count as bots. Everything else is human: a person's
+browser, or a crawler that copies a browser's headers as well, which no
+header can tell apart. "bot" is not matched inside "Cubot", a phone maker
+whose model names appear in ordinary Android user agents.
 
 **Device** (`deviceClass`): tablet for iPad, Kindle, Silk, PlayBook,
 "Tablet", or Android without "Mobile"; mobile for "Mobi", iPhone, iPod,
@@ -791,3 +795,11 @@ Cloudflare's `Content-Signal` line (search yes, AI input yes, AI training no),
 and no longer disallows `/downloads/` for search engines and Bing, which the
 Worker's ten-a-minute cap still protects. The AI-training group stays
 disallowed from everything.
+
+The response form (`/employers/<id>/respond`) is disallowed in robots.txt,
+and a GET that carries neither `Sec-Fetch-Mode` nor a Referer from the site
+gets a 403 with one line naming the employer's profile
+(`respondPage` in `site/src/pages/forms.tsx`): a browser sends one or the
+other whenever a person follows a link to the form, from the site or from an
+emailed message, and a scraper that ignores robots.txt usually sends neither.
+The corrections page stays open to any client, since other sites link to it.

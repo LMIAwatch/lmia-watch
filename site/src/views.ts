@@ -146,17 +146,35 @@ const BOT_UA = new RegExp(
 // so an agent that does not is a program: Go-http-client, Dart, PostmanRuntime.
 const BROWSER_UA = /^(?:Mozilla|Opera)\//;
 
+// Fetch Metadata: every current browser sends these three headers with a
+// navigation and with its pages' own requests (over HTTPS, which the zone
+// enforces). A plain HTTP client sends none of them, even when it borrows a
+// browser's user agent. Browsers from before them (Chrome before 76, Firefox
+// before 90, Safari before 16.4) send none either, so the few still in use
+// are undercounted as people.
+const FETCH_METADATA = ["sec-fetch-mode", "sec-fetch-dest", "sec-fetch-site"];
+
+export function hasFetchMetadata(headers: Headers): boolean {
+  return FETCH_METADATA.some((name) => headers.has(name));
+}
+
 // "bot" when Cloudflare's edge names the request a verified bot (any
 // category: search engine, monitoring, feed fetcher and so on), when the
 // user agent is missing, is not shaped like a browser's or carries one of the
-// words above, and for every feed poll and payment hook (programs by nature).
-// Everything else is "human": a person's browser, or a crawler that hides as
-// one, which no header can tell apart.
-export function agentClass(userAgent: string | undefined | null, verifiedBotCategory: unknown, kind?: Kind): Agent {
+// words above, when a browser-shaped agent comes with no Fetch Metadata
+// header, and for every feed poll and payment hook (programs by nature).
+// Everything else is "human": a person's browser, or a crawler that copies
+// a browser's headers too, which no header can tell apart. fetchMetadata says
+// whether the request carried any of the three headers; it defaults to true
+// so a test of the user agent alone reads it as a browser would send it.
+export function agentClass(
+  userAgent: string | undefined | null, verifiedBotCategory: unknown, kind?: Kind, fetchMetadata = true,
+): Agent {
   if (kind === "feed" || kind === "hook") return "bot";
   if (typeof verifiedBotCategory === "string" && verifiedBotCategory.trim() !== "") return "bot";
   const ua = (userAgent ?? "").slice(0, 512);
   if (!ua.trim() || !BROWSER_UA.test(ua) || BOT_UA.test(ua)) return "bot";
+  if (!fetchMetadata) return "bot";
   return "human";
 }
 
@@ -212,7 +230,7 @@ function edge(c: Context<AppEnv>): EdgeProps | undefined {
 
 export function requestAgent(c: Context<AppEnv>): Agent {
   const { kind } = routeTemplate(c.req.method, c.req.path);
-  return agentClass(c.req.header("user-agent"), edge(c)?.verifiedBotCategory, kind);
+  return agentClass(c.req.header("user-agent"), edge(c)?.verifiedBotCategory, kind, hasFetchMetadata(c.req.raw.headers));
 }
 
 // The data point for the response in c. visitor is the visitor code, written
@@ -222,7 +240,7 @@ export function viewPoint(c: Context<AppEnv>, visitor = ""): AnalyticsEngineData
   const cf = edge(c);
   const lang = c.get("lang") === "fr" ? "fr" : "en";
   const ua = c.req.header("user-agent");
-  const agent = agentClass(ua, cf?.verifiedBotCategory, kind);
+  const agent = agentClass(ua, cf?.verifiedBotCategory, kind, hasFetchMetadata(c.req.raw.headers));
   const blobs = [
     route, kind, lang, countryCode(cf?.country), referrerHost(c.req.header("referer")), c.req.method.slice(0, 8),
     kind === "feed" ? feedFile(c.req.path, c.res.status) : "",

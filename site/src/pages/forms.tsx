@@ -1,11 +1,12 @@
 import type { Context } from "hono";
 import { html } from "hono/html";
+import { isOwnAddress } from "../api";
 import { EMPLOYER_ID_RE, loadProfile, loadStats } from "../data";
 import { readForm } from "../body";
 import type { AppEnv } from "../env";
 import { t, tj, type Key } from "../i18n";
 import { Layout, page } from "../layout";
-import { pageSeo, respondFormSeo } from "../seo";
+import { canonicalUrl, pageSeo, respondFormSeo } from "../seo";
 import { retiredIdRedirect } from "./employer";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -54,6 +55,28 @@ export async function respondForm(
     </Layout>,
     status ?? (errors.length ? 400 : 200),
   );
+}
+
+// The form's GET answers a browser only. Every current browser sends
+// Sec-Fetch-Mode with a navigation, whatever site the link sat on (a link in
+// an emailed message arrives as a cross-site navigate), and an older one
+// still sends the profile's address as Referer when the form is opened from
+// it. A plain HTTP client sends neither, and scrapers that ignore robots.txt
+// fetched these forms by the tens of thousands. The refusal reads no data
+// file. Both headers can be forged, so this keeps off the casual scraper
+// only; the per-address page limit stays the brake. The POST is not checked,
+// since a refusal there would throw away what was typed. The corrections form
+// is linked from outside the site and stays open to any client.
+export async function respondPage(c: Context<AppEnv>): Promise<Response> {
+  const id = c.req.param("id") ?? "";
+  const headers = c.req.raw.headers;
+  if (EMPLOYER_ID_RE.test(id) && !headers.has("sec-fetch-mode") && !isOwnAddress(headers.get("referer"), c.req.url)) {
+    const lang = c.get("lang");
+    c.header("Cache-Control", "private, no-store");
+    c.header("Vary", "Sec-Fetch-Mode, Referer");
+    return c.text(t(lang, "form.browser_only", { url: canonicalUrl(`/employers/${id}`, lang) }), 403);
+  }
+  return respondForm(c);
 }
 
 export async function respondSubmit(c: Context<AppEnv>): Promise<Response> {
